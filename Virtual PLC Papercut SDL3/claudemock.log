@@ -1,0 +1,111 @@
+request 1 (23411 bytes)
+  ok   path /v1/messages
+  ok   x-api-key header
+  ok   anthropic-version 2023-06-01
+  ok   fallback beta header
+  ok   model claude-opus-5-5
+  ok   max_tokens 16000
+  ok   fallbacks "default"
+  ok   effort high
+  ok   thinking left at the model default (adaptive)
+  ok   prompt caching
+  ok   the 13 tools
+  ok   every tool has an input_schema
+  ok   the system prompt
+  ok   roles alternate, the first is user: ['user']
+  ok   the conversation grows by one answer and one result (1 messages)
+  ok   the user message carries the editor context (the text last)
+  ok   the TXT attachment: a text document block, UTF-8 Thai intact
+  ok   the JPG attachment: sent as it is, a base64 JPEG image block
+  ok   the BMP attachment: sent as a base64 PNG image block
+  ok   the files go before the text
+request 2 (24885 bytes)
+  ok   path /v1/messages
+  ok   x-api-key header
+  ok   anthropic-version 2023-06-01
+  ok   fallback beta header
+  ok   model claude-opus-5-5
+  ok   max_tokens 16000
+  ok   fallbacks "default"
+  ok   effort high
+  ok   thinking left at the model default (adaptive)
+  ok   prompt caching
+  ok   the 13 tools
+  ok   every tool has an input_schema
+  ok   the system prompt
+  ok   roles alternate, the first is user: ['user', 'assistant', 'user']
+  ok   the conversation grows by one answer and one result (3 messages)
+  ok   answer 1 echoed unchanged
+  ok   answer 1: one user message with the results ['toolu_m1'] (got ['toolu_m1'])
+  ok   get_block returned FC2 "Clamp"
+request 3 (25694 bytes)
+  ok   path /v1/messages
+  ok   x-api-key header
+  ok   anthropic-version 2023-06-01
+  ok   fallback beta header
+  ok   model claude-opus-5-5
+  ok   max_tokens 16000
+  ok   fallbacks "default"
+  ok   effort high
+  ok   thinking left at the model default (adaptive)
+  ok   prompt caching
+  ok   the 13 tools
+  ok   every tool has an input_schema
+  ok   the system prompt
+  ok   roles alternate, the first is user: ['user', 'assistant', 'user', 'assistant', 'user']
+  ok   the conversation grows by one answer and one result (5 messages)
+  ok   answer 1 echoed unchanged
+  ok   answer 1: one user message with the results ['toolu_m1'] (got ['toolu_m1'])
+  ok   answer 2 echoed unchanged
+  ok   answer 2: one user message with the results ['toolu_m2', 'toolu_m3'] (got ['toolu_m2', 'toolu_m3'])
+  ok   write_network compiled without errors
+  ok   compile ran
+request 4 (26017 bytes)
+  ok   path /v1/messages
+  ok   x-api-key header
+  ok   anthropic-version 2023-06-01
+  ok   fallback beta header
+  ok   model claude-opus-5-5
+  ok   max_tokens 16000
+  ok   fallbacks "default"
+  ok   effort high
+  ok   thinking left at the model default (adaptive)
+  ok   prompt caching
+  ok   the 13 tools
+  ok   every tool has an input_schema
+  ok   the system prompt
+  ok   roles alternate, the first is user: ['user', 'assistant', 'user', 'assistant', 'user', 'assistant', 'user']
+  ok   the conversation grows by one answer and one result (7 messages)
+  ok   answer 1 echoed unchanged
+  ok   answer 1: one user message with the results ['toolu_m1'] (got ['toolu_m1'])
+  ok   answer 2 echoed unchanged
+  ok   answer 2: one user message with the results ['toolu_m2', 'toolu_m3'] (got ['toolu_m2', 'toolu_m3'])
+  ok   answer 3 echoed unchanged
+  ok   answer 3: one user message with the results ['toolu_m4'] (got ['toolu_m4'])
+  ok   download_and_run: allowed and downloaded
+request 5 (26417 bytes)
+  ok   path /v1/messages
+  ok   x-api-key header
+  ok   anthropic-version 2023-06-01
+  ok   fallback beta header
+  ok   model claude-opus-5-5
+  ok   max_tokens 16000
+  ok   fallbacks "default"
+  ok   effort high
+  ok   thinking left at the model default (adaptive)
+  ok   prompt caching
+  ok   the 13 tools
+  ok   every tool has an input_schema
+  ok   the system prompt
+  ok   roles alternate, the first is user: ['user', 'assistant', 'user', 'assistant', 'user', 'assistant', 'user', 'assistant', 'user']
+  ok   the conversation grows by one answer and one result (9 messages)
+  ok   answer 1 echoed unchanged
+  ok   answer 1: one user message with the results ['toolu_m1'] (got ['toolu_m1'])
+  ok   answer 2 echoed unchanged
+  ok   answer 2: one user message with the results ['toolu_m2', 'toolu_m3'] (got ['toolu_m2', 'toolu_m3'])
+  ok   answer 3 echoed unchanged
+  ok   answer 3: one user message with the results ['toolu_m4'] (got ['toolu_m4'])
+  ok   answer 4 echoed unchanged
+  ok   answer 4: one user message with the results ['toolu_m5'] (got ['toolu_m5'])
+  ok   read_values in RUN: { "cpu_mode" : "Run", "values" : { "%MW100" : "10", "\"Motor\".SpeedRpm" : "750.0" } }
+0 checks failed
