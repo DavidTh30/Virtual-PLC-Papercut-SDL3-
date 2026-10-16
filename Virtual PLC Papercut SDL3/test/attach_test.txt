@@ -1,0 +1,3 @@
+Pump P1 notes
+ปุ่มสตาร์ท I1.0, ปุ่มหยุด I1.1 (NC)
+Overload I1.2 = TRUE when OK

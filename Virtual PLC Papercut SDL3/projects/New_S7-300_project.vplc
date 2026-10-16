@@ -1,0 +1,205 @@
+{
+  "format" : "VirtualPLC",
+  "version" : 1,
+  "name" : "New S7-300 project Test",
+  "author" : "Test",
+  "comment" : "Test",
+  "cpu" : "CPU 315-2 PN/DP",
+  "family" : "S7-300",
+  "cyclicMs" : 100,
+  "clockByte" : 0,
+  "blocks" : [
+    {
+      "kind" : "OB",
+      "number" : 1,
+      "name" : "Main",
+      "comment" : "Main program cycle",
+      "networks" : [
+        {
+          "title" : "Copy MB0 to QB4",
+          "comment" : "",
+          "lang" : "SCL",
+          "scl" : [
+            "// Copy memory byte MB0 to output byte QB4 every cycle",
+            "\"Output_Byte\" := \"Source_Byte\";"
+          ]
+        }
+      ]
+    },
+    {
+      "kind" : "FC",
+      "number" : 1,
+      "name" : "Function 1",
+      "comment" : "",
+      "networks" : [
+        {
+          "title" : "",
+          "comment" : "",
+          "lang" : "SCL",
+          "scl" : [
+          ]
+        }
+      ]
+    }
+  ],
+  "dbs" : [
+  ],
+  "tags" : [
+    {
+      "name" : "Source_Byte",
+      "type" : "Byte",
+      "address" : "MB0",
+      "comment" : "Memory byte copied to QB4"
+    },
+    {
+      "name" : "Output_Byte",
+      "type" : "Byte",
+      "address" : "QB4",
+      "comment" : "Outputs Q4.0..Q4.7 = MB0"
+    }
+  ],
+  "watch" : [
+  ],
+  "diTypes" : [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "aiChannels" : [
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    }
+  ],
+  "comm" : {
+    "s7" : true,
+    "s7Port" : 102,
+    "modbus" : true,
+    "modbusPort" : 502,
+    "modbusUnit" : 1,
+    "holding" : "M",
+    "putGet" : false,
+    "allInterfaces" : false
+  }
+}

@@ -1,0 +1,1046 @@
+{
+  "format" : "VirtualPLC",
+  "version" : 1,
+  "name" : "Motor start/stop (S7-1200)",
+  "author" : "Virtual PLC",
+  "comment" : "Motor with self holding, start-up timer, start counter, analog speed and run time in the cyclic interrupt",
+  "cpu" : "CPU 1214C DC/DC/DC",
+  "family" : "S7-1200",
+  "cyclicMs" : 100,
+  "clockByte" : 0,
+  "blocks" : [
+    {
+      "kind" : "OB",
+      "number" : 1,
+      "name" : "Main",
+      "comment" : "Program cycle",
+      "networks" : [
+        {
+          "title" : "Motor start / stop with self holding",
+          "comment" : "Stop_PB is wired NC: the contact is a NO contact on the input (fail safe)",
+          "lang" : "LAD",
+          "rows" : 2,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "no",
+              "op" : "\"Start_PB\"",
+              "down" : true
+            },
+            {
+              "r" : 0,
+              "c" : 1,
+              "e" : "no",
+              "op" : "\"Stop_PB\""
+            },
+            {
+              "r" : 0,
+              "c" : 2,
+              "e" : "no",
+              "op" : "\"Overload_OK\""
+            },
+            {
+              "r" : 0,
+              "c" : 3,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 4,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 5,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 6,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 7,
+              "e" : "coil",
+              "op" : "\"Motor\""
+            },
+            {
+              "r" : 1,
+              "c" : 0,
+              "e" : "no",
+              "op" : "\"Motor\""
+            }
+          ]
+        },
+        {
+          "title" : "Start-up timer: full speed after 5 s",
+          "comment" : "",
+          "lang" : "LAD",
+          "rows" : 1,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "no",
+              "op" : "\"Motor\""
+            },
+            {
+              "r" : 0,
+              "c" : 1,
+              "e" : "ton",
+              "op" : "\"Motor\".StartDelay",
+              "p" : [
+                "T#5S",
+                ""
+              ]
+            },
+            {
+              "r" : 0,
+              "c" : 2,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 3,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 4,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 5,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 6,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 7,
+              "e" : "coil",
+              "op" : "\"Full_Speed\""
+            }
+          ]
+        },
+        {
+          "title" : "Start counter: service after 5 starts",
+          "comment" : "",
+          "lang" : "LAD",
+          "rows" : 1,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "no",
+              "op" : "\"Motor\""
+            },
+            {
+              "r" : 0,
+              "c" : 1,
+              "e" : "ctu",
+              "op" : "\"Motor\".Starts",
+              "p" : [
+                "5",
+                "\"Reset_Count\"",
+                "MW20"
+              ]
+            },
+            {
+              "r" : 0,
+              "c" : 2,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 3,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 4,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 5,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 6,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 7,
+              "e" : "coil",
+              "op" : "\"Service_Due\""
+            }
+          ]
+        },
+        {
+          "title" : "Starting lamp flashes with the 1 Hz clock",
+          "comment" : "",
+          "lang" : "LAD",
+          "rows" : 1,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "no",
+              "op" : "\"Motor\""
+            },
+            {
+              "r" : 0,
+              "c" : 1,
+              "e" : "nc",
+              "op" : "\"Full_Speed\""
+            },
+            {
+              "r" : 0,
+              "c" : 2,
+              "e" : "no",
+              "op" : "\"Clock_1Hz\""
+            },
+            {
+              "r" : 0,
+              "c" : 3,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 4,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 5,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 6,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 7,
+              "e" : "coil",
+              "op" : "\"Starting_Lamp\""
+            }
+          ]
+        },
+        {
+          "title" : "Analog speed: NORM_X + SCALE_X, overspeed above 1200 rpm",
+          "comment" : "",
+          "lang" : "LAD",
+          "rows" : 2,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "normx",
+              "p" : [
+                "0",
+                "\"Speed_AI\"",
+                "27648",
+                "\"Motor\".SpeedNorm"
+              ],
+              "type" : "Int"
+            },
+            {
+              "r" : 0,
+              "c" : 1,
+              "e" : "scalex",
+              "p" : [
+                "0.0",
+                "\"Motor\".SpeedNorm",
+                "1500.0",
+                "\"Motor\".SpeedRpm"
+              ],
+              "type" : "Real"
+            },
+            {
+              "r" : 1,
+              "c" : 0,
+              "e" : "cmp",
+              "p" : [
+                "\"Motor\".SpeedRpm",
+                "1200.0"
+              ],
+              "type" : "Real",
+              "cmp" : ">"
+            },
+            {
+              "r" : 1,
+              "c" : 1,
+              "e" : "wire"
+            },
+            {
+              "r" : 1,
+              "c" : 2,
+              "e" : "wire"
+            },
+            {
+              "r" : 1,
+              "c" : 3,
+              "e" : "wire"
+            },
+            {
+              "r" : 1,
+              "c" : 4,
+              "e" : "wire"
+            },
+            {
+              "r" : 1,
+              "c" : 5,
+              "e" : "wire"
+            },
+            {
+              "r" : 1,
+              "c" : 6,
+              "e" : "wire"
+            },
+            {
+              "r" : 1,
+              "c" : 7,
+              "e" : "coil",
+              "op" : "\"Overspeed\""
+            }
+          ]
+        },
+        {
+          "title" : "Copy of the motor state into the DB",
+          "comment" : "",
+          "lang" : "LAD",
+          "rows" : 1,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "no",
+              "op" : "\"Motor\""
+            },
+            {
+              "r" : 0,
+              "c" : 1,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 2,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 3,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 4,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 5,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 6,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 7,
+              "e" : "coil",
+              "op" : "\"Motor\".Running"
+            }
+          ]
+        },
+        {
+          "title" : "Speed statistics in SCL (FC1)",
+          "comment" : "",
+          "lang" : "LAD",
+          "rows" : 1,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "call",
+              "op" : "FC1"
+            }
+          ]
+        },
+        {
+          "title" : "Speed limit: FC2 with parameters in a LAD CALL box",
+          "comment" : "the pins are the FC interface: Value, Lo, Hi, Limited =>, Ret_Val =>",
+          "lang" : "LAD",
+          "rows" : 1,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "no",
+              "op" : "\"Motor\".Running"
+            },
+            {
+              "r" : 0,
+              "c" : 1,
+              "e" : "call",
+              "op" : "FC2",
+              "args" : "\"Motor\".SpeedRpm|0.0|1000.0|\"Motor\".OverLimit|\"Motor\".SpeedLim"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind" : "OB",
+      "number" : 30,
+      "name" : "Cyclic interrupt",
+      "comment" : "every 100 ms",
+      "networks" : [
+        {
+          "title" : "Run time in 100 ms steps",
+          "comment" : "",
+          "lang" : "LAD",
+          "rows" : 1,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "no",
+              "op" : "\"Motor\""
+            },
+            {
+              "r" : 0,
+              "c" : 1,
+              "e" : "add",
+              "p" : [
+                "\"Motor\".RunTime",
+                "1",
+                "\"Motor\".RunTime"
+              ],
+              "type" : "DInt"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind" : "OB",
+      "number" : 100,
+      "name" : "Startup",
+      "comment" : "",
+      "networks" : [
+        {
+          "title" : "Count the CPU start-ups",
+          "comment" : "",
+          "lang" : "LAD",
+          "rows" : 1,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "add",
+              "p" : [
+                "\"Motor\".Startups",
+                "1",
+                "\"Motor\".Startups"
+              ],
+              "type" : "Int"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind" : "FC",
+      "number" : 1,
+      "name" : "SpeedStats",
+      "comment" : "written in SCL",
+      "networks" : [
+        {
+          "title" : "Speed history, average, class and run seconds",
+          "comment" : "SCL: REGION, an array of a PLC data type with a variable index, CASE ranges, an FB call",
+          "lang" : "SCL",
+          "scl" : [
+            "VAR_TEMP",
+            "    i : Int;",
+            "    sum : DInt;",
+            "    lim : Bool;",
+            "END_VAR",
+            "",
+            "REGION speed history and average, once per second",
+            "    IF \"Clock_1Hz\" AND NOT \"Motor\".ClockOld THEN",
+            "        FOR #i := 3 TO 1 BY -1 DO",
+            "            \"Motor\".History[#i] := \"Motor\".History[#i - 1];   // the whole struct",
+            "        END_FOR;",
+            "        \"Motor\".History[0].Rpm := REAL_TO_INT(\"Motor\".SpeedRpm);",
+            "        \"Motor\".History[0].Running := \"Motor\".Running;",
+            "        #sum := 0;",
+            "        FOR #i := 0 TO 3 DO",
+            "            #sum := #sum + \"Motor\".History[#i].Rpm;",
+            "        END_FOR;",
+            "        \"Motor\".AvgRpm := \"Clamp\"(Value := DINT_TO_REAL(#sum) / 4.0,",
+            "                                  Lo := 0.0, Hi := 1200.0, Limited => #lim);",
+            "    END_IF;",
+            "    \"Motor\".ClockOld := \"Clock_1Hz\";",
+            "END_REGION",
+            "",
+            "REGION speed class for the HMI",
+            "    CASE REAL_TO_INT(\"Motor\".SpeedRpm) OF",
+            "        0..499:",
+            "            \"Motor\".SpeedClass := 1;",
+            "        500..999:",
+            "            \"Motor\".SpeedClass := 2;",
+            "        1000..1200:",
+            "            \"Motor\".SpeedClass := 3;",
+            "    ELSE",
+            "        \"Motor\".SpeedClass := 4;",
+            "    END_CASE;",
+            "END_REGION",
+            "",
+            "// an FB with parameters: the run seconds are counted in its instance DB",
+            "\"RunMeter_DB\"(Run := \"Motor\".Running, Seconds => \"Motor\".Seconds);"
+          ]
+        }
+      ]
+    },
+    {
+      "kind" : "FC",
+      "number" : 2,
+      "name" : "Clamp",
+      "comment" : "limit a value (an FC with a Return value)",
+      "interface" : [
+        {
+          "section" : "Input",
+          "name" : "Value",
+          "type" : "Real",
+          "start" : "",
+          "comment" : "the value"
+        },
+        {
+          "section" : "Input",
+          "name" : "Lo",
+          "type" : "Real",
+          "start" : "",
+          "comment" : "lower limit"
+        },
+        {
+          "section" : "Input",
+          "name" : "Hi",
+          "type" : "Real",
+          "start" : "",
+          "comment" : "upper limit"
+        },
+        {
+          "section" : "Output",
+          "name" : "Limited",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "TRUE when the value was outside"
+        },
+        {
+          "section" : "Return",
+          "name" : "Ret_Val",
+          "type" : "Real",
+          "start" : "",
+          "comment" : "the limited value"
+        }
+      ],
+      "networks" : [
+        {
+          "title" : "Limit Value to Lo..Hi",
+          "comment" : "SCL in an FC: the parameters are in its local data, #Ret_Val is the function value",
+          "lang" : "SCL",
+          "scl" : [
+            "#Ret_Val := LIMIT(MN := #Lo, IN := #Value, MX := #Hi);",
+            "#Limited := #Ret_Val <> #Value;"
+          ]
+        }
+      ]
+    },
+    {
+      "kind" : "FB",
+      "number" : 1,
+      "name" : "RunMeter",
+      "comment" : "run seconds (SCL, an IEC timer in the instance)",
+      "interface" : [
+        {
+          "section" : "Input",
+          "name" : "Run",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "count while TRUE"
+        },
+        {
+          "section" : "Output",
+          "name" : "Seconds",
+          "type" : "DInt",
+          "start" : "0",
+          "comment" : "run seconds"
+        },
+        {
+          "section" : "Static",
+          "name" : "Pulse",
+          "type" : "IEC_TIMER",
+          "start" : "",
+          "comment" : "one pulse per second"
+        }
+      ],
+      "networks" : [
+        {
+          "title" : "Count the seconds while Run",
+          "comment" : "SCL in an FB: #Run, #Seconds and #Pulse live in the instance DB",
+          "lang" : "SCL",
+          "scl" : [
+            "#Pulse.TON(IN := #Run AND NOT #Pulse.Q, PT := T#1S);",
+            "IF #Pulse.Q THEN",
+            "    #Seconds := #Seconds + 1;",
+            "END_IF;"
+          ]
+        }
+      ]
+    }
+  ],
+  "types" : [
+    {
+      "number" : 1,
+      "name" : "SpeedSample",
+      "comment" : "one entry of the speed history",
+      "members" : [
+        {
+          "name" : "Rpm",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "speed in rpm"
+        },
+        {
+          "name" : "Running",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "motor running at the sample"
+        }
+      ]
+    }
+  ],
+  "dbs" : [
+    {
+      "number" : 1,
+      "name" : "Motor",
+      "comment" : "motor data",
+      "optimized" : false,
+      "vars" : [
+        {
+          "name" : "SpeedRpm",
+          "type" : "Real",
+          "start" : "0.0",
+          "comment" : "scaled speed"
+        },
+        {
+          "name" : "RunTime",
+          "type" : "DInt",
+          "start" : "0",
+          "comment" : "run time in 100 ms (cyclic interrupt)"
+        },
+        {
+          "name" : "Startups",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "CPU start-ups (OB100)"
+        },
+        {
+          "name" : "Running",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "copy of the motor contactor"
+        },
+        {
+          "name" : "SpeedNorm",
+          "type" : "Real",
+          "start" : "0.0",
+          "comment" : "speed 0..1 (NORM_X)"
+        },
+        {
+          "name" : "StartDelay",
+          "type" : "IEC_TIMER",
+          "start" : "",
+          "comment" : "TON: star -> delta after 5 s"
+        },
+        {
+          "name" : "Starts",
+          "type" : "IEC_COUNTER",
+          "start" : "",
+          "comment" : "CTU: motor starts"
+        },
+        {
+          "name" : "History",
+          "type" : "Array[0..3] of \"SpeedSample\"",
+          "start" : "",
+          "comment" : "speed history (FC1, SCL): array of a PLC data type"
+        },
+        {
+          "name" : "AvgRpm",
+          "type" : "Real",
+          "start" : "0.0",
+          "comment" : "average of the history (FC1, SCL)"
+        },
+        {
+          "name" : "SpeedClass",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "1 slow .. 4 too fast (FC1, SCL CASE)"
+        },
+        {
+          "name" : "ClockOld",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "edge memory of the 1 Hz clock"
+        },
+        {
+          "name" : "Seconds",
+          "type" : "DInt",
+          "start" : "0",
+          "comment" : "motor run seconds (FB1 \"RunMeter\")"
+        },
+        {
+          "name" : "OverLimit",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "speed above 1000 rpm (FC2 in LAD)"
+        },
+        {
+          "name" : "SpeedLim",
+          "type" : "Real",
+          "start" : "0.0",
+          "comment" : "speed limited to 0..1000 rpm (FC2 in LAD)"
+        }
+      ]
+    },
+    {
+      "number" : 2,
+      "name" : "RunMeter_DB",
+      "comment" : "",
+      "optimized" : false,
+      "instanceOf" : 1,
+      "vars" : [
+        {
+          "name" : "Run",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "count while TRUE"
+        },
+        {
+          "name" : "Seconds",
+          "type" : "DInt",
+          "start" : "0",
+          "comment" : "run seconds"
+        },
+        {
+          "name" : "Pulse",
+          "type" : "IEC_TIMER",
+          "start" : "",
+          "comment" : "one pulse per second"
+        }
+      ]
+    }
+  ],
+  "tags" : [
+    {
+      "name" : "Start_PB",
+      "type" : "Bool",
+      "address" : "%I0.0",
+      "comment" : "start push button (NO)"
+    },
+    {
+      "name" : "Stop_PB",
+      "type" : "Bool",
+      "address" : "%I0.1",
+      "comment" : "stop push button, wired NC: 1 = not pressed"
+    },
+    {
+      "name" : "Overload_OK",
+      "type" : "Bool",
+      "address" : "%I0.2",
+      "comment" : "motor protection switch, 1 = healthy"
+    },
+    {
+      "name" : "Reset_Count",
+      "type" : "Bool",
+      "address" : "%I0.3",
+      "comment" : "resets the start counter"
+    },
+    {
+      "name" : "Motor",
+      "type" : "Bool",
+      "address" : "%Q0.0",
+      "comment" : "motor contactor"
+    },
+    {
+      "name" : "Full_Speed",
+      "type" : "Bool",
+      "address" : "%Q0.1",
+      "comment" : "start-up finished (star -> delta)"
+    },
+    {
+      "name" : "Service_Due",
+      "type" : "Bool",
+      "address" : "%Q0.2",
+      "comment" : "start counter reached its preset"
+    },
+    {
+      "name" : "Starting_Lamp",
+      "type" : "Bool",
+      "address" : "%Q0.3",
+      "comment" : "flashes 1 Hz during start-up"
+    },
+    {
+      "name" : "Overspeed",
+      "type" : "Bool",
+      "address" : "%Q0.4",
+      "comment" : "speed above 1200 rpm"
+    },
+    {
+      "name" : "Clock_1Hz",
+      "type" : "Bool",
+      "address" : "%M0.5",
+      "comment" : "clock memory byte MB0"
+    },
+    {
+      "name" : "Start_Edge",
+      "type" : "Bool",
+      "address" : "%M10.0",
+      "comment" : "edge memory of the motor start"
+    },
+    {
+      "name" : "Speed_AI",
+      "type" : "Int",
+      "address" : "%IW64",
+      "comment" : "speed sensor 0..10 V = 0..27648"
+    }
+  ],
+  "watch" : [
+    {
+      "address" : "\"Motor\"",
+      "format" : "BOOL",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Start_PB\"",
+      "format" : "BOOL",
+      "modify" : "TRUE"
+    },
+    {
+      "address" : "\"Stop_PB\"",
+      "format" : "BOOL",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Motor\".StartDelay.ET",
+      "format" : "TIME",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Motor\".Starts.CV",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "MW20",
+      "format" : "DEC",
+      "modify" : "0"
+    },
+    {
+      "address" : "\"Speed_AI\"",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Motor\".SpeedRpm",
+      "format" : "REAL",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Motor\".RunTime",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Motor\".Startups",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "MB0",
+      "format" : "BIN",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Motor\".AvgRpm",
+      "format" : "REAL",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Motor\".SpeedClass",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Motor\".Seconds",
+      "format" : "DEC",
+      "modify" : ""
+    }
+  ],
+  "diTypes" : [
+    1,
+    2,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "aiChannels" : [
+    {
+      "mode" : "manual",
+      "value" : 13824
+    },
+    {
+      "mode" : "sine",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    }
+  ],
+  "comm" : {
+    "s7" : true,
+    "s7Port" : 102,
+    "modbus" : true,
+    "modbusPort" : 502,
+    "modbusUnit" : 1,
+    "holding" : "M",
+    "putGet" : true,
+    "allInterfaces" : false
+  }
+}
