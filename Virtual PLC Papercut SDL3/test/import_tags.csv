@@ -1,0 +1,4 @@
+Name;Path;Data Type;Logical Address;Comment
+New_Lamp;Default tag table;Bool;%Q1.5;"from TIA, ปุ่มทดสอบ"
+Motor;Default tag table;Bool;%Q0.0;updated by the import
+Level;Default tag table;Int;%IW8;tank level

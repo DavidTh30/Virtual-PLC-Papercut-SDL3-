@@ -1,0 +1,312 @@
+{
+  "format" : "VirtualPLC",
+  "version" : 1,
+  "name" : "Car wash sequence (S7-1500)",
+  "author" : "Virtual PLC examples",
+  "comment" : "SCL step chain: Start (I0.0) with the car in place (I0.1): pre-wash 4 s, soap 6 s, brushes 8 s, rinse 5 s, dry 6 s, then Done. Emergency stop (I0.2, NC) aborts.",
+  "cpu" : "CPU 1516-3 PN/DP",
+  "family" : "S7-1500",
+  "cyclicMs" : 100,
+  "clockByte" : 0,
+  "blocks" : [
+    {
+      "kind" : "OB",
+      "number" : 1,
+      "name" : "Main",
+      "comment" : "Main program cycle",
+      "networks" : [
+        {
+          "title" : "Step chain",
+          "comment" : "every step has its time",
+          "lang" : "SCL",
+          "scl" : [
+            "IF NOT \"EStop_OK\" THEN",
+            "    \"Wash\".Step := 0;",
+            "ELSIF (\"Wash\".Step = 0) AND \"Start_PB\" AND \"Car_In_Place\" THEN",
+            "    \"Wash\".Step := 1;",
+            "ELSIF (\"Wash\".Step = 6) AND NOT \"Car_In_Place\" THEN",
+            "    \"Wash\".Step := 0;",
+            "END_IF;",
+            "CASE \"Wash\".Step OF",
+            "    1: \"Wash\".Dur := T#4S;",
+            "    2: \"Wash\".Dur := T#6S;",
+            "    3: \"Wash\".Dur := T#8S;",
+            "    4: \"Wash\".Dur := T#5S;",
+            "    5: \"Wash\".Dur := T#6S;",
+            "ELSE",
+            "    \"Wash\".Dur := T#0MS;",
+            "END_CASE;",
+            "\"Wash\".T.TON(IN := (\"Wash\".Step >= 1) AND (\"Wash\".Step <= 5) AND NOT \"Wash\".T.Q, PT := \"Wash\".Dur);",
+            "IF \"Wash\".T.Q THEN \"Wash\".Step := \"Wash\".Step + 1; END_IF;"
+          ]
+        },
+        {
+          "title" : "Outputs",
+          "comment" : "",
+          "lang" : "SCL",
+          "scl" : [
+            "\"Water\" := (\"Wash\".Step = 1) OR (\"Wash\".Step = 4);",
+            "\"Soap\" := \"Wash\".Step = 2;",
+            "\"Brushes\" := (\"Wash\".Step = 2) OR (\"Wash\".Step = 3);",
+            "\"Dryer\" := \"Wash\".Step = 5;",
+            "\"Done_Lamp\" := \"Wash\".Step = 6;",
+            "\"Busy_Lamp\" := (\"Wash\".Step >= 1) AND (\"Wash\".Step <= 5) AND \"Clock_1Hz\";"
+          ]
+        }
+      ]
+    }
+  ],
+  "dbs" : [
+    {
+      "number" : 1,
+      "name" : "Wash",
+      "comment" : "",
+      "optimized" : false,
+      "vars" : [
+        {
+          "name" : "Step",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "0 idle, 1 pre-wash, 2 soap, 3 brushes, 4 rinse, 5 dry, 6 done"
+        },
+        {
+          "name" : "T",
+          "type" : "IEC_TIMER",
+          "start" : "",
+          "comment" : "step time"
+        },
+        {
+          "name" : "Dur",
+          "type" : "Time",
+          "start" : "T#0MS",
+          "comment" : "the time of the step"
+        }
+      ]
+    }
+  ],
+  "tags" : [
+    {
+      "name" : "Clock_2Hz",
+      "type" : "Bool",
+      "address" : "%M0.3",
+      "comment" : "clock memory 2 Hz"
+    },
+    {
+      "name" : "Clock_1Hz",
+      "type" : "Bool",
+      "address" : "%M0.5",
+      "comment" : "clock memory 1 Hz"
+    },
+    {
+      "name" : "Start_PB",
+      "type" : "Bool",
+      "address" : "%I0.0",
+      "comment" : "start"
+    },
+    {
+      "name" : "Car_In_Place",
+      "type" : "Bool",
+      "address" : "%I0.1",
+      "comment" : "switch: car in position"
+    },
+    {
+      "name" : "EStop_OK",
+      "type" : "Bool",
+      "address" : "%I0.2",
+      "comment" : "emergency stop, NC"
+    },
+    {
+      "name" : "Water",
+      "type" : "Bool",
+      "address" : "%Q0.0",
+      "comment" : "water valve"
+    },
+    {
+      "name" : "Soap",
+      "type" : "Bool",
+      "address" : "%Q0.1",
+      "comment" : "soap pump"
+    },
+    {
+      "name" : "Brushes",
+      "type" : "Bool",
+      "address" : "%Q0.2",
+      "comment" : "brush motor"
+    },
+    {
+      "name" : "Dryer",
+      "type" : "Bool",
+      "address" : "%Q0.3",
+      "comment" : "dryer fan"
+    },
+    {
+      "name" : "Done_Lamp",
+      "type" : "Bool",
+      "address" : "%Q0.4",
+      "comment" : "drive out"
+    },
+    {
+      "name" : "Busy_Lamp",
+      "type" : "Bool",
+      "address" : "%Q0.5",
+      "comment" : "washing"
+    }
+  ],
+  "watch" : [
+    {
+      "address" : "\"Wash\".Step",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Wash\".T.ET",
+      "format" : "TIME",
+      "modify" : ""
+    }
+  ],
+  "diTypes" : [
+    1,
+    0,
+    2,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "aiChannels" : [
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    }
+  ],
+  "comm" : {
+    "s7" : true,
+    "s7Port" : 102,
+    "modbus" : true,
+    "modbusPort" : 502,
+    "modbusUnit" : 1,
+    "holding" : "M",
+    "putGet" : true,
+    "allInterfaces" : false,
+    "ip" : "127.0.0.1",
+    "mask" : "255.255.255.0",
+    "ipc" : false
+  }
+}

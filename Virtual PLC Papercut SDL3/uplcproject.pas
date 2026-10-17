@@ -40,7 +40,8 @@ type
   TNetKind = (nkLAD, nkSTL, nkSCL);
   TLadKind = (lkEmpty, lkWire, lkNO, lkNC, lkPos, lkNeg, lkNot, lkCoil, lkCoilNeg, lkSet, lkReset,
     lkTON, lkTOF, lkTP, lkTONR, lkSD, lkSE, lkSP, lkSS, lkSF, lkCU, lkCD, lkSC,
-    lkCTU, lkCTD, lkCTUD, lkCmp, lkMove, lkAdd, lkSub, lkMul, lkDiv, lkNormX, lkScaleX, lkCall);
+    lkCTU, lkCTD, lkCTUD, lkCmp, lkMove, lkAdd, lkSub, lkMul, lkDiv, lkNormX, lkScaleX, lkCall,
+    lkInRange, lkOutRange, lkConv, lkRound, lkTrunc, lkCeil, lkFloor);
   TCmpOp = (coEQ, coNE, coGT, coLT, coGE, coLE);
   TBlockKind = (bkOB, bkFC, bkFB);
   TIntArray = array of Integer;
@@ -56,6 +57,7 @@ type
     Opnd: string;
     P: array[0..4] of string;
     DType: TDataType;
+    DType2: TDataType;  // CONV, ROUND, TRUNC, CEIL, FLOOR: the type of OUT (DType is the one of IN)
     Cmp: TCmpOp;
     Down: Boolean;
     Args: string;     // lkCall: the actual parameters in pin order (CallPins), separated by |
@@ -169,6 +171,9 @@ type
     MbHRDB: Integer;
     PutGet: Boolean;        // S7-1200: permit PUT/GET communication from remote partners
     AllIfaces: Boolean;     // listen on every network interface, else 127.0.0.1 only
+    IpAddr: string;         // where the servers listen: 127.0.0.1, 0.0.0.0 (all) or an address of this PC
+    Mask: string;           // the subnet mask of the interface (shown, saved)
+    IpcOn: Boolean;         // the IPC server (the named pipe \\.\pipe\VirtualPLC) for programs on this PC
   end;
 
   TIoChannel = record
@@ -233,6 +238,8 @@ type
     function CyclicOB: Integer;
     procedure SaveToFile(const AFile: string);
     procedure LoadFromFile(const AFile: string);
+    function ToJsonText(Pretty: Boolean = True): string;   // the project file's text
+    procedure LoadFromJsonText(const S: string);           // FileName stays
     procedure NewEmpty(AModel: Integer);
     procedure LoadSample(AModel: Integer);
   end;
@@ -242,10 +249,12 @@ const
     'N contact', 'NOT', 'Coil', 'Negated coil', 'Set coil', 'Reset coil',
     'TON', 'TOF', 'TP', 'TONR', 'SD on-delay', 'SE ext. pulse', 'SP pulse', 'SS ret. on-delay',
     'SF off-delay', 'CU count up', 'CD count down', 'SC set counter',
-    'CTU', 'CTD', 'CTUD', 'CMP', 'MOVE', 'ADD', 'SUB', 'MUL', 'DIV', 'NORM_X', 'SCALE_X', 'CALL');
+    'CTU', 'CTD', 'CTUD', 'CMP', 'MOVE', 'ADD', 'SUB', 'MUL', 'DIV', 'NORM_X', 'SCALE_X', 'CALL',
+    'IN_RANGE', 'OUT_RANGE', 'CONV', 'ROUND', 'TRUNC', 'CEIL', 'FLOOR');
   LadKindIds: array[TLadKind] of string = ('', 'wire', 'no', 'nc', 'p', 'n', 'not', 'coil', 'ncoil',
     'set', 'reset', 'ton', 'tof', 'tp', 'tonr', 'sd', 'se', 'sp', 'ss', 'sf', 'cu', 'cd', 'sc',
-    'ctu', 'ctd', 'ctud', 'cmp', 'move', 'add', 'sub', 'mul', 'div', 'normx', 'scalex', 'call');
+    'ctu', 'ctd', 'ctud', 'cmp', 'move', 'add', 'sub', 'mul', 'div', 'normx', 'scalex', 'call',
+    'inrange', 'outrange', 'conv', 'round', 'trunc', 'ceil', 'floor');
   CmpOpNames: array[TCmpOp] of string = ('==', '<>', '>', '<', '>=', '<=');
   DispFmtNames: array[TDispFmt] of string = ('BOOL', 'DEC', 'HEX', 'BIN', 'REAL', 'TIME', 'S5TIME',
     'COUNTER', 'CHAR');
@@ -254,8 +263,12 @@ const
 
 function DefaultComm: TCommSettings;
 function HoldingText(const C: TCommSettings): string;
+function IsIPv4(const S: string): Boolean;         // a.b.c.d, each 0..255
+function CommIp(const C: TCommSettings): string;    // the listen address (from the older AllIfaces too)
 function SetHolding(var C: TCommSettings; const S: string): Boolean;
 function IsBox(K: TLadKind): Boolean;
+function LadHasType(K: TLadKind): Boolean;    // a box with a data type (DType)
+function LadHasType2(K: TLadKind): Boolean;   // ... and a second one for OUT (DType2): the converters
 function IsCoilKind(K: TLadKind): Boolean;
 { parameter names of an element: index -1 = Opnd, 0..4 = P[] }
 function LadParamCount(K: TLadKind): Integer;
@@ -301,6 +314,46 @@ begin
   Result.MbHRDB := 0;
   Result.PutGet := False;
   Result.AllIfaces := False;
+  Result.IpAddr := '127.0.0.1';
+  Result.Mask := '255.255.255.0';
+  Result.IpcOn := False;
+end;
+
+function IsIPv4(const S: string): Boolean;
+var
+  K, N, V, Dots: Integer;
+  T: string;
+begin
+  Result := False;
+  T := Trim(S);
+  if T = '' then Exit;
+  Dots := 0;
+  N := 0;
+  V := 0;
+  for K := 1 to Length(T) do
+    if T[K] = '.' then
+    begin
+      if N = 0 then Exit;
+      Inc(Dots);
+      N := 0;
+      V := 0;
+    end
+    else if T[K] in ['0'..'9'] then
+    begin
+      Inc(N);
+      V := V * 10 + Ord(T[K]) - 48;
+      if (N > 3) or (V > 255) then Exit;
+    end
+    else
+      Exit;
+  Result := (Dots = 3) and (N > 0);
+end;
+
+function CommIp(const C: TCommSettings): string;
+begin
+  Result := Trim(C.IpAddr);
+  if not IsIPv4(Result) then
+    if C.AllIfaces then Result := '0.0.0.0' else Result := '127.0.0.1';
 end;
 
 function HoldingText(const C: TCommSettings): string;
@@ -332,7 +385,18 @@ end;
 function IsBox(K: TLadKind): Boolean;
 begin
   Result := K in [lkTON, lkTOF, lkTP, lkTONR, lkCTU, lkCTD, lkCTUD, lkCmp, lkMove, lkAdd, lkSub,
-    lkMul, lkDiv, lkNormX, lkScaleX, lkCall];
+    lkMul, lkDiv, lkNormX, lkScaleX, lkCall, lkInRange, lkOutRange, lkConv, lkRound, lkTrunc, lkCeil, lkFloor];
+end;
+
+function LadHasType(K: TLadKind): Boolean;
+begin
+  Result := K in [lkCmp, lkMove, lkAdd, lkSub, lkMul, lkDiv, lkNormX, lkScaleX, lkInRange, lkOutRange, lkConv,
+    lkRound, lkTrunc, lkCeil, lkFloor];
+end;
+
+function LadHasType2(K: TLadKind): Boolean;
+begin
+  Result := K in [lkConv, lkRound, lkTrunc, lkCeil, lkFloor];
 end;
 
 function IsCoilKind(K: TLadKind): Boolean;
@@ -348,7 +412,8 @@ begin
     lkSD, lkSE, lkSP, lkSS, lkSF: Result := 'timer T';
     lkCU, lkCD, lkSC: Result := 'counter C';
     lkCall: Result := 'block (FC, or an FB instance DB)';
-    lkCmp, lkMove, lkAdd, lkSub, lkMul, lkDiv, lkNormX, lkScaleX, lkEmpty, lkWire, lkNot: Result := '';
+    lkCmp, lkMove, lkAdd, lkSub, lkMul, lkDiv, lkNormX, lkScaleX, lkEmpty, lkWire, lkNot, lkInRange, lkOutRange,
+    lkConv, lkRound, lkTrunc, lkCeil, lkFloor: Result := '';
   else
     Result := 'operand';
   end;
@@ -366,6 +431,8 @@ begin
     lkCmp, lkMove: Result := 2;
     lkAdd, lkSub, lkMul, lkDiv: Result := 3;
     lkNormX, lkScaleX: Result := 4;
+    lkInRange, lkOutRange: Result := 3;
+    lkConv, lkRound, lkTrunc, lkCeil, lkFloor: Result := 2;
   else
     Result := 0;
   end;
@@ -396,6 +463,10 @@ begin
       case I of 0: Result := 'IN1'; 1: Result := 'IN2'; 2: Result := 'OUT'; end;
     lkNormX, lkScaleX:
       case I of 0: Result := 'MIN'; 1: Result := 'VALUE'; 2: Result := 'MAX'; 3: Result := 'OUT'; end;
+    lkInRange, lkOutRange:
+      case I of 0: Result := 'MIN'; 1: Result := 'VAL'; 2: Result := 'MAX'; end;
+    lkConv, lkRound, lkTrunc, lkCeil, lkFloor:
+      case I of 0: Result := 'IN'; 1: Result := 'OUT'; end;
   end;
 end;
 
@@ -482,6 +553,7 @@ begin
   Result.Args := '';
   for I := 0 to 4 do Result.P[I] := '';
   Result.DType := dtInt;
+  Result.DType2 := dtReal;
   Result.Cmp := coEQ;
   Result.Down := False;
 end;
@@ -498,6 +570,9 @@ begin
     lkCTU, lkCTD, lkCTUD: Result.P[0] := '10';
     lkCmp: begin Result.P[0] := 'MW20'; Result.P[1] := '10'; end;
     lkNormX, lkScaleX: Result.DType := dtInt;
+    lkInRange, lkOutRange: begin Result.P[0] := '0'; Result.P[2] := '100'; end;
+    lkConv: begin Result.DType := dtInt; Result.DType2 := dtReal; end;
+    lkRound, lkTrunc, lkCeil, lkFloor: begin Result.DType := dtReal; Result.DType2 := dtDInt; end;
   end;
 end;
 
@@ -1274,8 +1349,8 @@ begin
           for K := 0 to LadParamCount(Ce.Kind) - 1 do AP.Add(Ce.P[K]);
           JC.Add('p', AP);
         end;
-        if Ce.Kind in [lkCmp, lkMove, lkAdd, lkSub, lkMul, lkDiv, lkNormX, lkScaleX] then
-          JC.Add('type', DataTypeNames[Ce.DType]);
+        if LadHasType(Ce.Kind) then JC.Add('type', DataTypeNames[Ce.DType]);
+        if LadHasType2(Ce.Kind) then JC.Add('type2', DataTypeNames[Ce.DType2]);
         if Ce.Kind = lkCmp then JC.Add('cmp', CmpOpNames[Ce.Cmp]);
         if (Ce.Kind = lkCall) and (Ce.Args <> '') then JC.Add('args', Ce.Args);
         if Ce.Down then JC.Add('down', True);
@@ -1436,6 +1511,22 @@ end;
 
 procedure TPlcProject.SaveToFile(const AFile: string);
 var
+  SL: TStringList;
+begin
+  SL := TStringList.Create;
+  try
+    SL.Text := ToJsonText;
+    SL.WriteBOM := False;
+    SL.SaveToFile(AFile);
+  finally
+    SL.Free;
+  end;
+  FileName := AFile;
+  Modified := False;
+end;
+
+function TPlcProject.ToJsonText(Pretty: Boolean): string;
+var
   Root, JB, JN, JC, JD, JV, JT, JW: TJSONObject;
   ABlocks, ANets, ACells, ADbs, AVars, ATags, AWatch, AStl, AP, AIo: TJSONArray;
   I, J, R, C, K: Integer;
@@ -1500,17 +1591,11 @@ begin
     JW.Add('holding', HoldingText(Comm));
     JW.Add('putGet', Comm.PutGet);
     JW.Add('allInterfaces', Comm.AllIfaces);
+    JW.Add('ip', CommIp(Comm));
+    JW.Add('mask', Comm.Mask);
+    JW.Add('ipc', Comm.IpcOn);
     Root.Add('comm', JW);
-    SL := TStringList.Create;
-    try
-      SL.Text := Root.FormatJSON;
-      SL.WriteBOM := False;
-      SL.SaveToFile(AFile);
-    finally
-      SL.Free;
-    end;
-    FileName := AFile;
-    Modified := False;
+    if Pretty then Result := Root.FormatJSON else Result := Root.AsJSON;
   finally
     Root.Free;
   end;
@@ -1519,6 +1604,19 @@ end;
 procedure TPlcProject.LoadFromFile(const AFile: string);
 var
   SL: TStringList;
+begin
+  SL := TStringList.Create;
+  try
+    SL.LoadFromFile(AFile);
+    LoadFromJsonText(SL.Text);
+  finally
+    SL.Free;
+  end;
+  FileName := AFile;
+end;
+
+procedure TPlcProject.LoadFromJsonText(const S: string);
+var
   Data: TJSONData;
   Root, JB, JN, JC, JD, JV, JT, JW: TJSONObject;
   ABlocks, ANets, ACells, ADbs, AVars, ATags, AWatch, AStl, AP, AIo: TJSONArray;
@@ -1534,15 +1632,9 @@ var
   Lo, Hi: Integer;
   Co: TCmpOp;
   Am: TAiMode;
-  S: string;
+  Txt: string;
 begin
-  SL := TStringList.Create;
-  try
-    SL.LoadFromFile(AFile);
-    Data := GetJSON(SL.Text);
-  finally
-    SL.Free;
-  end;
+  Data := GetJSON(S);
   try
     if not (Data is TJSONObject) then raise Exception.Create('not a Virtual PLC project');
     Root := TJSONObject(Data);
@@ -1618,10 +1710,13 @@ begin
                   if AP <> nil then
                     for Mi := 0 to Min(4, AP.Count - 1) do Ce.P[Mi] := AP.Strings[Mi];
                   if ParseDataType(JC.Get('type', 'Int'), T, Lo, Hi) then Ce.DType := T;
+                  Ce.DType2 := NewCell(Ce.Kind, '').DType2;
+                  if JC.Find('type2') <> nil then
+                    if ParseDataType(JC.Get('type2', 'Real'), T, Lo, Hi) then Ce.DType2 := T;
                   Ce.Args := JC.Get('args', '');
-                  S := JC.Get('cmp', '==');
+                  Txt := JC.Get('cmp', '==');
                   for Co := Low(TCmpOp) to High(TCmpOp) do
-                    if CmpOpNames[Co] = S then Ce.Cmp := Co;
+                    if CmpOpNames[Co] = Txt then Ce.Cmp := Co;
                   Ce.Down := JC.Get('down', False);
                   N.SetCell(R, C, Ce);
                 end;
@@ -1687,9 +1782,9 @@ begin
       for I := 0 to Min(High(AIch), AIo.Count - 1) do
       begin
         JW := AIo.Objects[I];
-        S := JW.Get('mode', 'manual');
+        Txt := JW.Get('mode', 'manual');
         for Am := Low(TAiMode) to High(TAiMode) do
-          if AiModeNames[Am] = S then AIch[I].AiMode := Am;
+          if AiModeNames[Am] = Txt then AIch[I].AiMode := Am;
         AIch[I].AiValue := EnsureRange(JW.Get('value', 0), -32768, 32767);
       end;
     JW := Root.Get('comm', TJSONObject(nil));
@@ -1703,8 +1798,13 @@ begin
       SetHolding(Comm, JW.Get('holding', 'M'));
       Comm.PutGet := JW.Get('putGet', False);
       Comm.AllIfaces := JW.Get('allInterfaces', False);
+      Comm.IpAddr := JW.Get('ip', '');
+      Comm.IpAddr := CommIp(Comm);
+      Comm.AllIfaces := Comm.IpAddr = '0.0.0.0';
+      Comm.Mask := JW.Get('mask', '255.255.255.0');
+      Comm.IpcOn := JW.Get('ipc', False);
+      if not IsIPv4(Comm.Mask) then Comm.Mask := '255.255.255.0';
     end;
-    FileName := AFile;
     Modified := False;
   finally
     Data.Free;

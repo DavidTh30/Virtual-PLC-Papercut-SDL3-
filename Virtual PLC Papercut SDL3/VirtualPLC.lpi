@@ -32,6 +32,9 @@
       <Item>
         <PackageName Value="LCL"/>
       </Item>
+      <Item>
+        <PackageName Value="TurboPowerIPro"/>
+      </Item>
     </RequiredPackages>
     <Units>
       <Unit>

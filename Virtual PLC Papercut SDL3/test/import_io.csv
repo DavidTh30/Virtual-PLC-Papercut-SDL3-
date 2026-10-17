@@ -1,0 +1,10 @@
+Kind;Address;Tag;Input / range;Value;Comment
+DI;%I0.0;Start_PB;push NO;;start button
+DI;%I0.5;New_Sensor;switch;TRUE;a new sensor
+DI;%I0.6;Jog_PB;push NC;;jog button, wired NC
+DI;I0.1;Other_Name;;;
+DQ;%Q0.5;New_Lamp;;;a new lamp
+AI;%IW66;Level;sine;;tank level
+AI;IW64;Speed_Set;;20000;
+DI;%I9.0;Too_Far;;;not on this CPU
+DI;%I0.7;Motor;;;the name of %Q0.0

@@ -1,0 +1,257 @@
+{
+  "format" : "VirtualPLC",
+  "version" : 1,
+  "name" : "Running light (S7-1200)",
+  "author" : "Virtual PLC examples",
+  "comment" : "SCL: a byte of lamps (QB0) runs left or right (I0.1) with a TON as the clock; Fast (I0.2) halves the time; Run (I0.0) starts it.",
+  "cpu" : "CPU 1214C DC/DC/DC",
+  "family" : "S7-1200",
+  "cyclicMs" : 100,
+  "clockByte" : 0,
+  "blocks" : [
+    {
+      "kind" : "OB",
+      "number" : 1,
+      "name" : "Main",
+      "comment" : "Main program cycle",
+      "networks" : [
+        {
+          "title" : "Chaser",
+          "comment" : "ROL / ROR move the one bit around",
+          "lang" : "SCL",
+          "scl" : [
+            "IF \"Fast\" THEN \"Chaser\".Period := T#250MS; ELSE \"Chaser\".Period := T#500MS; END_IF;",
+            "\"Chaser\".Tick.TON(IN := \"Run_On\" AND NOT \"Chaser\".Tick.Q, PT := \"Chaser\".Period);",
+            "IF \"Chaser\".Pattern = 0 THEN \"Chaser\".Pattern := 16#01; END_IF;",
+            "IF \"Chaser\".Tick.Q THEN",
+            "    IF \"Right\" THEN",
+            "        \"Chaser\".Pattern := ROR(IN := \"Chaser\".Pattern, N := 1);",
+            "    ELSE",
+            "        \"Chaser\".Pattern := ROL(IN := \"Chaser\".Pattern, N := 1);",
+            "    END_IF;",
+            "END_IF;",
+            "IF \"Run_On\" THEN \"Lights\" := \"Chaser\".Pattern; ELSE \"Lights\" := 0; END_IF;"
+          ]
+        }
+      ]
+    }
+  ],
+  "dbs" : [
+    {
+      "number" : 1,
+      "name" : "Chaser",
+      "comment" : "",
+      "optimized" : false,
+      "vars" : [
+        {
+          "name" : "Pattern",
+          "type" : "Byte",
+          "start" : "16#01",
+          "comment" : "the lamp that is on"
+        },
+        {
+          "name" : "Tick",
+          "type" : "IEC_TIMER",
+          "start" : "",
+          "comment" : "the step clock"
+        },
+        {
+          "name" : "Period",
+          "type" : "Time",
+          "start" : "T#500MS",
+          "comment" : "time of a step"
+        }
+      ]
+    }
+  ],
+  "tags" : [
+    {
+      "name" : "Clock_2Hz",
+      "type" : "Bool",
+      "address" : "%M0.3",
+      "comment" : "clock memory 2 Hz"
+    },
+    {
+      "name" : "Clock_1Hz",
+      "type" : "Bool",
+      "address" : "%M0.5",
+      "comment" : "clock memory 1 Hz"
+    },
+    {
+      "name" : "Run_On",
+      "type" : "Bool",
+      "address" : "%I0.0",
+      "comment" : "switch: run"
+    },
+    {
+      "name" : "Right",
+      "type" : "Bool",
+      "address" : "%I0.1",
+      "comment" : "switch: to the right"
+    },
+    {
+      "name" : "Fast",
+      "type" : "Bool",
+      "address" : "%I0.2",
+      "comment" : "switch: fast"
+    },
+    {
+      "name" : "Lights",
+      "type" : "Byte",
+      "address" : "%QB0",
+      "comment" : "eight lamps Q0.0..Q0.7"
+    }
+  ],
+  "watch" : [
+    {
+      "address" : "\"Lights\"",
+      "format" : "BIN",
+      "modify" : ""
+    }
+  ],
+  "diTypes" : [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "aiChannels" : [
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    }
+  ],
+  "comm" : {
+    "s7" : true,
+    "s7Port" : 102,
+    "modbus" : true,
+    "modbusPort" : 502,
+    "modbusUnit" : 1,
+    "holding" : "M",
+    "putGet" : true,
+    "allInterfaces" : false,
+    "ip" : "127.0.0.1",
+    "mask" : "255.255.255.0",
+    "ipc" : false
+  }
+}

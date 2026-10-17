@@ -1,0 +1,365 @@
+{
+  "format" : "VirtualPLC",
+  "version" : 1,
+  "name" : "Conveyor with a box counter (S7-1200)",
+  "author" : "Virtual PLC examples",
+  "comment" : "LAD: Start / Stop with self holding; a CTU counts the boxes (I0.2); after 10 the belt stops and Batch_Done is on until Reset (I0.3).",
+  "cpu" : "CPU 1214C DC/DC/DC",
+  "family" : "S7-1200",
+  "cyclicMs" : 100,
+  "clockByte" : 0,
+  "blocks" : [
+    {
+      "kind" : "OB",
+      "number" : 1,
+      "name" : "Main",
+      "comment" : "Main program cycle",
+      "networks" : [
+        {
+          "title" : "Belt on / off",
+          "comment" : "self holding; the batch stops it",
+          "lang" : "LAD",
+          "rows" : 2,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "no",
+              "op" : "\"Start_PB\"",
+              "down" : true
+            },
+            {
+              "r" : 0,
+              "c" : 1,
+              "e" : "no",
+              "op" : "\"Stop_PB\""
+            },
+            {
+              "r" : 0,
+              "c" : 2,
+              "e" : "nc",
+              "op" : "\"Batch_Done\""
+            },
+            {
+              "r" : 0,
+              "c" : 3,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 4,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 5,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 6,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 7,
+              "e" : "coil",
+              "op" : "\"Conveyor\""
+            },
+            {
+              "r" : 1,
+              "c" : 0,
+              "e" : "no",
+              "op" : "\"Conveyor\""
+            }
+          ]
+        },
+        {
+          "title" : "Count the boxes",
+          "comment" : "CTU with PV 10: Q = the batch is full",
+          "lang" : "LAD",
+          "rows" : 1,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "no",
+              "op" : "\"Box_Sensor\""
+            },
+            {
+              "r" : 0,
+              "c" : 1,
+              "e" : "ctu",
+              "op" : "\"Belt\".Boxes",
+              "p" : [
+                "10",
+                "\"Reset_PB\"",
+                "\"Belt\".Count"
+              ]
+            },
+            {
+              "r" : 0,
+              "c" : 2,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 3,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 4,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 5,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 6,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 7,
+              "e" : "coil",
+              "op" : "\"Batch_Done\""
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "dbs" : [
+    {
+      "number" : 1,
+      "name" : "Belt",
+      "comment" : "",
+      "optimized" : false,
+      "vars" : [
+        {
+          "name" : "Boxes",
+          "type" : "IEC_COUNTER",
+          "start" : "",
+          "comment" : "the box counter"
+        },
+        {
+          "name" : "Count",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "boxes so far"
+        }
+      ]
+    }
+  ],
+  "tags" : [
+    {
+      "name" : "Clock_2Hz",
+      "type" : "Bool",
+      "address" : "%M0.3",
+      "comment" : "clock memory 2 Hz"
+    },
+    {
+      "name" : "Clock_1Hz",
+      "type" : "Bool",
+      "address" : "%M0.5",
+      "comment" : "clock memory 1 Hz"
+    },
+    {
+      "name" : "Start_PB",
+      "type" : "Bool",
+      "address" : "%I0.0",
+      "comment" : "start"
+    },
+    {
+      "name" : "Stop_PB",
+      "type" : "Bool",
+      "address" : "%I0.1",
+      "comment" : "stop, wired NC"
+    },
+    {
+      "name" : "Box_Sensor",
+      "type" : "Bool",
+      "address" : "%I0.2",
+      "comment" : "a box passes"
+    },
+    {
+      "name" : "Reset_PB",
+      "type" : "Bool",
+      "address" : "%I0.3",
+      "comment" : "new batch"
+    },
+    {
+      "name" : "Conveyor",
+      "type" : "Bool",
+      "address" : "%Q0.0",
+      "comment" : "belt motor"
+    },
+    {
+      "name" : "Batch_Done",
+      "type" : "Bool",
+      "address" : "%Q0.1",
+      "comment" : "10 boxes"
+    }
+  ],
+  "watch" : [
+    {
+      "address" : "\"Belt\".Count",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Conveyor\"",
+      "format" : "BOOL",
+      "modify" : ""
+    }
+  ],
+  "diTypes" : [
+    1,
+    2,
+    1,
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "aiChannels" : [
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    }
+  ],
+  "comm" : {
+    "s7" : true,
+    "s7Port" : 102,
+    "modbus" : true,
+    "modbusPort" : 502,
+    "modbusUnit" : 1,
+    "holding" : "M",
+    "putGet" : true,
+    "allInterfaces" : false,
+    "ip" : "127.0.0.1",
+    "mask" : "255.255.255.0",
+    "ipc" : false
+  }
+}

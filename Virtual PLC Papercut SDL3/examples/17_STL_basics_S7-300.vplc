@@ -1,0 +1,331 @@
+{
+  "format" : "VirtualPLC",
+  "version" : 1,
+  "name" : "STL basics: logic, timer, counter, math (S7-300)",
+  "author" : "Virtual PLC examples",
+  "comment" : "STL step by step: AND / OR, a pulse timer S_PULSE (SP T2), a counter C1 with compare, integer and real math, and a jump. I0.0..I0.3 are the inputs, see the network comments.",
+  "cpu" : "CPU 315-2 PN/DP",
+  "family" : "S7-300",
+  "cyclicMs" : 100,
+  "clockByte" : 0,
+  "blocks" : [
+    {
+      "kind" : "OB",
+      "number" : 1,
+      "name" : "Main",
+      "comment" : "Main program cycle",
+      "networks" : [
+        {
+          "title" : "Bit logic",
+          "comment" : "A, AN, O, =",
+          "lang" : "STL",
+          "stl" : [
+            "A     \"In_A\"",
+            "A     \"In_B\"",
+            "=     \"And_Out\"",
+            "A     \"In_A\"",
+            "O     \"In_B\"",
+            "=     \"Or_Out\""
+          ]
+        },
+        {
+          "title" : "Pulse timer",
+          "comment" : "SP T2: 3 s pulse when A comes",
+          "lang" : "STL",
+          "stl" : [
+            "A     \"In_A\"",
+            "L     S5T#3S",
+            "SP    T     2",
+            "A     T     2",
+            "=     \"Pulse_Out\""
+          ]
+        },
+        {
+          "title" : "Counter and compare",
+          "comment" : "CU C1 on Count, R on Reset; >= 5 sets Five_Out",
+          "lang" : "STL",
+          "stl" : [
+            "A     \"Count_PB\"",
+            "CU    C     1",
+            "A     \"Reset_PB\"",
+            "R     C     1",
+            "L     C     1",
+            "T     MW20",
+            "L     MW20",
+            "L     5",
+            ">=I",
+            "=     \"Five_Out\""
+          ]
+        },
+        {
+          "title" : "Math",
+          "comment" : "MW22 = MW20 * 10 + 7; MD24 = MW22 as REAL / 4.0",
+          "lang" : "STL",
+          "stl" : [
+            "L     MW20",
+            "L     10",
+            "*I",
+            "L     7",
+            "+I",
+            "T     MW22",
+            "L     MW22",
+            "ITD",
+            "DTR",
+            "L     4.0",
+            "/R",
+            "T     MD24"
+          ]
+        },
+        {
+          "title" : "A jump",
+          "comment" : "when A is off, MW30 is not counted",
+          "lang" : "STL",
+          "stl" : [
+            "AN    \"In_A\"",
+            "JC    SKIP",
+            "L     MW30",
+            "+     1",
+            "T     MW30",
+            "SKIP: NOP   0"
+          ]
+        }
+      ]
+    }
+  ],
+  "dbs" : [
+  ],
+  "tags" : [
+    {
+      "name" : "Clock_2Hz",
+      "type" : "Bool",
+      "address" : "M0.3",
+      "comment" : "clock memory 2 Hz"
+    },
+    {
+      "name" : "Clock_1Hz",
+      "type" : "Bool",
+      "address" : "M0.5",
+      "comment" : "clock memory 1 Hz"
+    },
+    {
+      "name" : "In_A",
+      "type" : "Bool",
+      "address" : "I0.0",
+      "comment" : "input A"
+    },
+    {
+      "name" : "In_B",
+      "type" : "Bool",
+      "address" : "I0.1",
+      "comment" : "input B"
+    },
+    {
+      "name" : "Count_PB",
+      "type" : "Bool",
+      "address" : "I0.2",
+      "comment" : "count"
+    },
+    {
+      "name" : "Reset_PB",
+      "type" : "Bool",
+      "address" : "I0.3",
+      "comment" : "reset the counter"
+    },
+    {
+      "name" : "And_Out",
+      "type" : "Bool",
+      "address" : "Q4.0",
+      "comment" : "A AND B"
+    },
+    {
+      "name" : "Or_Out",
+      "type" : "Bool",
+      "address" : "Q4.1",
+      "comment" : "A OR B"
+    },
+    {
+      "name" : "Pulse_Out",
+      "type" : "Bool",
+      "address" : "Q4.2",
+      "comment" : "3 s pulse on A"
+    },
+    {
+      "name" : "Five_Out",
+      "type" : "Bool",
+      "address" : "Q4.3",
+      "comment" : "counter >= 5"
+    }
+  ],
+  "watch" : [
+    {
+      "address" : "C1",
+      "format" : "COUNTER",
+      "modify" : ""
+    },
+    {
+      "address" : "MW20",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "MW22",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "MD24",
+      "format" : "REAL",
+      "modify" : ""
+    },
+    {
+      "address" : "MW30",
+      "format" : "DEC",
+      "modify" : ""
+    }
+  ],
+  "diTypes" : [
+    0,
+    0,
+    1,
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "aiChannels" : [
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    }
+  ],
+  "comm" : {
+    "s7" : true,
+    "s7Port" : 102,
+    "modbus" : true,
+    "modbusPort" : 502,
+    "modbusUnit" : 1,
+    "holding" : "M",
+    "putGet" : true,
+    "allInterfaces" : false,
+    "ip" : "127.0.0.1",
+    "mask" : "255.255.255.0",
+    "ipc" : false
+  }
+}

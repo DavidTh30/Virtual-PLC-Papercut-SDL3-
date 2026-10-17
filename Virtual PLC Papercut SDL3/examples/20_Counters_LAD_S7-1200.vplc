@@ -1,0 +1,455 @@
+{
+  "format" : "VirtualPLC",
+  "version" : 1,
+  "name" : "Counters in LAD (S7-1200)",
+  "author" : "Virtual PLC examples",
+  "comment" : "LAD: CTU, CTD and CTUD (instances in DB1, preset 5). Count_Up / Count_Down count on every press, Load_PB loads the preset, Reset_PB resets. Watch the counts in the watch table.",
+  "cpu" : "CPU 1214C DC/DC/DC",
+  "family" : "S7-1200",
+  "cyclicMs" : 100,
+  "clockByte" : 0,
+  "blocks" : [
+    {
+      "kind" : "OB",
+      "number" : 1,
+      "name" : "Main",
+      "comment" : "Main program cycle",
+      "networks" : [
+        {
+          "title" : "CTU",
+          "comment" : "counts up on every rising edge of CU; Q when CV >= PV; R sets CV to 0",
+          "lang" : "LAD",
+          "rows" : 1,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "no",
+              "op" : "\"Count_Up\""
+            },
+            {
+              "r" : 0,
+              "c" : 1,
+              "e" : "ctu",
+              "op" : "\"Counters\".CTU_1",
+              "p" : [
+                "5",
+                "\"Reset_PB\"",
+                "\"Counters\".CV_Up"
+              ]
+            },
+            {
+              "r" : 0,
+              "c" : 2,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 3,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 4,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 5,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 6,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 7,
+              "e" : "coil",
+              "op" : "\"Out_CTU\""
+            }
+          ]
+        },
+        {
+          "title" : "CTD",
+          "comment" : "counts down on every rising edge of CD; Q when CV <= 0; LD loads PV into CV",
+          "lang" : "LAD",
+          "rows" : 1,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "no",
+              "op" : "\"Count_Down\""
+            },
+            {
+              "r" : 0,
+              "c" : 1,
+              "e" : "ctd",
+              "op" : "\"Counters\".CTD_1",
+              "p" : [
+                "5",
+                "\"Load_PB\"",
+                "\"Counters\".CV_Down"
+              ]
+            },
+            {
+              "r" : 0,
+              "c" : 2,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 3,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 4,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 5,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 6,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 7,
+              "e" : "coil",
+              "op" : "\"Out_CTD\""
+            }
+          ]
+        },
+        {
+          "title" : "CTUD",
+          "comment" : "CU up, CD down, R reset, LD load; QU when CV >= PV",
+          "lang" : "LAD",
+          "rows" : 1,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "no",
+              "op" : "\"Count_Up\""
+            },
+            {
+              "r" : 0,
+              "c" : 1,
+              "e" : "ctud",
+              "op" : "\"Counters\".CTUD_1",
+              "p" : [
+                "5",
+                "\"Count_Down\"",
+                "\"Reset_PB\"",
+                "\"Load_PB\"",
+                "\"Counters\".CV_UpDown"
+              ]
+            },
+            {
+              "r" : 0,
+              "c" : 2,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 3,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 4,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 5,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 6,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 7,
+              "e" : "coil",
+              "op" : "\"Out_CTUD\""
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "dbs" : [
+    {
+      "number" : 1,
+      "name" : "Counters",
+      "comment" : "",
+      "optimized" : false,
+      "vars" : [
+        {
+          "name" : "CTU_1",
+          "type" : "IEC_COUNTER",
+          "start" : "",
+          "comment" : "up counter"
+        },
+        {
+          "name" : "CTD_1",
+          "type" : "IEC_COUNTER",
+          "start" : "",
+          "comment" : "down counter"
+        },
+        {
+          "name" : "CTUD_1",
+          "type" : "IEC_COUNTER",
+          "start" : "",
+          "comment" : "up / down counter"
+        },
+        {
+          "name" : "CV_Up",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "count of CTU"
+        },
+        {
+          "name" : "CV_Down",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "count of CTD"
+        },
+        {
+          "name" : "CV_UpDown",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "count of CTUD"
+        }
+      ]
+    }
+  ],
+  "tags" : [
+    {
+      "name" : "Clock_2Hz",
+      "type" : "Bool",
+      "address" : "%M0.3",
+      "comment" : "clock memory 2 Hz"
+    },
+    {
+      "name" : "Clock_1Hz",
+      "type" : "Bool",
+      "address" : "%M0.5",
+      "comment" : "clock memory 1 Hz"
+    },
+    {
+      "name" : "Count_Up",
+      "type" : "Bool",
+      "address" : "%I0.0",
+      "comment" : "count up"
+    },
+    {
+      "name" : "Count_Down",
+      "type" : "Bool",
+      "address" : "%I0.1",
+      "comment" : "count down"
+    },
+    {
+      "name" : "Reset_PB",
+      "type" : "Bool",
+      "address" : "%I0.2",
+      "comment" : "reset"
+    },
+    {
+      "name" : "Load_PB",
+      "type" : "Bool",
+      "address" : "%I0.3",
+      "comment" : "load the preset"
+    },
+    {
+      "name" : "Out_CTU",
+      "type" : "Bool",
+      "address" : "%Q0.0",
+      "comment" : "CTU: CV >= 5"
+    },
+    {
+      "name" : "Out_CTD",
+      "type" : "Bool",
+      "address" : "%Q0.1",
+      "comment" : "CTD: CV <= 0"
+    },
+    {
+      "name" : "Out_CTUD",
+      "type" : "Bool",
+      "address" : "%Q0.2",
+      "comment" : "CTUD QU: CV >= 5"
+    }
+  ],
+  "watch" : [
+    {
+      "address" : "\"Counters\".CV_Up",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Counters\".CV_Down",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Counters\".CV_UpDown",
+      "format" : "DEC",
+      "modify" : ""
+    }
+  ],
+  "diTypes" : [
+    1,
+    1,
+    1,
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "aiChannels" : [
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    }
+  ],
+  "comm" : {
+    "s7" : true,
+    "s7Port" : 102,
+    "modbus" : true,
+    "modbusPort" : 502,
+    "modbusUnit" : 1,
+    "holding" : "M",
+    "putGet" : true,
+    "allInterfaces" : false,
+    "ip" : "127.0.0.1",
+    "mask" : "255.255.255.0",
+    "ipc" : false
+  }
+}

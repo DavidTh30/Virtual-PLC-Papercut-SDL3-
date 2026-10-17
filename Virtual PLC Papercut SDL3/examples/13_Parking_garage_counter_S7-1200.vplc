@@ -1,0 +1,404 @@
+{
+  "format" : "VirtualPLC",
+  "version" : 1,
+  "name" : "Parking garage counter (S7-1200)",
+  "author" : "Virtual PLC examples",
+  "comment" : "LAD: CTUD counts the cars in (I0.0) and out (I0.1); 20 places: Full (Q0.1) stops the barrier, Free (Q0.0) is on while places are left; Reset (I0.2) empties the count.",
+  "cpu" : "CPU 1214C DC/DC/DC",
+  "family" : "S7-1200",
+  "cyclicMs" : 100,
+  "clockByte" : 0,
+  "blocks" : [
+    {
+      "kind" : "OB",
+      "number" : 1,
+      "name" : "Main",
+      "comment" : "Main program cycle",
+      "networks" : [
+        {
+          "title" : "Count the cars",
+          "comment" : "CTUD: CU in, CD out, PV 20 places: QU = full",
+          "lang" : "LAD",
+          "rows" : 1,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "no",
+              "op" : "\"Car_In\""
+            },
+            {
+              "r" : 0,
+              "c" : 1,
+              "e" : "ctud",
+              "op" : "\"Garage\".Cars",
+              "p" : [
+                "20",
+                "\"Car_Out\"",
+                "\"Reset_PB\"",
+                "",
+                "\"Garage\".Count"
+              ]
+            },
+            {
+              "r" : 0,
+              "c" : 2,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 3,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 4,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 5,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 6,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 7,
+              "e" : "coil",
+              "op" : "\"Full_Lamp\""
+            }
+          ]
+        },
+        {
+          "title" : "Free places",
+          "comment" : "",
+          "lang" : "LAD",
+          "rows" : 1,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "nc",
+              "op" : "\"Full_Lamp\""
+            },
+            {
+              "r" : 0,
+              "c" : 1,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 2,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 3,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 4,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 5,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 6,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 7,
+              "e" : "coil",
+              "op" : "\"Free_Lamp\""
+            }
+          ]
+        },
+        {
+          "title" : "Barrier",
+          "comment" : "opens for a car in while not full",
+          "lang" : "LAD",
+          "rows" : 1,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "no",
+              "op" : "\"Car_In\""
+            },
+            {
+              "r" : 0,
+              "c" : 1,
+              "e" : "nc",
+              "op" : "\"Full_Lamp\""
+            },
+            {
+              "r" : 0,
+              "c" : 2,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 3,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 4,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 5,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 6,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 7,
+              "e" : "coil",
+              "op" : "\"Barrier_Up\""
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "dbs" : [
+    {
+      "number" : 1,
+      "name" : "Garage",
+      "comment" : "",
+      "optimized" : false,
+      "vars" : [
+        {
+          "name" : "Cars",
+          "type" : "IEC_COUNTER",
+          "start" : "",
+          "comment" : "up / down counter"
+        },
+        {
+          "name" : "Count",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "cars inside"
+        }
+      ]
+    }
+  ],
+  "tags" : [
+    {
+      "name" : "Clock_2Hz",
+      "type" : "Bool",
+      "address" : "%M0.3",
+      "comment" : "clock memory 2 Hz"
+    },
+    {
+      "name" : "Clock_1Hz",
+      "type" : "Bool",
+      "address" : "%M0.5",
+      "comment" : "clock memory 1 Hz"
+    },
+    {
+      "name" : "Car_In",
+      "type" : "Bool",
+      "address" : "%I0.0",
+      "comment" : "sensor at the entrance"
+    },
+    {
+      "name" : "Car_Out",
+      "type" : "Bool",
+      "address" : "%I0.1",
+      "comment" : "sensor at the exit"
+    },
+    {
+      "name" : "Reset_PB",
+      "type" : "Bool",
+      "address" : "%I0.2",
+      "comment" : "reset the count"
+    },
+    {
+      "name" : "Free_Lamp",
+      "type" : "Bool",
+      "address" : "%Q0.0",
+      "comment" : "places free"
+    },
+    {
+      "name" : "Full_Lamp",
+      "type" : "Bool",
+      "address" : "%Q0.1",
+      "comment" : "garage full"
+    },
+    {
+      "name" : "Barrier_Up",
+      "type" : "Bool",
+      "address" : "%Q0.2",
+      "comment" : "entrance barrier open"
+    }
+  ],
+  "watch" : [
+    {
+      "address" : "\"Garage\".Count",
+      "format" : "DEC",
+      "modify" : ""
+    }
+  ],
+  "diTypes" : [
+    1,
+    1,
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "aiChannels" : [
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    }
+  ],
+  "comm" : {
+    "s7" : true,
+    "s7Port" : 102,
+    "modbus" : true,
+    "modbusPort" : 502,
+    "modbusUnit" : 1,
+    "holding" : "M",
+    "putGet" : true,
+    "allInterfaces" : false,
+    "ip" : "127.0.0.1",
+    "mask" : "255.255.255.0",
+    "ipc" : false
+  }
+}

@@ -33,6 +33,8 @@ type
     Id: Integer;
     Kind: THitKind;
     S: string;
+    FontK: TFontKind;   // a field: its font, for the caret under the mouse
+    FontS: Single;
   end;
 
 const
@@ -65,7 +67,25 @@ type
     FEditText: string;
     FEditCaret: Integer;
     FEditOrig: string;
+    { the field being edited as a text box: the selection runs from the anchor to the caret }
+    FEditAnchor: Integer;
+    FEditTX: Single;           // where its text starts (scrolled with the caret)
+    FEditKind: TFontKind;
+    FEditSize: Single;
+    FEditDragging: Boolean;
+    FEditTyping: Boolean;      // typing goes into one undo step
+    FEditUndo, FEditRedo: array of record T: string; C, A: Integer; end;
+    { the clip rectangles (design units): a region outside them takes no mouse }
+    FClipStack: array of TRectF;
+    FClipN: Integer;
     FBuilding: Boolean;
+    procedure EditPush;
+    procedure EditSel(out A, B: Integer);
+    function EditHasSel: Boolean;
+    procedure EditDeleteSel;
+    function EditCaretAt(X: Single): Integer;
+    function EditWordStart(P: Integer): Integer;
+    function EditWordEnd(P: Integer): Integer;
     function PX(X: Single): Single; inline;
     function PY(Y: Single): Single; inline;
     function PS(V: Single): Single; inline;
@@ -235,6 +255,7 @@ procedure TUiBase.BeginFrame(ADL: TDisplayList);
 begin
   D := ADL;
   FHitN := 0;
+  FClipN := 0;
   FBuilding := True;
 end;
 
@@ -255,9 +276,23 @@ begin
 end;
 
 procedure TUiBase.Hit(X, Y, W, H: Single; Id: Integer; Kind: THitKind; const S: string);
+var
+  R: TRectF;
 begin
+  R := RectF(X, Y, X + W, Y + H);
+  if FClipN > 0 then
+  begin
+    // only the part that can be seen takes the mouse
+    R.Left := Max(R.Left, FClipStack[FClipN - 1].Left);
+    R.Top := Max(R.Top, FClipStack[FClipN - 1].Top);
+    R.Right := Min(R.Right, FClipStack[FClipN - 1].Right);
+    R.Bottom := Min(R.Bottom, FClipStack[FClipN - 1].Bottom);
+    if (R.Right <= R.Left) or (R.Bottom <= R.Top) then Exit;
+  end;
   if FHitN >= Length(FHits) then SetLength(FHits, Length(FHits) * 2);
-  FHits[FHitN].R := RectF(X, Y, X + W, Y + H);
+  FHits[FHitN].R := R;
+  FHits[FHitN].FontK := fkUI;
+  FHits[FHitN].FontS := 0;
   FHits[FHitN].Id := Id;
   FHits[FHitN].Kind := Kind;
   FHits[FHitN].S := S;
@@ -408,13 +443,27 @@ begin
 end;
 
 procedure TUiBase.ClipD(X, Y, W, H: Single);
+var
+  R: TRectF;
 begin
   D.Clip(PX(X), PY(Y), PX(X + W), PY(Y + H));
+  R := RectF(X, Y, X + W, Y + H);
+  if FClipN > 0 then
+  begin
+    R.Left := Max(R.Left, FClipStack[FClipN - 1].Left);
+    R.Top := Max(R.Top, FClipStack[FClipN - 1].Top);
+    R.Right := Min(R.Right, FClipStack[FClipN - 1].Right);
+    R.Bottom := Min(R.Bottom, FClipStack[FClipN - 1].Bottom);
+  end;
+  if FClipN >= Length(FClipStack) then SetLength(FClipStack, FClipN + 8);
+  FClipStack[FClipN] := R;
+  Inc(FClipN);
 end;
 
 procedure TUiBase.UnclipD;
 begin
   D.Unclip;
+  if FClipN > 0 then Dec(FClipN);
 end;
 
 { ---------- papercut ---------- }
@@ -596,6 +645,7 @@ var
   IsHot, Ed: Boolean;
   S: string;
   TX, CX, TW: Single;
+  SA, SB: Integer;
   L: TLayer;
 begin
   L := D.Layer;
@@ -615,20 +665,30 @@ begin
   ClipD(X + 1, Y, W - 2, H);
   if Ed then
   begin
+    FEditKind := Kind;
+    FEditSize := Size;
     TW := TxtW(Kind, Size, S);
-    TX := X + 4;
+    // the text scrolls so that the caret stays in the field
+    TX := FEditTX;
+    if (TX = 0) or (TX > X + 4) then TX := X + 4;
     CX := TX + TxtW(Kind, Size, UTF8Copy(S, 1, FEditCaret));
-    // keep the caret visible
-    if CX > X + W - 6 then
+    if CX > X + W - 6 then TX := TX - (CX - (X + W - 6))
+    else if CX < X + 4 then TX := TX + (X + 4 - CX);
+    if (TX < X + 4) and (TX + TW < X + W - 6) then TX := Min(X + 4, X + W - 6 - TW);
+    FEditTX := TX;
+    CX := TX + TxtW(Kind, Size, UTF8Copy(S, 1, FEditCaret));
+    // the selection behind the text
+    EditSel(SA, SB);
+    if SB > SA then
     begin
-      TX := TX - (CX - (X + W - 6));
-      CX := X + W - 6;
+      D.Layer := lyControls;
+      Rc(TX + TxtW(Kind, Size, UTF8Copy(S, 1, SA)), Y + 3, TxtW(Kind, Size, UTF8Copy(S, SA + 1, SB - SA)), H - 6,
+        Alpha(cGold, 150));
+      D.Layer := lyText;
     end;
     Txt(Kind, Size, TX, Y + (H - Size * 1.36) / 2, S, cInk);
-    if Id = MaskId then CX := TX + TxtW(Kind, Size, StringOfChar('*', FEditCaret));
-    if Frac(FTime * 1.6) < 0.62 then
+    if (SB = SA) and (Frac(FTime * 1.6) < 0.62) then
       Rc(CX, Y + 3, 1.3, H - 6, cRed);
-    if TW = 0 then ;
   end
   else if S <> '' then
   begin
@@ -645,7 +705,15 @@ begin
     TxtFit(fkUI, Size, X + 4, Y + (H - Size * 1.36) / 2, W - 8, Placeholder, cInkFaint);
   UnclipD;
   D.Layer := L;
-  if Enabled then Hit(X, Y, W, H, Id, hkField, Value);
+  if Enabled then
+  begin
+    Hit(X, Y, W, H, Id, hkField, Value);
+    if (FHitN > 0) and (FHits[FHitN - 1].Id = Id) then
+    begin
+      FHits[FHitN - 1].FontK := Kind;
+      FHits[FHitN - 1].FontS := Size;
+    end;
+  end;
 end;
 
 procedure TUiBase.Led(CX, CY, R: Single; C: TBGRAPixel; On: Boolean);
@@ -793,6 +861,90 @@ begin
   FEditText := Value;
   FEditOrig := Value;
   FEditCaret := UTF8Length(Value);
+  FEditAnchor := FEditCaret;
+  FEditTX := 0;
+  FEditTyping := False;
+  FEditUndo := nil;
+  FEditRedo := nil;
+end;
+
+{ ---------- the field as a text box ---------- }
+
+procedure TUiBase.EditPush;
+begin
+  SetLength(FEditUndo, Length(FEditUndo) + 1);
+  FEditUndo[High(FEditUndo)].T := FEditText;
+  FEditUndo[High(FEditUndo)].C := FEditCaret;
+  FEditUndo[High(FEditUndo)].A := FEditAnchor;
+  FEditRedo := nil;
+end;
+
+procedure TUiBase.EditSel(out A, B: Integer);
+begin
+  A := Min(FEditAnchor, FEditCaret);
+  B := Max(FEditAnchor, FEditCaret);
+  A := EnsureRange(A, 0, UTF8Length(FEditText));
+  B := EnsureRange(B, 0, UTF8Length(FEditText));
+end;
+
+function TUiBase.EditHasSel: Boolean;
+begin
+  Result := FEditAnchor <> FEditCaret;
+end;
+
+procedure TUiBase.EditDeleteSel;
+var
+  A, B: Integer;
+begin
+  EditSel(A, B);
+  if B <= A then Exit;
+  UTF8Delete(FEditText, A + 1, B - A);
+  FEditCaret := A;
+  FEditAnchor := A;
+end;
+
+{ the caret under the mouse (design units) }
+function TUiBase.EditCaretAt(X: Single): Integer;
+var
+  S: string;
+  N, K: Integer;
+  Prev, Wd, Sz: Single;
+begin
+  S := FEditText;
+  if FEditId = MaskId then S := StringOfChar('*', UTF8Length(S));
+  N := UTF8Length(S);
+  Sz := FEditSize;
+  if Sz <= 0 then Sz := 12;
+  Prev := 0;
+  for K := 1 to N do
+  begin
+    Wd := TxtW(FEditKind, Sz, UTF8Copy(S, 1, K));
+    if FEditTX + (Prev + Wd) / 2 > X then Exit(K - 1);
+    Prev := Wd;
+  end;
+  Result := N;
+end;
+
+function IsWordCh(const C: string): Boolean;
+begin
+  Result := (C <> '') and ((Length(C) > 1) or (C[1] in ['0'..'9', 'A'..'Z', 'a'..'z', '_']));
+end;
+
+function TUiBase.EditWordStart(P: Integer): Integer;
+begin
+  Result := P;
+  while (Result > 0) and not IsWordCh(UTF8Copy(FEditText, Result, 1)) do Dec(Result);
+  while (Result > 0) and IsWordCh(UTF8Copy(FEditText, Result, 1)) do Dec(Result);
+end;
+
+function TUiBase.EditWordEnd(P: Integer): Integer;
+var
+  N: Integer;
+begin
+  N := UTF8Length(FEditText);
+  Result := P;
+  while (Result < N) and not IsWordCh(UTF8Copy(FEditText, Result + 1, 1)) do Inc(Result);
+  while (Result < N) and IsWordCh(UTF8Copy(FEditText, Result + 1, 1)) do Inc(Result);
 end;
 
 procedure TUiBase.EndEdit(Commit: Boolean);
@@ -815,6 +967,7 @@ begin
   FMX := (X - FOX) / FK;
   FMY := (Y - FOY) / FK;
   FMouseIn := True;
+  if FEditDragging and (FEditId >= 0) then FEditCaret := EditCaretAt(FMX);
   if FDragId >= 0 then
     for K := FLastHitN - 1 downto 0 do
       if (FLastHits[K].Id = FDragId) and (FLastHits[K].Kind = hkDrag) then
@@ -852,11 +1005,35 @@ begin
         DoDrag(Hd.Id, FMX, FMY, Hd.R);
       end;
     hkField:
-      if FEditId <> Hd.Id then StartEdit(Hd.Id, Hd.S)
-      else
       begin
-        // click inside the edited text: move the caret to the end (simple)
-        FEditCaret := UTF8Length(FEditText);
+        // a text box: a click places the caret, Shift+click selects to it, a drag selects,
+        // a double click takes a word, a triple click all
+        if FEditId <> Hd.Id then
+        begin
+          StartEdit(Hd.Id, Hd.S);
+          FEditTX := Hd.R.Left + 4;
+        end;
+        FEditKind := Hd.FontK;
+        FEditSize := Hd.FontS;
+        FEditTyping := False;
+        if MouseClicks >= 3 then
+        begin
+          FEditAnchor := 0;
+          FEditCaret := UTF8Length(FEditText);
+        end
+        else if MouseClicks = 2 then
+        begin
+          FEditCaret := EditCaretAt(FMX);
+          FEditAnchor := EditWordStart(Min(FEditCaret + 1, UTF8Length(FEditText)));
+          if (FEditAnchor > FEditCaret) then FEditAnchor := FEditCaret;
+          FEditCaret := EditWordEnd(FEditAnchor);
+        end
+        else
+        begin
+          FEditCaret := EditCaretAt(FMX);
+          if not (umShift in MouseMods) then FEditAnchor := FEditCaret;
+          FEditDragging := True;
+        end;
       end;
   end;
 end;
@@ -864,6 +1041,7 @@ end;
 procedure TUiBase.MouseUp(X, Y: Single);
 begin
   MouseMove(X, Y);
+  FEditDragging := False;
   if FDragId >= 0 then DoDragEnd(FDragId, FMX, FMY);
   if FPressId >= 0 then DoPress(FPressId, False);
   FPressId := -1;
@@ -884,38 +1062,125 @@ begin
     end;
 end;
 
+{ the keys of a text box: Shift selects, Ctrl moves by words, Ctrl+A / C / X / V / Z / Y }
 procedure TUiBase.EditKey(Key: TUiKey; Ch: Char; Mods: TUiMods);
 var
-  N: Integer;
+  N, A, B, K: Integer;
+  Shift, Ctrl: Boolean;
+  P: string;
+
+  procedure MoveTo(C: Integer);
+  begin
+    FEditCaret := EnsureRange(C, 0, UTF8Length(FEditText));
+    if not Shift then FEditAnchor := FEditCaret;
+  end;
+
 begin
   N := UTF8Length(FEditText);
+  Shift := umShift in Mods;
+  Ctrl := umCtrl in Mods;
+  if Key <> ukChar then FEditTyping := False;
   case Key of
     ukEnter, ukTab: EndEdit(True);
     ukEsc: EndEdit(False);
     ukBack:
-      if FEditCaret > 0 then
       begin
-        UTF8Delete(FEditText, FEditCaret, 1);
-        Dec(FEditCaret);
+        EditPush;
+        if EditHasSel then EditDeleteSel
+        else if FEditCaret > 0 then
+        begin
+          if Ctrl then K := EditWordStart(FEditCaret) else K := FEditCaret - 1;
+          UTF8Delete(FEditText, K + 1, FEditCaret - K);
+          FEditCaret := K;
+          FEditAnchor := K;
+        end;
       end;
     ukDel:
-      if FEditCaret < N then UTF8Delete(FEditText, FEditCaret + 1, 1);
-    ukLeft: if FEditCaret > 0 then Dec(FEditCaret);
-    ukRight: if FEditCaret < N then Inc(FEditCaret);
-    ukHome: FEditCaret := 0;
-    ukEnd: FEditCaret := N;
+      begin
+        EditPush;
+        if EditHasSel then EditDeleteSel
+        else if FEditCaret < N then
+        begin
+          if Ctrl then K := EditWordEnd(FEditCaret) else K := FEditCaret + 1;
+          UTF8Delete(FEditText, FEditCaret + 1, K - FEditCaret);
+          FEditAnchor := FEditCaret;
+        end;
+      end;
+    ukLeft:
+      if Ctrl then MoveTo(EditWordStart(FEditCaret))
+      else if EditHasSel and not Shift then
+      begin
+        EditSel(A, B);
+        MoveTo(A);
+      end
+      else MoveTo(FEditCaret - 1);
+    ukRight:
+      if Ctrl then MoveTo(EditWordEnd(FEditCaret))
+      else if EditHasSel and not Shift then
+      begin
+        EditSel(A, B);
+        MoveTo(B);
+      end
+      else MoveTo(FEditCaret + 1);
+    ukHome: MoveTo(0);
+    ukEnd: MoveTo(N);
     ukChar:
-      if umCtrl in Mods then
+      if Ctrl then
+      begin
+        FEditTyping := False;
         case UpCase(Ch) of
+          'A':
+            begin
+              FEditAnchor := 0;
+              FEditCaret := N;
+            end;
+          'C', 'X':
+            if FEditId <> MaskId then   // a secret is not copied
+            begin
+              EditSel(A, B);
+              if B > A then ClipboardOut := UTF8Copy(FEditText, A + 1, B - A)
+              else if UpCase(Ch) = 'C' then ClipboardOut := FEditText;
+              if (UpCase(Ch) = 'X') and (B > A) then
+              begin
+                EditPush;
+                EditDeleteSel;
+              end;
+            end;
           'V':
             begin
-              UTF8Insert(StringReplace(StringReplace(Clipboard, #13, '', [rfReplaceAll]), #10, ' ', [rfReplaceAll]),
-                FEditText, FEditCaret + 1);
-              FEditCaret := UTF8Length(FEditText);
+              EditPush;
+              EditDeleteSel;
+              P := StringReplace(StringReplace(Clipboard, #13, '', [rfReplaceAll]), #10, ' ', [rfReplaceAll]);
+              UTF8Insert(P, FEditText, FEditCaret + 1);
+              Inc(FEditCaret, UTF8Length(P));
+              FEditAnchor := FEditCaret;
             end;
-          'C': if FEditId <> MaskId then ClipboardOut := FEditText;   // a secret is not copied
-          'A': FEditCaret := N;
+          'Z':
+            if Length(FEditUndo) > 0 then
+            begin
+              SetLength(FEditRedo, Length(FEditRedo) + 1);
+              FEditRedo[High(FEditRedo)].T := FEditText;
+              FEditRedo[High(FEditRedo)].C := FEditCaret;
+              FEditRedo[High(FEditRedo)].A := FEditAnchor;
+              FEditText := FEditUndo[High(FEditUndo)].T;
+              FEditCaret := FEditUndo[High(FEditUndo)].C;
+              FEditAnchor := FEditUndo[High(FEditUndo)].A;
+              SetLength(FEditUndo, Length(FEditUndo) - 1);
+            end;
+          'Y':
+            if Length(FEditRedo) > 0 then
+            begin
+              SetLength(FEditUndo, Length(FEditUndo) + 1);
+              FEditUndo[High(FEditUndo)].T := FEditText;
+              FEditUndo[High(FEditUndo)].C := FEditCaret;
+              FEditUndo[High(FEditUndo)].A := FEditAnchor;
+              FEditText := FEditRedo[High(FEditRedo)].T;
+              FEditCaret := FEditRedo[High(FEditRedo)].C;
+              FEditAnchor := FEditRedo[High(FEditRedo)].A;
+              SetLength(FEditRedo, Length(FEditRedo) - 1);
+            end;
         end;
+      end;
   end;
 end;
 
@@ -933,8 +1198,13 @@ procedure TUiBase.TextInput(const S: string);
 begin
   if FEditId >= 0 then
   begin
+    // typing replaces the selection; a run of typing is one undo step
+    if not FEditTyping or EditHasSel then EditPush;
+    FEditTyping := True;
+    EditDeleteSel;
     UTF8Insert(S, FEditText, FEditCaret + 1);
     Inc(FEditCaret, UTF8Length(S));
+    FEditAnchor := FEditCaret;
     Exit;
   end;
   DoText(S);

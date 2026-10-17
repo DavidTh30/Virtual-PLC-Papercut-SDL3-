@@ -1,0 +1,4 @@
+Address / symbol,Format,Modify value
+"""Motor""",BOOL,
+%MW100,DEC,77
+"""Motor"".SpeedRpm",REAL,

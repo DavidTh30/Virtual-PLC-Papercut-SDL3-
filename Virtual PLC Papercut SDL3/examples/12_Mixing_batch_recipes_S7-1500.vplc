@@ -1,0 +1,380 @@
+{
+  "format" : "VirtualPLC",
+  "version" : 1,
+  "name" : "Mixing batch with recipes (S7-1500)",
+  "author" : "Virtual PLC examples",
+  "comment" : "A PLC data type \"Recipe\" and an array of three recipes; the step chain fills A, fills B, mixes and drains. The tank is simulated in the cyclic interrupt OB30. Choose the recipe in \"Batch\".Select (watch table), start with I0.0.",
+  "cpu" : "CPU 1516-3 PN/DP",
+  "family" : "S7-1500",
+  "cyclicMs" : 100,
+  "clockByte" : 0,
+  "blocks" : [
+    {
+      "kind" : "OB",
+      "number" : 1,
+      "name" : "Main",
+      "comment" : "Main program cycle",
+      "networks" : [
+        {
+          "title" : "Recipes (first cycle)",
+          "comment" : "the recipe values: change them in the watch table or here",
+          "lang" : "SCL",
+          "scl" : [
+            "IF \"Batch\".Recipes[1].AmountA = 0.0 THEN",
+            "    \"Batch\".Recipes[1].AmountA := 40.0; \"Batch\".Recipes[1].AmountB := 20.0; \"Batch\".Recipes[1].MixTime := T#5S;",
+            "    \"Batch\".Recipes[2].AmountA := 25.0; \"Batch\".Recipes[2].AmountB := 50.0; \"Batch\".Recipes[2].MixTime := T#8S;",
+            "    \"Batch\".Recipes[3].AmountA := 60.0; \"Batch\".Recipes[3].AmountB := 10.0; \"Batch\".Recipes[3].MixTime := T#3S;",
+            "END_IF;"
+          ]
+        },
+        {
+          "title" : "Step chain",
+          "comment" : "with a variable index into the recipes",
+          "lang" : "SCL",
+          "scl" : [
+            "VAR_TEMP",
+            "    r : Int;",
+            "END_VAR",
+            "#r := LIMIT(MN := 1, IN := \"Batch\".Select, MX := 3);",
+            "CASE \"Batch\".Step OF",
+            "    0: IF \"Start_PB\" THEN",
+            "           \"Batch\".Target := \"Batch\".Recipes[#r].AmountA;",
+            "           \"Batch\".Step := 1;",
+            "       END_IF;",
+            "    1: IF \"Batch\".Level >= \"Batch\".Target THEN",
+            "           \"Batch\".Target := \"Batch\".Target + \"Batch\".Recipes[#r].AmountB;",
+            "           \"Batch\".Step := 2;",
+            "       END_IF;",
+            "    2: IF \"Batch\".Level >= \"Batch\".Target THEN \"Batch\".Step := 3; END_IF;",
+            "    3: IF \"Batch\".MixT.Q THEN \"Batch\".Step := 4; END_IF;",
+            "    4: IF \"Batch\".Level <= 0.0 THEN",
+            "           \"Batch\".Step := 0;",
+            "           \"Batch\".Batches := \"Batch\".Batches + 1;",
+            "       END_IF;",
+            "END_CASE;",
+            "\"Batch\".MixT.TON(IN := \"Batch\".Step = 3, PT := \"Batch\".Recipes[#r].MixTime);",
+            "\"Valve_A\" := \"Batch\".Step = 1;",
+            "\"Valve_B\" := \"Batch\".Step = 2;",
+            "\"Mixer\" := \"Batch\".Step = 3;",
+            "\"Drain\" := \"Batch\".Step = 4;",
+            "\"Ready\" := \"Batch\".Step = 0;"
+          ]
+        }
+      ]
+    },
+    {
+      "kind" : "OB",
+      "number" : 30,
+      "name" : "Tank simulation",
+      "comment" : "every 100 ms: 2 l in, 3 l out",
+      "networks" : [
+        {
+          "title" : "The tank",
+          "comment" : "the valves fill and drain it",
+          "lang" : "SCL",
+          "scl" : [
+            "IF \"Valve_A\" OR \"Valve_B\" THEN \"Batch\".Level := \"Batch\".Level + 2.0; END_IF;",
+            "IF \"Drain\" THEN \"Batch\".Level := \"Batch\".Level - 3.0; END_IF;",
+            "IF \"Batch\".Level < 0.0 THEN \"Batch\".Level := 0.0; END_IF;"
+          ]
+        }
+      ]
+    }
+  ],
+  "types" : [
+    {
+      "number" : 1,
+      "name" : "Recipe",
+      "comment" : "",
+      "members" : [
+        {
+          "name" : "AmountA",
+          "type" : "Real",
+          "start" : "0.0",
+          "comment" : "litres of A"
+        },
+        {
+          "name" : "AmountB",
+          "type" : "Real",
+          "start" : "0.0",
+          "comment" : "litres of B"
+        },
+        {
+          "name" : "MixTime",
+          "type" : "Time",
+          "start" : "T#0MS",
+          "comment" : "mixing time"
+        }
+      ]
+    }
+  ],
+  "dbs" : [
+    {
+      "number" : 1,
+      "name" : "Batch",
+      "comment" : "",
+      "optimized" : false,
+      "vars" : [
+        {
+          "name" : "Recipes",
+          "type" : "Array[1..3] of \"Recipe\"",
+          "start" : "",
+          "comment" : "the three recipes"
+        },
+        {
+          "name" : "Select",
+          "type" : "Int",
+          "start" : "1",
+          "comment" : "the recipe of the next batch (1..3)"
+        },
+        {
+          "name" : "Step",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "0 idle, 1 fill A, 2 fill B, 3 mix, 4 drain"
+        },
+        {
+          "name" : "Level",
+          "type" : "Real",
+          "start" : "0.0",
+          "comment" : "litres in the tank (simulated in OB30)"
+        },
+        {
+          "name" : "Target",
+          "type" : "Real",
+          "start" : "0.0",
+          "comment" : "the level to reach"
+        },
+        {
+          "name" : "MixT",
+          "type" : "IEC_TIMER",
+          "start" : "",
+          "comment" : "mixing"
+        },
+        {
+          "name" : "Batches",
+          "type" : "DInt",
+          "start" : "0",
+          "comment" : "batches made"
+        }
+      ]
+    }
+  ],
+  "tags" : [
+    {
+      "name" : "Clock_2Hz",
+      "type" : "Bool",
+      "address" : "%M0.3",
+      "comment" : "clock memory 2 Hz"
+    },
+    {
+      "name" : "Clock_1Hz",
+      "type" : "Bool",
+      "address" : "%M0.5",
+      "comment" : "clock memory 1 Hz"
+    },
+    {
+      "name" : "Start_PB",
+      "type" : "Bool",
+      "address" : "%I0.0",
+      "comment" : "start a batch"
+    },
+    {
+      "name" : "Valve_A",
+      "type" : "Bool",
+      "address" : "%Q0.0",
+      "comment" : "component A"
+    },
+    {
+      "name" : "Valve_B",
+      "type" : "Bool",
+      "address" : "%Q0.1",
+      "comment" : "component B"
+    },
+    {
+      "name" : "Mixer",
+      "type" : "Bool",
+      "address" : "%Q0.2",
+      "comment" : "mixer motor"
+    },
+    {
+      "name" : "Drain",
+      "type" : "Bool",
+      "address" : "%Q0.3",
+      "comment" : "drain valve"
+    },
+    {
+      "name" : "Ready",
+      "type" : "Bool",
+      "address" : "%Q0.4",
+      "comment" : "idle"
+    }
+  ],
+  "watch" : [
+    {
+      "address" : "\"Batch\".Select",
+      "format" : "DEC",
+      "modify" : "2"
+    },
+    {
+      "address" : "\"Batch\".Step",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Batch\".Level",
+      "format" : "REAL",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Batch\".Batches",
+      "format" : "DEC",
+      "modify" : ""
+    }
+  ],
+  "diTypes" : [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "aiChannels" : [
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    }
+  ],
+  "comm" : {
+    "s7" : true,
+    "s7Port" : 102,
+    "modbus" : true,
+    "modbusPort" : 502,
+    "modbusUnit" : 1,
+    "holding" : "M",
+    "putGet" : true,
+    "allInterfaces" : false,
+    "ip" : "127.0.0.1",
+    "mask" : "255.255.255.0",
+    "ipc" : false
+  }
+}

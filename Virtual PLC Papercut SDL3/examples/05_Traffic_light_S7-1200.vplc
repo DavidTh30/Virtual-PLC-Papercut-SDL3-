@@ -1,0 +1,319 @@
+{
+  "format" : "VirtualPLC",
+  "version" : 1,
+  "name" : "Traffic light with pedestrian request (S7-1200)",
+  "author" : "Virtual PLC examples",
+  "comment" : "SCL state machine with IEC timers. I/O: press Ped_Request (I0.0): the cars get yellow, then red, the pedestrians green for 8 s. Night_Mode (I0.1) flashes yellow.",
+  "cpu" : "CPU 1214C DC/DC/DC",
+  "family" : "S7-1200",
+  "cyclicMs" : 100,
+  "clockByte" : 0,
+  "blocks" : [
+    {
+      "kind" : "OB",
+      "number" : 1,
+      "name" : "Main",
+      "comment" : "Main program cycle",
+      "networks" : [
+        {
+          "title" : "Traffic light",
+          "comment" : "the steps advance when the step timer has run out",
+          "lang" : "SCL",
+          "scl" : [
+            "IF \"Ped_Request\" THEN \"Traffic\".Request := TRUE; END_IF;",
+            "CASE \"Traffic\".Step OF",
+            "    0: \"Traffic\".Dur := T#5S;    // cars green at least 5 s",
+            "    1: \"Traffic\".Dur := T#2S;    // yellow",
+            "    2: \"Traffic\".Dur := T#1S;    // all red",
+            "    3: \"Traffic\".Dur := T#8S;    // pedestrians green",
+            "    4: \"Traffic\".Dur := T#1500MS; // red + yellow",
+            "END_CASE;",
+            "\"Traffic\".StepTimer.TON(IN := NOT \"Night_Mode\" AND NOT \"Traffic\".StepTimer.Q, PT := \"Traffic\".Dur);",
+            "IF \"Traffic\".StepTimer.Q THEN",
+            "    IF \"Traffic\".Step = 0 THEN",
+            "        IF \"Traffic\".Request THEN \"Traffic\".Step := 1; END_IF;",
+            "    ELSIF \"Traffic\".Step = 4 THEN",
+            "        \"Traffic\".Step := 0;",
+            "    ELSE",
+            "        \"Traffic\".Step := \"Traffic\".Step + 1;",
+            "        IF \"Traffic\".Step = 3 THEN \"Traffic\".Request := FALSE; END_IF;",
+            "    END_IF;",
+            "END_IF;",
+            "IF \"Night_Mode\" THEN \"Traffic\".Step := 0; END_IF;"
+          ]
+        },
+        {
+          "title" : "Lamps",
+          "comment" : "night mode: only yellow flashes",
+          "lang" : "SCL",
+          "scl" : [
+            "\"Car_Green\" := (\"Traffic\".Step = 0) AND NOT \"Night_Mode\";",
+            "\"Car_Yellow\" := (\"Traffic\".Step = 1) OR (\"Traffic\".Step = 4) OR (\"Night_Mode\" AND \"Clock_1Hz\");",
+            "\"Car_Red\" := ((\"Traffic\".Step = 2) OR (\"Traffic\".Step = 3) OR (\"Traffic\".Step = 4)) AND NOT \"Night_Mode\";",
+            "\"Ped_Green\" := (\"Traffic\".Step = 3) AND NOT \"Night_Mode\";",
+            "\"Ped_Red\" := (\"Traffic\".Step <> 3) AND NOT \"Night_Mode\";",
+            "\"Wait_Lamp\" := \"Traffic\".Request AND \"Clock_2Hz\";"
+          ]
+        }
+      ]
+    }
+  ],
+  "dbs" : [
+    {
+      "number" : 1,
+      "name" : "Traffic",
+      "comment" : "",
+      "optimized" : false,
+      "vars" : [
+        {
+          "name" : "Step",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "0 cars green, 1 yellow, 2 red, 3 pedestrians green, 4 red+yellow"
+        },
+        {
+          "name" : "Request",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "a pedestrian waits"
+        },
+        {
+          "name" : "StepTimer",
+          "type" : "IEC_TIMER",
+          "start" : "",
+          "comment" : "the time of a step"
+        },
+        {
+          "name" : "Dur",
+          "type" : "Time",
+          "start" : "T#0MS",
+          "comment" : "the time of the step now"
+        }
+      ]
+    }
+  ],
+  "tags" : [
+    {
+      "name" : "Clock_2Hz",
+      "type" : "Bool",
+      "address" : "%M0.3",
+      "comment" : "clock memory 2 Hz"
+    },
+    {
+      "name" : "Clock_1Hz",
+      "type" : "Bool",
+      "address" : "%M0.5",
+      "comment" : "clock memory 1 Hz"
+    },
+    {
+      "name" : "Ped_Request",
+      "type" : "Bool",
+      "address" : "%I0.0",
+      "comment" : "pedestrian push button"
+    },
+    {
+      "name" : "Night_Mode",
+      "type" : "Bool",
+      "address" : "%I0.1",
+      "comment" : "switch: night mode"
+    },
+    {
+      "name" : "Car_Red",
+      "type" : "Bool",
+      "address" : "%Q0.0",
+      "comment" : "cars red"
+    },
+    {
+      "name" : "Car_Yellow",
+      "type" : "Bool",
+      "address" : "%Q0.1",
+      "comment" : "cars yellow"
+    },
+    {
+      "name" : "Car_Green",
+      "type" : "Bool",
+      "address" : "%Q0.2",
+      "comment" : "cars green"
+    },
+    {
+      "name" : "Ped_Red",
+      "type" : "Bool",
+      "address" : "%Q0.3",
+      "comment" : "pedestrians red"
+    },
+    {
+      "name" : "Ped_Green",
+      "type" : "Bool",
+      "address" : "%Q0.4",
+      "comment" : "pedestrians green"
+    },
+    {
+      "name" : "Wait_Lamp",
+      "type" : "Bool",
+      "address" : "%Q0.5",
+      "comment" : "request stored"
+    }
+  ],
+  "watch" : [
+    {
+      "address" : "\"Traffic\".Step",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Traffic\".StepTimer.ET",
+      "format" : "TIME",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Ped_Request\"",
+      "format" : "BOOL",
+      "modify" : "TRUE"
+    }
+  ],
+  "diTypes" : [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "aiChannels" : [
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    }
+  ],
+  "comm" : {
+    "s7" : true,
+    "s7Port" : 102,
+    "modbus" : true,
+    "modbusPort" : 502,
+    "modbusUnit" : 1,
+    "holding" : "M",
+    "putGet" : true,
+    "allInterfaces" : false,
+    "ip" : "127.0.0.1",
+    "mask" : "255.255.255.0",
+    "ipc" : false
+  }
+}

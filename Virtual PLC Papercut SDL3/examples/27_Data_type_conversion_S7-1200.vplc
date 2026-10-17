@@ -1,0 +1,466 @@
+{
+  "format" : "VirtualPLC",
+  "version" : 1,
+  "name" : "Data type conversion: Real, Int, DInt, Word, DWord (S7-1200)",
+  "author" : "Virtual PLC examples",
+  "comment" : "SCL and LAD: the analog input as Int -> Real volts and back; Real -> DInt with ROUND, TRUNC, CEIL, FLOOR; a DInt that does not fit an Int; Word / DWord bit patterns as Int / DInt. Change the start values in the watch table (Modify) and watch the results.",
+  "cpu" : "CPU 1214C DC/DC/DC",
+  "family" : "S7-1200",
+  "cyclicMs" : 100,
+  "clockByte" : 0,
+  "blocks" : [
+    {
+      "kind" : "OB",
+      "number" : 1,
+      "name" : "Main",
+      "comment" : "Main program cycle",
+      "networks" : [
+        {
+          "title" : "Analog input: Int -> Real volts -> Int",
+          "comment" : "INT_TO_REAL before the division, REAL_TO_INT rounds",
+          "lang" : "SCL",
+          "scl" : [
+            "\"Conv\".Raw := \"AI_Raw\";",
+            "\"Conv\".Volts := INT_TO_REAL(\"Conv\".Raw) * 10.0 / 27648.0;",
+            "\"Conv\".Back_Int := REAL_TO_INT(\"Conv\".Volts * 2764.8);"
+          ]
+        },
+        {
+          "title" : "Real -> DInt: ROUND, TRUNC, CEIL, FLOOR",
+          "comment" : "Value 2.5 gives 2, 2, 3, 2 (ROUND: a half to the even); 2.7 gives 3, 2, 3, 2; -2.5 gives -2, -2, -2, -3",
+          "lang" : "SCL",
+          "scl" : [
+            "\"Conv\".Rnd := ROUND(\"Conv\".Value);",
+            "\"Conv\".Trc := TRUNC(\"Conv\".Value);",
+            "\"Conv\".Cei := CEIL(\"Conv\".Value);",
+            "\"Conv\".Flo := FLOOR(\"Conv\".Value);"
+          ]
+        },
+        {
+          "title" : "Integer widths: DInt -> Int, DInt -> Real",
+          "comment" : "an Int holds -32768..32767: 70000 keeps its low 16 bits",
+          "lang" : "SCL",
+          "scl" : [
+            "\"Conv\".Big_To_Int := DINT_TO_INT(\"Conv\".Big);",
+            "\"Conv\".Big_To_Real := DINT_TO_REAL(\"Conv\".Big);"
+          ]
+        },
+        {
+          "title" : "Bit patterns: Word / DWord <-> Int / DInt",
+          "comment" : "the bits stay, only their meaning changes",
+          "lang" : "SCL",
+          "scl" : [
+            "\"Conv\".W_To_Int := WORD_TO_INT(\"Conv\".W);",
+            "\"Conv\".Int_To_W := INT_TO_WORD(\"Conv\".Neg);",
+            "\"Conv\".W_To_DW := WORD_TO_DWORD(\"Conv\".W);",
+            "\"Conv\".DW_To_DInt := DWORD_TO_DINT(\"Conv\".DW);",
+            "\"Conv\".DInt_To_DW := DINT_TO_DWORD(\"Conv\".Big);",
+            "\"Conv\".Real_To_W := REAL_TO_WORD(\"Conv\".Volts * 1000.0);"
+          ]
+        },
+        {
+          "title" : "LAD: CONV Int -> Real",
+          "comment" : "the same as INT_TO_REAL",
+          "lang" : "LAD",
+          "rows" : 1,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "conv",
+              "p" : [
+                "\"Conv\".Raw",
+                "\"Conv\".Raw_Real"
+              ],
+              "type" : "Int",
+              "type2" : "Real"
+            }
+          ]
+        },
+        {
+          "title" : "LAD: ROUND Real -> Int",
+          "comment" : "the same as REAL_TO_INT",
+          "lang" : "LAD",
+          "rows" : 1,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "round",
+              "p" : [
+                "\"Conv\".Value",
+                "\"Conv\".Lad_Rnd"
+              ],
+              "type" : "Real",
+              "type2" : "Int"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "dbs" : [
+    {
+      "number" : 1,
+      "name" : "Conv",
+      "comment" : "",
+      "optimized" : false,
+      "vars" : [
+        {
+          "name" : "Raw",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "the analog input"
+        },
+        {
+          "name" : "Volts",
+          "type" : "Real",
+          "start" : "0.0",
+          "comment" : "INT_TO_REAL * 10 / 27648"
+        },
+        {
+          "name" : "Back_Int",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "REAL_TO_INT (rounds)"
+        },
+        {
+          "name" : "Raw_Real",
+          "type" : "Real",
+          "start" : "0.0",
+          "comment" : "LAD CONV Int -> Real"
+        },
+        {
+          "name" : "Value",
+          "type" : "Real",
+          "start" : "2.5",
+          "comment" : "try 2.5, -2.5, 2.7"
+        },
+        {
+          "name" : "Rnd",
+          "type" : "DInt",
+          "start" : "0",
+          "comment" : "ROUND: to the nearest (a half to the even number)"
+        },
+        {
+          "name" : "Trc",
+          "type" : "DInt",
+          "start" : "0",
+          "comment" : "TRUNC: the fraction goes"
+        },
+        {
+          "name" : "Cei",
+          "type" : "DInt",
+          "start" : "0",
+          "comment" : "CEIL: up"
+        },
+        {
+          "name" : "Flo",
+          "type" : "DInt",
+          "start" : "0",
+          "comment" : "FLOOR: down"
+        },
+        {
+          "name" : "Lad_Rnd",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "LAD ROUND Real -> Int"
+        },
+        {
+          "name" : "Big",
+          "type" : "DInt",
+          "start" : "70000",
+          "comment" : "more than an Int holds"
+        },
+        {
+          "name" : "Big_To_Int",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "DINT_TO_INT: the low 16 bits (4464)"
+        },
+        {
+          "name" : "Big_To_Real",
+          "type" : "Real",
+          "start" : "0.0",
+          "comment" : "DINT_TO_REAL"
+        },
+        {
+          "name" : "W",
+          "type" : "Word",
+          "start" : "16#FFFF",
+          "comment" : "a bit pattern"
+        },
+        {
+          "name" : "W_To_Int",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "WORD_TO_INT: 16#FFFF = -1"
+        },
+        {
+          "name" : "Neg",
+          "type" : "Int",
+          "start" : "-1",
+          "comment" : "a negative Int"
+        },
+        {
+          "name" : "Int_To_W",
+          "type" : "Word",
+          "start" : "16#0",
+          "comment" : "INT_TO_WORD: -1 = 16#FFFF"
+        },
+        {
+          "name" : "W_To_DW",
+          "type" : "DWord",
+          "start" : "16#0",
+          "comment" : "WORD_TO_DWORD: 16#0000_FFFF"
+        },
+        {
+          "name" : "DW",
+          "type" : "DWord",
+          "start" : "16#10000",
+          "comment" : "a double word"
+        },
+        {
+          "name" : "DW_To_DInt",
+          "type" : "DInt",
+          "start" : "0",
+          "comment" : "DWORD_TO_DINT: 65536"
+        },
+        {
+          "name" : "DInt_To_DW",
+          "type" : "DWord",
+          "start" : "16#0",
+          "comment" : "DINT_TO_DWORD of Big"
+        },
+        {
+          "name" : "Real_To_W",
+          "type" : "Word",
+          "start" : "16#0",
+          "comment" : "REAL_TO_WORD of Volts * 1000"
+        }
+      ]
+    }
+  ],
+  "tags" : [
+    {
+      "name" : "Clock_2Hz",
+      "type" : "Bool",
+      "address" : "%M0.3",
+      "comment" : "clock memory 2 Hz"
+    },
+    {
+      "name" : "Clock_1Hz",
+      "type" : "Bool",
+      "address" : "%M0.5",
+      "comment" : "clock memory 1 Hz"
+    },
+    {
+      "name" : "AI_Raw",
+      "type" : "Int",
+      "address" : "%IW64",
+      "comment" : "analog input 0..27648 = 0..10 V"
+    }
+  ],
+  "watch" : [
+    {
+      "address" : "\"Conv\".Raw",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Conv\".Volts",
+      "format" : "REAL",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Conv\".Value",
+      "format" : "REAL",
+      "modify" : "-2.5"
+    },
+    {
+      "address" : "\"Conv\".Rnd",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Conv\".Trc",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Conv\".Cei",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Conv\".Flo",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Conv\".Big_To_Int",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Conv\".W_To_Int",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Conv\".Int_To_W",
+      "format" : "HEX",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Conv\".DW_To_DInt",
+      "format" : "DEC",
+      "modify" : ""
+    }
+  ],
+  "diTypes" : [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "aiChannels" : [
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    }
+  ],
+  "comm" : {
+    "s7" : true,
+    "s7Port" : 102,
+    "modbus" : true,
+    "modbusPort" : 502,
+    "modbusUnit" : 1,
+    "holding" : "M",
+    "putGet" : true,
+    "allInterfaces" : false,
+    "ip" : "127.0.0.1",
+    "mask" : "255.255.255.0",
+    "ipc" : false
+  }
+}

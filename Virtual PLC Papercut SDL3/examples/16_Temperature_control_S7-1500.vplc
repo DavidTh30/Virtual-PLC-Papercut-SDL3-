@@ -1,0 +1,285 @@
+{
+  "format" : "VirtualPLC",
+  "version" : 1,
+  "name" : "Temperature control with PWM heating (S7-1500)",
+  "author" : "Virtual PLC examples",
+  "comment" : "SCL: the temperature (IW4, 0..27648 = 0..150 °C) is compared with the setpoint; the heater runs as PWM in a 2 s period with a duty from the error (P control); above 120 °C the alarm switches the heater off.",
+  "cpu" : "CPU 1516-3 PN/DP",
+  "family" : "S7-1500",
+  "cyclicMs" : 100,
+  "clockByte" : 0,
+  "blocks" : [
+    {
+      "kind" : "OB",
+      "number" : 1,
+      "name" : "Main",
+      "comment" : "Main program cycle",
+      "networks" : [
+        {
+          "title" : "Measure and control",
+          "comment" : "P control: duty = gain * (setpoint - actual), 0..100 %",
+          "lang" : "SCL",
+          "scl" : [
+            "\"Temp\".Actual := SCALE_X(MIN := 0.0, VALUE := NORM_X(MIN := 0, VALUE := \"Temp_AI\", MAX := 27648), MAX := 150.0);",
+            "\"Temp\".Duty := LIMIT(MN := 0.0, IN := \"Temp\".Gain * (\"Temp\".Setpoint - \"Temp\".Actual), MX := 100.0);",
+            "\"Over_Temp\" := \"Temp\".Actual > 120.0;"
+          ]
+        },
+        {
+          "title" : "PWM heater",
+          "comment" : "on for duty % of every 2 s",
+          "lang" : "SCL",
+          "scl" : [
+            "\"Temp\".Cycle.TON(IN := NOT \"Temp\".Cycle.Q, PT := T#2S);",
+            "\"Heater\" := \"Enable\" AND NOT \"Over_Temp\" AND (TIME_TO_DINT(\"Temp\".Cycle.ET) < REAL_TO_DINT(\"Temp\".Duty * 20.0));"
+          ]
+        }
+      ]
+    }
+  ],
+  "dbs" : [
+    {
+      "number" : 1,
+      "name" : "Temp",
+      "comment" : "",
+      "optimized" : false,
+      "vars" : [
+        {
+          "name" : "Actual",
+          "type" : "Real",
+          "start" : "0.0",
+          "comment" : "°C"
+        },
+        {
+          "name" : "Setpoint",
+          "type" : "Real",
+          "start" : "60.0",
+          "comment" : "°C"
+        },
+        {
+          "name" : "Gain",
+          "type" : "Real",
+          "start" : "5.0",
+          "comment" : "% duty per °C"
+        },
+        {
+          "name" : "Duty",
+          "type" : "Real",
+          "start" : "0.0",
+          "comment" : "0..100 %"
+        },
+        {
+          "name" : "Cycle",
+          "type" : "IEC_TIMER",
+          "start" : "",
+          "comment" : "the PWM period"
+        }
+      ]
+    }
+  ],
+  "tags" : [
+    {
+      "name" : "Clock_2Hz",
+      "type" : "Bool",
+      "address" : "%M0.3",
+      "comment" : "clock memory 2 Hz"
+    },
+    {
+      "name" : "Clock_1Hz",
+      "type" : "Bool",
+      "address" : "%M0.5",
+      "comment" : "clock memory 1 Hz"
+    },
+    {
+      "name" : "Temp_AI",
+      "type" : "Int",
+      "address" : "%IW4",
+      "comment" : "temperature 0..150 °C"
+    },
+    {
+      "name" : "Enable",
+      "type" : "Bool",
+      "address" : "%I0.0",
+      "comment" : "switch: control on"
+    },
+    {
+      "name" : "Heater",
+      "type" : "Bool",
+      "address" : "%Q0.0",
+      "comment" : "heater"
+    },
+    {
+      "name" : "Over_Temp",
+      "type" : "Bool",
+      "address" : "%Q0.1",
+      "comment" : "temperature too high"
+    }
+  ],
+  "watch" : [
+    {
+      "address" : "\"Temp\".Actual",
+      "format" : "REAL",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Temp\".Setpoint",
+      "format" : "REAL",
+      "modify" : "80.0"
+    },
+    {
+      "address" : "\"Temp\".Duty",
+      "format" : "REAL",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Heater\"",
+      "format" : "BOOL",
+      "modify" : ""
+    }
+  ],
+  "diTypes" : [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "aiChannels" : [
+    {
+      "mode" : "manual",
+      "value" : 9000
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    }
+  ],
+  "comm" : {
+    "s7" : true,
+    "s7Port" : 102,
+    "modbus" : true,
+    "modbusPort" : 502,
+    "modbusUnit" : 1,
+    "holding" : "M",
+    "putGet" : true,
+    "allInterfaces" : false,
+    "ip" : "127.0.0.1",
+    "mask" : "255.255.255.0",
+    "ipc" : false
+  }
+}

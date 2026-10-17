@@ -1,0 +1,1137 @@
+{
+  "format" : "VirtualPLC",
+  "version" : 1,
+  "name" : "Large FB: motor control with state machine, 3 instances (S7-1500)",
+  "author" : "Virtual PLC examples",
+  "comment" : "FB1 \"MotorCtrl\" (SCL, 4 networks): hand / auto, interlock, start warning time, contactor feedback monitoring, overload, fault codes with reset, start counter, run seconds, a lamp that tells the state. OB1 calls it for three motors (DB1..DB3); motor 2 needs motor 1 running, motor 3 needs motor 2. Hand: press Mx_Start, switch Mx_Feedback on within 3 s. Auto: Auto_Mode on, Auto_Cmd on.",
+  "cpu" : "CPU 1516-3 PN/DP",
+  "family" : "S7-1500",
+  "cyclicMs" : 100,
+  "clockByte" : 0,
+  "blocks" : [
+    {
+      "kind" : "OB",
+      "number" : 1,
+      "name" : "Main",
+      "comment" : "Main program cycle",
+      "networks" : [
+        {
+          "title" : "Three motors, one FB",
+          "comment" : "motor 2 needs motor 1 running, motor 3 needs motor 2",
+          "lang" : "SCL",
+          "scl" : [
+            "\"M1_DB\"(Auto := \"Auto_Mode\", AutoCmd := \"Auto_Cmd\", ManStart := \"M1_Start\", ManStop := \"M1_Stop\",",
+            "        Feedback := \"M1_Feedback\", Overload := \"M1_Overload\", Interlock := TRUE, Reset := \"Reset_PB\",",
+            "        Run => \"M1_Run\", Lamp => \"M1_Lamp\");",
+            "\"M2_DB\"(Auto := \"Auto_Mode\", AutoCmd := \"Auto_Cmd\", ManStart := \"M2_Start\", ManStop := \"M2_Stop\",",
+            "        Feedback := \"M2_Feedback\", Overload := \"M2_Overload\", Interlock := \"M1_Run\", Reset := \"Reset_PB\",",
+            "        Run => \"M2_Run\", Lamp => \"M2_Lamp\");",
+            "\"M3_DB\"(Auto := \"Auto_Mode\", AutoCmd := \"Auto_Cmd\", ManStart := \"M3_Start\", ManStop := \"M3_Stop\",",
+            "        Feedback := \"M3_Feedback\", Overload := \"M3_Overload\", Interlock := \"M2_Run\", Reset := \"Reset_PB\",",
+            "        Run => \"M3_Run\", Lamp => \"M3_Lamp\");"
+          ]
+        },
+        {
+          "title" : "A fault lamp for all",
+          "comment" : "the Fault outputs of the three instances",
+          "lang" : "LAD",
+          "rows" : 3,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "no",
+              "op" : "\"M1_DB\".Fault",
+              "down" : true
+            },
+            {
+              "r" : 0,
+              "c" : 1,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 2,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 3,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 4,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 5,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 6,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 7,
+              "e" : "coil",
+              "op" : "\"Any_Fault\""
+            },
+            {
+              "r" : 1,
+              "c" : 0,
+              "e" : "no",
+              "op" : "\"M2_DB\".Fault",
+              "down" : true
+            },
+            {
+              "r" : 2,
+              "c" : 0,
+              "e" : "no",
+              "op" : "\"M3_DB\".Fault"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind" : "FB",
+      "number" : 1,
+      "name" : "MotorCtrl",
+      "comment" : "one motor: demand, faults, state machine, run time",
+      "interface" : [
+        {
+          "section" : "Input",
+          "name" : "Auto",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "TRUE: the auto command, FALSE: hand"
+        },
+        {
+          "section" : "Input",
+          "name" : "AutoCmd",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "run in auto"
+        },
+        {
+          "section" : "Input",
+          "name" : "ManStart",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "hand: start (push button)"
+        },
+        {
+          "section" : "Input",
+          "name" : "ManStop",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "hand: stop (push button)"
+        },
+        {
+          "section" : "Input",
+          "name" : "Feedback",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "the contactor answers"
+        },
+        {
+          "section" : "Input",
+          "name" : "Overload",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "the overload relay tripped"
+        },
+        {
+          "section" : "Input",
+          "name" : "Interlock",
+          "type" : "Bool",
+          "start" : "TRUE",
+          "comment" : "TRUE: allowed to run"
+        },
+        {
+          "section" : "Input",
+          "name" : "Reset",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "fault reset (rising edge)"
+        },
+        {
+          "section" : "Input",
+          "name" : "StartDelay",
+          "type" : "Time",
+          "start" : "T#1S",
+          "comment" : "start warning time"
+        },
+        {
+          "section" : "Input",
+          "name" : "FbTimeout",
+          "type" : "Time",
+          "start" : "T#3S",
+          "comment" : "feedback must come within"
+        },
+        {
+          "section" : "Output",
+          "name" : "Run",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "the contactor"
+        },
+        {
+          "section" : "Output",
+          "name" : "Lamp",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "off / 2 Hz starting / on / 1 Hz fault"
+        },
+        {
+          "section" : "Output",
+          "name" : "Fault",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "a fault is present"
+        },
+        {
+          "section" : "Output",
+          "name" : "State",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "0 stopped, 1 starting, 2 running, 3 fault"
+        },
+        {
+          "section" : "Output",
+          "name" : "FaultCode",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "1 overload, 2 no feedback, 3 feedback without run"
+        },
+        {
+          "section" : "Output",
+          "name" : "Starts",
+          "type" : "DInt",
+          "start" : "0",
+          "comment" : "starts so far"
+        },
+        {
+          "section" : "Output",
+          "name" : "RunSeconds",
+          "type" : "DInt",
+          "start" : "0",
+          "comment" : "run seconds"
+        },
+        {
+          "section" : "Static",
+          "name" : "StartTmr",
+          "type" : "IEC_TIMER",
+          "start" : "",
+          "comment" : "the start warning"
+        },
+        {
+          "section" : "Static",
+          "name" : "FbTmr",
+          "type" : "IEC_TIMER",
+          "start" : "",
+          "comment" : "feedback missing"
+        },
+        {
+          "section" : "Static",
+          "name" : "GhostTmr",
+          "type" : "IEC_TIMER",
+          "start" : "",
+          "comment" : "feedback without a run command"
+        },
+        {
+          "section" : "Static",
+          "name" : "SecTmr",
+          "type" : "IEC_TIMER",
+          "start" : "",
+          "comment" : "one pulse per second"
+        },
+        {
+          "section" : "Static",
+          "name" : "ManLatch",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "hand: start / stop latch"
+        },
+        {
+          "section" : "Static",
+          "name" : "ResetOld",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "edge memory of Reset"
+        },
+        {
+          "section" : "Temp",
+          "name" : "Want",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "the motor should run"
+        }
+      ],
+      "networks" : [
+        {
+          "title" : "Demand: hand or auto, interlock",
+          "comment" : "hand: a latch of Start / Stop; auto: the command",
+          "lang" : "SCL",
+          "scl" : [
+            "IF #ManStop OR #Auto THEN",
+            "    #ManLatch := FALSE;",
+            "ELSIF #ManStart THEN",
+            "    #ManLatch := TRUE;",
+            "END_IF;",
+            "IF #Auto THEN",
+            "    #Want := #AutoCmd;",
+            "ELSE",
+            "    #Want := #ManLatch;",
+            "END_IF;",
+            "#Want := #Want AND #Interlock;"
+          ]
+        },
+        {
+          "title" : "Faults: overload, feedback, reset",
+          "comment" : "a fault stays until Reset (rising edge) when its cause is gone",
+          "lang" : "SCL",
+          "scl" : [
+            "#FbTmr.TON(IN := #Run AND NOT #Feedback, PT := #FbTimeout);",
+            "#GhostTmr.TON(IN := #Feedback AND NOT #Run, PT := #FbTimeout);",
+            "IF #Overload THEN",
+            "    #FaultCode := 1;",
+            "ELSIF #FbTmr.Q THEN",
+            "    #FaultCode := 2;",
+            "ELSIF #GhostTmr.Q AND #FaultCode = 0 THEN",
+            "    #FaultCode := 3;",
+            "END_IF;",
+            "IF #Reset AND NOT #ResetOld AND NOT #Overload THEN",
+            "    #FaultCode := 0;",
+            "END_IF;",
+            "#ResetOld := #Reset;",
+            "#Fault := #FaultCode <> 0;"
+          ]
+        },
+        {
+          "title" : "State machine",
+          "comment" : "0 stopped -> 1 starting (warning) -> 2 running; 3 fault",
+          "lang" : "SCL",
+          "scl" : [
+            "CASE #State OF",
+            "    0:  // stopped",
+            "        IF #Want AND NOT #Fault THEN",
+            "            #State := 1;",
+            "        END_IF;",
+            "    1:  // start warning",
+            "        IF #Fault THEN",
+            "            #State := 3;",
+            "        ELSIF NOT #Want THEN",
+            "            #State := 0;",
+            "        ELSIF #StartTmr.Q THEN",
+            "            #State := 2;",
+            "            #Starts := #Starts + 1;",
+            "        END_IF;",
+            "    2:  // running",
+            "        IF #Fault THEN",
+            "            #State := 3;",
+            "        ELSIF NOT #Want THEN",
+            "            #State := 0;",
+            "        END_IF;",
+            "ELSE    // 3: fault, until it is reset",
+            "    IF NOT #Fault THEN",
+            "        #State := 0;",
+            "        #ManLatch := FALSE;",
+            "    END_IF;",
+            "END_CASE;",
+            "#StartTmr.TON(IN := #State = 1, PT := #StartDelay);",
+            "#Run := #State = 2;"
+          ]
+        },
+        {
+          "title" : "Run time and lamp",
+          "comment" : "the lamp: off, 2 Hz while starting, on while running, 1 Hz on a fault",
+          "lang" : "SCL",
+          "scl" : [
+            "#SecTmr.TON(IN := #Run AND NOT #SecTmr.Q, PT := T#1S);",
+            "IF #SecTmr.Q THEN",
+            "    #RunSeconds := #RunSeconds + 1;",
+            "END_IF;",
+            "CASE #State OF",
+            "    0: #Lamp := FALSE;",
+            "    1: #Lamp := \"Clock_2Hz\";",
+            "    2: #Lamp := TRUE;",
+            "ELSE",
+            "    #Lamp := \"Clock_1Hz\";",
+            "END_CASE;"
+          ]
+        }
+      ]
+    }
+  ],
+  "dbs" : [
+    {
+      "number" : 1,
+      "name" : "M1_DB",
+      "comment" : "",
+      "optimized" : false,
+      "instanceOf" : 1,
+      "vars" : [
+        {
+          "name" : "Auto",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "TRUE: the auto command, FALSE: hand"
+        },
+        {
+          "name" : "AutoCmd",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "run in auto"
+        },
+        {
+          "name" : "ManStart",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "hand: start (push button)"
+        },
+        {
+          "name" : "ManStop",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "hand: stop (push button)"
+        },
+        {
+          "name" : "Feedback",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "the contactor answers"
+        },
+        {
+          "name" : "Overload",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "the overload relay tripped"
+        },
+        {
+          "name" : "Interlock",
+          "type" : "Bool",
+          "start" : "TRUE",
+          "comment" : "TRUE: allowed to run"
+        },
+        {
+          "name" : "Reset",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "fault reset (rising edge)"
+        },
+        {
+          "name" : "StartDelay",
+          "type" : "Time",
+          "start" : "T#1S",
+          "comment" : "start warning time"
+        },
+        {
+          "name" : "FbTimeout",
+          "type" : "Time",
+          "start" : "T#3S",
+          "comment" : "feedback must come within"
+        },
+        {
+          "name" : "Run",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "the contactor"
+        },
+        {
+          "name" : "Lamp",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "off / 2 Hz starting / on / 1 Hz fault"
+        },
+        {
+          "name" : "Fault",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "a fault is present"
+        },
+        {
+          "name" : "State",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "0 stopped, 1 starting, 2 running, 3 fault"
+        },
+        {
+          "name" : "FaultCode",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "1 overload, 2 no feedback, 3 feedback without run"
+        },
+        {
+          "name" : "Starts",
+          "type" : "DInt",
+          "start" : "0",
+          "comment" : "starts so far"
+        },
+        {
+          "name" : "RunSeconds",
+          "type" : "DInt",
+          "start" : "0",
+          "comment" : "run seconds"
+        },
+        {
+          "name" : "StartTmr",
+          "type" : "IEC_TIMER",
+          "start" : "",
+          "comment" : "the start warning"
+        },
+        {
+          "name" : "FbTmr",
+          "type" : "IEC_TIMER",
+          "start" : "",
+          "comment" : "feedback missing"
+        },
+        {
+          "name" : "GhostTmr",
+          "type" : "IEC_TIMER",
+          "start" : "",
+          "comment" : "feedback without a run command"
+        },
+        {
+          "name" : "SecTmr",
+          "type" : "IEC_TIMER",
+          "start" : "",
+          "comment" : "one pulse per second"
+        },
+        {
+          "name" : "ManLatch",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "hand: start / stop latch"
+        },
+        {
+          "name" : "ResetOld",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "edge memory of Reset"
+        }
+      ]
+    },
+    {
+      "number" : 2,
+      "name" : "M2_DB",
+      "comment" : "",
+      "optimized" : false,
+      "instanceOf" : 1,
+      "vars" : [
+        {
+          "name" : "Auto",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "TRUE: the auto command, FALSE: hand"
+        },
+        {
+          "name" : "AutoCmd",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "run in auto"
+        },
+        {
+          "name" : "ManStart",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "hand: start (push button)"
+        },
+        {
+          "name" : "ManStop",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "hand: stop (push button)"
+        },
+        {
+          "name" : "Feedback",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "the contactor answers"
+        },
+        {
+          "name" : "Overload",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "the overload relay tripped"
+        },
+        {
+          "name" : "Interlock",
+          "type" : "Bool",
+          "start" : "TRUE",
+          "comment" : "TRUE: allowed to run"
+        },
+        {
+          "name" : "Reset",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "fault reset (rising edge)"
+        },
+        {
+          "name" : "StartDelay",
+          "type" : "Time",
+          "start" : "T#1S",
+          "comment" : "start warning time"
+        },
+        {
+          "name" : "FbTimeout",
+          "type" : "Time",
+          "start" : "T#3S",
+          "comment" : "feedback must come within"
+        },
+        {
+          "name" : "Run",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "the contactor"
+        },
+        {
+          "name" : "Lamp",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "off / 2 Hz starting / on / 1 Hz fault"
+        },
+        {
+          "name" : "Fault",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "a fault is present"
+        },
+        {
+          "name" : "State",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "0 stopped, 1 starting, 2 running, 3 fault"
+        },
+        {
+          "name" : "FaultCode",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "1 overload, 2 no feedback, 3 feedback without run"
+        },
+        {
+          "name" : "Starts",
+          "type" : "DInt",
+          "start" : "0",
+          "comment" : "starts so far"
+        },
+        {
+          "name" : "RunSeconds",
+          "type" : "DInt",
+          "start" : "0",
+          "comment" : "run seconds"
+        },
+        {
+          "name" : "StartTmr",
+          "type" : "IEC_TIMER",
+          "start" : "",
+          "comment" : "the start warning"
+        },
+        {
+          "name" : "FbTmr",
+          "type" : "IEC_TIMER",
+          "start" : "",
+          "comment" : "feedback missing"
+        },
+        {
+          "name" : "GhostTmr",
+          "type" : "IEC_TIMER",
+          "start" : "",
+          "comment" : "feedback without a run command"
+        },
+        {
+          "name" : "SecTmr",
+          "type" : "IEC_TIMER",
+          "start" : "",
+          "comment" : "one pulse per second"
+        },
+        {
+          "name" : "ManLatch",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "hand: start / stop latch"
+        },
+        {
+          "name" : "ResetOld",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "edge memory of Reset"
+        }
+      ]
+    },
+    {
+      "number" : 3,
+      "name" : "M3_DB",
+      "comment" : "",
+      "optimized" : false,
+      "instanceOf" : 1,
+      "vars" : [
+        {
+          "name" : "Auto",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "TRUE: the auto command, FALSE: hand"
+        },
+        {
+          "name" : "AutoCmd",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "run in auto"
+        },
+        {
+          "name" : "ManStart",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "hand: start (push button)"
+        },
+        {
+          "name" : "ManStop",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "hand: stop (push button)"
+        },
+        {
+          "name" : "Feedback",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "the contactor answers"
+        },
+        {
+          "name" : "Overload",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "the overload relay tripped"
+        },
+        {
+          "name" : "Interlock",
+          "type" : "Bool",
+          "start" : "TRUE",
+          "comment" : "TRUE: allowed to run"
+        },
+        {
+          "name" : "Reset",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "fault reset (rising edge)"
+        },
+        {
+          "name" : "StartDelay",
+          "type" : "Time",
+          "start" : "T#1S",
+          "comment" : "start warning time"
+        },
+        {
+          "name" : "FbTimeout",
+          "type" : "Time",
+          "start" : "T#3S",
+          "comment" : "feedback must come within"
+        },
+        {
+          "name" : "Run",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "the contactor"
+        },
+        {
+          "name" : "Lamp",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "off / 2 Hz starting / on / 1 Hz fault"
+        },
+        {
+          "name" : "Fault",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "a fault is present"
+        },
+        {
+          "name" : "State",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "0 stopped, 1 starting, 2 running, 3 fault"
+        },
+        {
+          "name" : "FaultCode",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "1 overload, 2 no feedback, 3 feedback without run"
+        },
+        {
+          "name" : "Starts",
+          "type" : "DInt",
+          "start" : "0",
+          "comment" : "starts so far"
+        },
+        {
+          "name" : "RunSeconds",
+          "type" : "DInt",
+          "start" : "0",
+          "comment" : "run seconds"
+        },
+        {
+          "name" : "StartTmr",
+          "type" : "IEC_TIMER",
+          "start" : "",
+          "comment" : "the start warning"
+        },
+        {
+          "name" : "FbTmr",
+          "type" : "IEC_TIMER",
+          "start" : "",
+          "comment" : "feedback missing"
+        },
+        {
+          "name" : "GhostTmr",
+          "type" : "IEC_TIMER",
+          "start" : "",
+          "comment" : "feedback without a run command"
+        },
+        {
+          "name" : "SecTmr",
+          "type" : "IEC_TIMER",
+          "start" : "",
+          "comment" : "one pulse per second"
+        },
+        {
+          "name" : "ManLatch",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "hand: start / stop latch"
+        },
+        {
+          "name" : "ResetOld",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "edge memory of Reset"
+        }
+      ]
+    }
+  ],
+  "tags" : [
+    {
+      "name" : "Clock_2Hz",
+      "type" : "Bool",
+      "address" : "%M0.3",
+      "comment" : "clock memory 2 Hz"
+    },
+    {
+      "name" : "Clock_1Hz",
+      "type" : "Bool",
+      "address" : "%M0.5",
+      "comment" : "clock memory 1 Hz"
+    },
+    {
+      "name" : "M1_Start",
+      "type" : "Bool",
+      "address" : "%I0.0",
+      "comment" : "motor 1 start (hand)"
+    },
+    {
+      "name" : "M1_Stop",
+      "type" : "Bool",
+      "address" : "%I0.1",
+      "comment" : "motor 1 stop (hand)"
+    },
+    {
+      "name" : "M1_Feedback",
+      "type" : "Bool",
+      "address" : "%I0.2",
+      "comment" : "motor 1 contactor feedback"
+    },
+    {
+      "name" : "M1_Overload",
+      "type" : "Bool",
+      "address" : "%I0.3",
+      "comment" : "motor 1 overload tripped"
+    },
+    {
+      "name" : "M2_Start",
+      "type" : "Bool",
+      "address" : "%I0.4",
+      "comment" : "motor 2 start (hand)"
+    },
+    {
+      "name" : "M2_Stop",
+      "type" : "Bool",
+      "address" : "%I0.5",
+      "comment" : "motor 2 stop (hand)"
+    },
+    {
+      "name" : "M2_Feedback",
+      "type" : "Bool",
+      "address" : "%I0.6",
+      "comment" : "motor 2 contactor feedback"
+    },
+    {
+      "name" : "M2_Overload",
+      "type" : "Bool",
+      "address" : "%I0.7",
+      "comment" : "motor 2 overload tripped"
+    },
+    {
+      "name" : "M3_Start",
+      "type" : "Bool",
+      "address" : "%I1.0",
+      "comment" : "motor 3 start (hand)"
+    },
+    {
+      "name" : "M3_Stop",
+      "type" : "Bool",
+      "address" : "%I1.1",
+      "comment" : "motor 3 stop (hand)"
+    },
+    {
+      "name" : "M3_Feedback",
+      "type" : "Bool",
+      "address" : "%I1.2",
+      "comment" : "motor 3 contactor feedback"
+    },
+    {
+      "name" : "M3_Overload",
+      "type" : "Bool",
+      "address" : "%I1.3",
+      "comment" : "motor 3 overload tripped"
+    },
+    {
+      "name" : "Auto_Mode",
+      "type" : "Bool",
+      "address" : "%I1.4",
+      "comment" : "switch: auto"
+    },
+    {
+      "name" : "Auto_Cmd",
+      "type" : "Bool",
+      "address" : "%I1.5",
+      "comment" : "switch: the auto command"
+    },
+    {
+      "name" : "Reset_PB",
+      "type" : "Bool",
+      "address" : "%I1.6",
+      "comment" : "fault reset"
+    },
+    {
+      "name" : "M1_Run",
+      "type" : "Bool",
+      "address" : "%Q0.0",
+      "comment" : "motor 1 contactor"
+    },
+    {
+      "name" : "M1_Lamp",
+      "type" : "Bool",
+      "address" : "%Q0.1",
+      "comment" : "motor 1 lamp"
+    },
+    {
+      "name" : "M2_Run",
+      "type" : "Bool",
+      "address" : "%Q0.2",
+      "comment" : "motor 2 contactor"
+    },
+    {
+      "name" : "M2_Lamp",
+      "type" : "Bool",
+      "address" : "%Q0.3",
+      "comment" : "motor 2 lamp"
+    },
+    {
+      "name" : "M3_Run",
+      "type" : "Bool",
+      "address" : "%Q0.4",
+      "comment" : "motor 3 contactor"
+    },
+    {
+      "name" : "M3_Lamp",
+      "type" : "Bool",
+      "address" : "%Q0.5",
+      "comment" : "motor 3 lamp"
+    },
+    {
+      "name" : "Any_Fault",
+      "type" : "Bool",
+      "address" : "%Q0.6",
+      "comment" : "a motor has a fault"
+    }
+  ],
+  "watch" : [
+    {
+      "address" : "\"M1_DB\".State",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "\"M1_DB\".FaultCode",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "\"M1_DB\".Starts",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "\"M1_DB\".RunSeconds",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "\"M2_DB\".State",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "\"M3_DB\".State",
+      "format" : "DEC",
+      "modify" : ""
+    }
+  ],
+  "diTypes" : [
+    1,
+    1,
+    0,
+    0,
+    1,
+    1,
+    0,
+    0,
+    1,
+    1,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "aiChannels" : [
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    }
+  ],
+  "comm" : {
+    "s7" : true,
+    "s7Port" : 102,
+    "modbus" : true,
+    "modbusPort" : 502,
+    "modbusUnit" : 1,
+    "holding" : "M",
+    "putGet" : true,
+    "allInterfaces" : false,
+    "ip" : "127.0.0.1",
+    "mask" : "255.255.255.0",
+    "ipc" : false
+  }
+}

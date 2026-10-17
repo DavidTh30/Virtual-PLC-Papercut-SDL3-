@@ -8,7 +8,7 @@ program plctest;
 
 uses
   Classes, SysUtils, Math, fpjson, jsonparser, uPlcTypes, uPlcProject, uPlcCompiler, uPlcRuntime, uPlcServer,
-  uPlcClient, uClaude;
+  uPlcClient, uClaude, uExamples;
 
 var
   Fails, Passes: Integer;
@@ -1403,6 +1403,379 @@ begin
 end;
 
 { a LAD network wider than 8 columns: 11 contacts in series, the coil in column 12 }
+{ the comparators IN_RANGE / OUT_RANGE and the converters CONV, ROUND, TRUNC, CEIL, FLOOR in LAD }
+procedure TestLadConv;
+var
+  P, P2: TPlcProject;
+  Pr: TCProgram;
+  Rt: TPlcRuntime;
+  F: string;
+
+  { a network with one box at column 0, wires, and a coil in column 7 when Coil <> '' }
+  procedure Net(K: TLadKind; T, T2: TDataType; const P0, P1, P2s, Coil: string; Cmp: TCmpOp = coEQ);
+  var
+    N: TNetwork;
+    Ce: TLadCell;
+    C: Integer;
+  begin
+    N := P.Block(0).AddNet(nkLAD);
+    Ce := NewCell(K, '');
+    Ce.DType := T;
+    Ce.DType2 := T2;
+    Ce.Cmp := Cmp;
+    Ce.P[0] := P0;
+    Ce.P[1] := P1;
+    Ce.P[2] := P2s;
+    N.SetCell(0, 0, Ce);
+    if Coil <> '' then
+    begin
+      for C := 1 to 6 do N.SetCell(0, C, NewCell(lkWire, ''));
+      N.SetCell(0, 7, NewCell(lkCoil, Coil));
+    end;
+  end;
+
+begin
+  WriteLn('== LAD comparators (IN_RANGE, OUT_RANGE) and converters (CONV, ROUND, TRUNC, CEIL, FLOOR)');
+  P := TPlcProject.Create;
+  P.NewEmpty(1);
+  try
+    P.Block(0).DeleteNet(0);
+    Net(lkMove, dtInt, dtReal, '50', 'MW10', '', '');
+    Net(lkInRange, dtInt, dtReal, '0', 'MW10', '100', 'M20.0');
+    Net(lkOutRange, dtInt, dtReal, '0', 'MW10', '100', 'M20.1');
+    Net(lkInRange, dtInt, dtReal, '60', 'MW10', '100', 'M20.3');
+    Net(lkConv, dtInt, dtReal, 'MW10', 'MD30', '', '');
+    Net(lkMove, dtReal, dtReal, '-2.7', 'MD60', '', '');
+    Net(lkTrunc, dtReal, dtDInt, 'MD60', 'MD64', '', '');
+    Net(lkCeil, dtReal, dtDInt, 'MD60', 'MD68', '', '');
+    Net(lkFloor, dtReal, dtDInt, 'MD60', 'MD72', '', '');
+    Net(lkRound, dtReal, dtDInt, 'MD60', 'MD76', '', '');
+    Net(lkMove, dtDInt, dtReal, '40000', 'MD80', '', '');
+    Net(lkConv, dtDInt, dtInt, 'MD80', 'MW84', '', 'M20.2');
+    Net(lkConv, dtDInt, dtReal, 'MD80', 'MD86', '', 'M20.4');
+    Net(lkRound, dtReal, dtInt, '2.5', 'MW90', '', '');
+    Pr := Compile(P);
+    ShowMsgs(Pr);
+    Check(Pr.ErrorCount = 0, 'the comparator and converter networks compile');
+    Rt := TPlcRuntime.Create(1);
+    try
+      Rt.CmdDownload(Pr);
+      Rt.CmdRun;
+      Wait(40);
+      Check(Peek(Rt, P, 'M20.0') = 1, 'IN_RANGE 0 <= 50 <= 100: TRUE');
+      Check(Peek(Rt, P, 'M20.1') = 0, 'OUT_RANGE 0..100 of 50: FALSE');
+      Check(Peek(Rt, P, 'M20.3') = 0, 'IN_RANGE 60..100 of 50: FALSE');
+      Check(PeekReal(Rt, P, 'MD30') = 50.0, Format('CONV Int 50 to Real: %g', [PeekReal(Rt, P, 'MD30')]));
+      Check(LongInt(Peek(Rt, P, 'MD64')) = -2, Format('TRUNC -2.7 = -2 (%d)', [LongInt(Peek(Rt, P, 'MD64'))]));
+      Check(LongInt(Peek(Rt, P, 'MD68')) = -2, Format('CEIL -2.7 = -2 (%d)', [LongInt(Peek(Rt, P, 'MD68'))]));
+      Check(LongInt(Peek(Rt, P, 'MD72')) = -3, Format('FLOOR -2.7 = -3 (%d)', [LongInt(Peek(Rt, P, 'MD72'))]));
+      Check(LongInt(Peek(Rt, P, 'MD76')) = -3, Format('ROUND -2.7 = -3 (%d)', [LongInt(Peek(Rt, P, 'MD76'))]));
+      Check((Peek(Rt, P, 'M20.2') = 0) and (Peek(Rt, P, 'MW84') = 0), 'CONV DInt 40000 to Int: too big, ENO = 0, OUT unchanged');
+      Check((Peek(Rt, P, 'M20.4') = 1) and (PeekReal(Rt, P, 'MD86') = 40000.0), 'CONV DInt 40000 to Real: ENO = 1');
+      Check(Peek(Rt, P, 'MW90') = 2, Format('ROUND 2.5 to Int = 2 (a half to the even) (%d)', [Peek(Rt, P, 'MW90')]));
+    finally
+      Rt.Free;
+    end;
+    // saved and loaded: the kinds and both types stay
+    F := GetTempDir + 'vplc_conv.vplc';
+    P.SaveToFile(F);
+    P2 := TPlcProject.Create;
+    try
+      P2.LoadFromFile(F);
+      Check((P2.Block(0).Net(11).Cell(0, 0).Kind = lkConv) and (P2.Block(0).Net(11).Cell(0, 0).DType = dtDInt) and
+        (P2.Block(0).Net(11).Cell(0, 0).DType2 = dtInt) and (P2.Block(0).Net(1).Cell(0, 0).Kind = lkInRange) and
+        (P2.Block(0).Net(6).Cell(0, 0).Kind = lkTrunc), 'save / load: IN_RANGE, TRUNC, CONV DInt to Int');
+    finally
+      P2.Free;
+      DeleteFile(F);
+    end;
+  finally
+    P.Free;
+  end;
+end;
+
+{ every example project: it compiles without errors, runs a second without a programming error, and
+  survives save / load }
+procedure TestExamples;
+var
+  I, K: Integer;
+  P, P2: TPlcProject;
+  Pr: TCProgram;
+  Rt: TPlcRuntime;
+  F: string;
+begin
+  WriteLn('== Example projects');
+  for I := 0 to ExampleCount - 1 do
+  begin
+    P := TPlcProject.Create;
+    try
+      BuildExample(I, P);
+      Pr := Compile(P);
+      if Pr.ErrorCount > 0 then ShowMsgs(Pr);
+      Check(Pr.ErrorCount = 0, Format('%s compiles (%d errors)', [ExampleFile(I), Pr.ErrorCount]));
+      Rt := TPlcRuntime.Create(P.ModelIdx);
+      try
+        Rt.CmdDownload(Pr);
+        Rt.CmdRun;
+        Wait(300);
+        if Rt.Mode <> rmRun then
+          for K := 0 to High(Rt.DiagCopy(5)) do WriteLn('    DIAG ', Rt.DiagCopy(5)[K].Text);
+        Check(Rt.Mode = rmRun, ExampleFile(I) + ' runs (still in RUN after 0.3 s)');
+      finally
+        Rt.Free;
+      end;
+      F := GetTempDir + 'vplc_example.vplc';
+      P.SaveToFile(F);
+      P2 := TPlcProject.Create;
+      try
+        P2.LoadFromFile(F);
+        Pr := Compile(P2);
+        Check(Pr.ErrorCount = 0, ExampleFile(I) + ' saved and loaded: still compiles');
+        Pr.Free;
+      finally
+        P2.Free;
+        DeleteFile(F);
+      end;
+    finally
+      P.Free;
+    end;
+  end;
+end;
+
+{ what some examples do, through their inputs }
+procedure TestExampleBehaviour;
+var
+  P: TPlcProject;
+  Rt: TPlcRuntime;
+  On: Boolean;
+  K: Integer;
+
+  procedure Load(I: Integer);
+  begin
+    P := TPlcProject.Create;
+    BuildExample(I, P);
+    Rt := TPlcRuntime.Create(P.ModelIdx);
+    Rt.CmdDownload(Compile(P));
+    Rt.CmdRun;
+    Wait(60);
+  end;
+
+  procedure Done;
+  begin
+    Rt.Free;
+    P.Free;
+  end;
+
+  procedure Press(AByte, ABit: Integer);
+  begin
+    Rt.SetSimBit(AByte, ABit, True);
+    Wait(60);
+    Rt.SetSimBit(AByte, ABit, False);
+    Wait(60);
+  end;
+
+begin
+  WriteLn('== Example projects: their behaviour');
+  // data type conversion (SCL + LAD): the analog input half way, the start values
+  Load(26);
+  try
+    Rt.SetSimWord(64, 13824);
+    Wait(120);
+    Check(Abs(PeekReal(Rt, P, '"Conv".Volts') - 5.0) < 0.01, Format('conversion: INT_TO_REAL 13824 = %.3f V',
+      [PeekReal(Rt, P, '"Conv".Volts')]));
+    Check(SmallInt(Peek(Rt, P, '"Conv".Back_Int')) = 13824, 'conversion: REAL_TO_INT back = 13824');
+    Check(Abs(PeekReal(Rt, P, '"Conv".Raw_Real') - 13824) < 0.01, 'conversion: LAD CONV Int -> Real');
+    Check((LongInt(Peek(Rt, P, '"Conv".Rnd')) = 2) and (LongInt(Peek(Rt, P, '"Conv".Trc')) = 2) and
+      (LongInt(Peek(Rt, P, '"Conv".Cei')) = 3) and (LongInt(Peek(Rt, P, '"Conv".Flo')) = 2) and
+      (SmallInt(Peek(Rt, P, '"Conv".Lad_Rnd')) = 2), 'conversion: 2.5 -> ROUND 2, TRUNC 2, CEIL 3, FLOOR 2, LAD ROUND 2');
+    Check(SmallInt(Peek(Rt, P, '"Conv".Big_To_Int')) = 4464, Format('conversion: DINT_TO_INT 70000 = %d',
+      [SmallInt(Peek(Rt, P, '"Conv".Big_To_Int'))]));
+    Check((SmallInt(Peek(Rt, P, '"Conv".W_To_Int')) = -1) and (Peek(Rt, P, '"Conv".Int_To_W') = $FFFF) and
+      (Peek(Rt, P, '"Conv".W_To_DW') = $FFFF) and (LongInt(Peek(Rt, P, '"Conv".DW_To_DInt')) = 65536),
+      'conversion: WORD_TO_INT 16#FFFF = -1, INT_TO_WORD -1 = 16#FFFF, WORD_TO_DWORD, DWORD_TO_DINT 65536');
+  finally
+    Done;
+  end;
+  // data type conversion in STL (S7-300)
+  Load(27);
+  try
+    Rt.SetSimWord(288, 13824);
+    Wait(120);
+    Check(Abs(PeekReal(Rt, P, '"Volts"') - 5.0) < 0.01, Format('STL conversion: ITD DTR /R = %.3f V',
+      [PeekReal(Rt, P, '"Volts"')]));
+    Check((Peek(Rt, P, '"Bcd"') = $0123) and (SmallInt(Peek(Rt, P, '"From_Bcd"')) = 123) and
+      (SmallInt(Peek(Rt, P, '"As_Int"')) = -1), 'STL conversion: ITB 123 = W#16#0123, BTI back, W#16#FFFF as Int = -1');
+  finally
+    Done;
+  end;
+  // math
+  Load(28);
+  try
+    Wait(60);
+    Check((SmallInt(Peek(Rt, P, '"Math".Sum')) = 10) and (SmallInt(Peek(Rt, P, '"Math".Quot')) = 2) and
+      (SmallInt(Peek(Rt, P, '"Math".Rest')) = 1) and (SmallInt(Peek(Rt, P, '"Math".Lim')) = 20),
+      'math: 7 + 3 = 10, 7 / 3 = 2, 7 MOD 3 = 1, LIMIT(0, 21, 20) = 20');
+    Check((Abs(PeekReal(Rt, P, '"Math".Hyp') - 5) < 0.001) and (Abs(PeekReal(Rt, P, '"Math".Pow') - 27) < 0.01) and
+      (Abs(PeekReal(Rt, P, '"Math".SinA') - 0.5) < 0.001) and (Abs(PeekReal(Rt, P, '"Math".Log1000') - 3) < 0.001),
+      Format('math: SQRT(9 + 16) = %.3f, 3 ** 3 = %.2f, SIN(30) = %.4f, LOG(1000) = %.4f',
+      [PeekReal(Rt, P, '"Math".Hyp'), PeekReal(Rt, P, '"Math".Pow'), PeekReal(Rt, P, '"Math".SinA'),
+      PeekReal(Rt, P, '"Math".Log1000')]));
+    Check((Abs(PeekReal(Rt, P, '"Math".Avg') - 4.5) < 0.001) and (Abs(PeekReal(Rt, P, '"Math".Poly') - 10) < 0.001),
+      'math: the average of 1.5 .. 7.5 = 4.5, 2*9 - 9 + 1 = 10');
+    Check((LongInt(Peek(Rt, P, '"Math".Lad_Diff')) = 30000) and (Abs(PeekReal(Rt, P, '"Math".Lad_Prod') - 12) < 0.001) and
+      (SmallInt(Peek(Rt, P, '"Math".Lad_Sum')) = 10), 'math: LAD ADD 10, SUB 100000 - 70000, MUL 3 * 4');
+  finally
+    Done;
+  end;
+  // the large FB: start warning, running with feedback, the feedback goes: fault 2, reset
+  Load(29);
+  try
+    Rt.SetSimBit(0, 0, True);
+    Wait(80);
+    Rt.SetSimBit(0, 0, False);
+    Wait(300);
+    Check(SmallInt(Peek(Rt, P, '"M1_DB".State')) = 1, 'large FB: start -> state 1 (start warning)');
+    Rt.SetSimBit(0, 2, True);
+    Wait(1000);
+    Check((SmallInt(Peek(Rt, P, '"M1_DB".State')) = 2) and Rt.GetOutBit(0, 0) and
+      (LongInt(Peek(Rt, P, '"M1_DB".Starts')) = 1), 'large FB: after 1 s running, the contactor on, 1 start');
+    Rt.SetSimBit(0, 2, False);
+    Wait(3400);
+    Check((SmallInt(Peek(Rt, P, '"M1_DB".FaultCode')) = 2) and (SmallInt(Peek(Rt, P, '"M1_DB".State')) = 3) and
+      not Rt.GetOutBit(0, 0) and Rt.GetOutBit(0, 6), 'large FB: no feedback for 3 s -> fault 2, off, the fault lamp');
+    Rt.SetSimBit(1, 6, True);
+    Wait(80);
+    Rt.SetSimBit(1, 6, False);
+    Wait(120);
+    Check((SmallInt(Peek(Rt, P, '"M1_DB".FaultCode')) = 0) and (SmallInt(Peek(Rt, P, '"M1_DB".State')) = 0),
+      'large FB: reset -> state 0');
+  finally
+    Done;
+  end;
+  // timers S7-1200: TON 3 s, TP 2 s
+  Load(18);
+  try
+    Rt.SetSimBit(0, 0, True);
+    Rt.SetSimBit(0, 2, True);
+    Wait(1000);
+    Check(not Rt.GetOutBit(0, 0) and Rt.GetOutBit(0, 2), 'timers S7-1200: after 1 s TON still off, TP on');
+    Wait(2400);
+    Check(Rt.GetOutBit(0, 0) and not Rt.GetOutBit(0, 2), 'timers S7-1200: after 3.4 s TON on, TP over');
+  finally
+    Done;
+  end;
+  // counters S7-1200: 5 presses -> CTU and CTUD QU, reset -> 0
+  Load(19);
+  try
+    for K := 1 to 5 do Press(0, 0);
+    Check(Rt.GetOutBit(0, 0) and Rt.GetOutBit(0, 2) and (Peek(Rt, P, '"Counters".CV_Up') = 5),
+      Format('counters S7-1200: 5 x up -> CTU Q, CTUD QU (CV %d)', [Peek(Rt, P, '"Counters".CV_Up')]));
+    Press(0, 2);
+    Check(not Rt.GetOutBit(0, 0) and (Peek(Rt, P, '"Counters".CV_Up') = 0), 'counters S7-1200: reset -> 0');
+  finally
+    Done;
+  end;
+  // timers S7-1500: the S5 SP %T1 on at once while IN
+  Load(20);
+  try
+    Rt.SetSimBit(0, 4, True);
+    Wait(200);
+    Check(Rt.GetOutBit(0, 4), 'timers S7-1500: S5 pulse SP %T1 on');
+  finally
+    Done;
+  end;
+  // timers S7-300: SD on delay 2 s (I0.5 -> Q4.5), SE extended pulse (I0.4 -> Q4.4)
+  Load(22);
+  try
+    Rt.SetSimBit(0, 5, True);
+    Press(0, 4);
+    Check(not Rt.GetOutBit(4, 5) and Rt.GetOutBit(4, 4), 'timers S7-300: SD not yet, SE pulse on after IN went');
+    Wait(2200);
+    Check(Rt.GetOutBit(4, 5) and not Rt.GetOutBit(4, 4), 'timers S7-300: after 2 s SD on, SE over');
+  finally
+    Done;
+  end;
+  // counters S7-400: SC C#3 -> C1 on; 3 x down -> 0, off
+  Load(25);
+  try
+    Press(0, 3);
+    Check(Rt.GetOutBit(4, 3), 'counters S7-400: SC C#3 -> the counter bit C1 on');
+    for K := 1 to 3 do Press(0, 1);
+    Check(not Rt.GetOutBit(4, 3), 'counters S7-400: 3 x CD -> C1 = 0, the bit off');
+  finally
+    Done;
+  end;
+  // tank level: 10 % -> the pump fills, 90 % -> it stops, 97 % -> the alarm
+  Load(5);
+  try
+    Rt.SetSimBit(0, 0, True);
+    Rt.SetSimWord(64, 2765);
+    Wait(80);
+    Check(Rt.GetOutBit(0, 0), Format('tank 10 %%: the pump fills (level %.1f)', [PeekReal(Rt, P, '"Tank".Level')]));
+    Rt.SetSimWord(64, 13824);
+    Wait(80);
+    Check(Rt.GetOutBit(0, 0), 'tank 50 %: the pump keeps filling (hysteresis)');
+    Rt.SetSimWord(64, 24883);
+    Wait(80);
+    Check(not Rt.GetOutBit(0, 0), 'tank 90 %: the pump stops');
+    Rt.SetSimWord(64, 26820);
+    // the alarm flashes at 2 Hz: on at some time within a second
+    On := False;
+    for K := 1 to 12 do
+    begin
+      Wait(90);
+      On := On or Rt.GetOutBit(0, 1);
+    end;
+    Check(On, 'tank 97 %: the high level alarm flashes');
+  finally
+    Done;
+  end;
+  // car wash: start with the car in place: step 1 (pre-wash, water)
+  Load(10);
+  try
+    Rt.SetSimBit(0, 2, True);
+    Rt.SetSimBit(0, 1, True);
+    Rt.SetSimBit(0, 0, True);
+    Wait(80);
+    Rt.SetSimBit(0, 0, False);
+    Check((Peek(Rt, P, '"Wash".Step') = 1) and Rt.GetOutBit(0, 0), 'car wash: start -> step 1, water on');
+    Rt.SetSimBit(0, 2, False);
+    Wait(80);
+    Check(Peek(Rt, P, '"Wash".Step') = 0, 'car wash: the emergency stop -> step 0');
+  finally
+    Done;
+  end;
+  // alarms: alarm 1 -> the horn; acknowledge -> the horn off, the lamp steady; gone -> the lamp off
+  Load(13);
+  try
+    Rt.SetSimBit(0, 0, True);
+    Wait(80);
+    Check(Rt.GetOutBit(0, 4), 'alarms: alarm 1 sounds the horn');
+    Rt.SetSimBit(0, 4, True);
+    Wait(80);
+    Rt.SetSimBit(0, 4, False);
+    Wait(80);
+    Check(not Rt.GetOutBit(0, 4) and Rt.GetOutBit(0, 0), 'alarms: acknowledged: horn off, lamp 1 steady');
+    Rt.SetSimBit(0, 0, False);
+    Wait(80);
+    Check(not Rt.GetOutBit(0, 0), 'alarms: gone and acknowledged: lamp 1 off');
+  finally
+    Done;
+  end;
+  // running light: the one lamp moves on
+  Load(14);
+  try
+    Rt.SetSimBit(0, 0, True);
+    Rt.SetSimBit(0, 2, True);
+    Wait(100);
+    Check(Peek(Rt, P, '%QB0') in [1, 2], 'running light: one lamp on ' + IntToStr(Peek(Rt, P, '%QB0')));
+    Wait(600);
+    Check(Peek(Rt, P, '%QB0') in [2, 4, 8, 16], 'running light: it has moved on ' + IntToStr(Peek(Rt, P, '%QB0')));
+  finally
+    Done;
+  end;
+end;
+
 procedure TestWideLad;
 var
   P, P2: TPlcProject;
@@ -1695,6 +2068,9 @@ begin
   TestFC;
   TestStlLadCall;
   TestWideLad;
+  TestLadConv;
+  TestExamples;
+  TestExampleBehaviour;
   TestClaudeTools;
   TestPorts;
   TestStl;

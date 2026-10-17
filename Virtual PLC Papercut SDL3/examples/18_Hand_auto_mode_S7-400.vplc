@@ -1,0 +1,333 @@
+{
+  "format" : "VirtualPLC",
+  "version" : 1,
+  "name" : "Hand / auto mode with jog and interlocks (S7-400)",
+  "author" : "Virtual PLC examples",
+  "comment" : "LAD and STL: a mode switch (I0.0 = auto), in hand the motor jogs while I0.1 is held, in auto it follows the level switch I0.2; the guard (I0.3, NC) blocks both; OB35 counts the run time in 100 ms.",
+  "cpu" : "CPU 416-3 PN/DP",
+  "family" : "S7-400",
+  "cyclicMs" : 100,
+  "clockByte" : 0,
+  "blocks" : [
+    {
+      "kind" : "OB",
+      "number" : 1,
+      "name" : "Main",
+      "comment" : "Main program cycle",
+      "networks" : [
+        {
+          "title" : "Motor",
+          "comment" : "hand: jog; auto: the level switch; the guard always",
+          "lang" : "LAD",
+          "rows" : 2,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "nc",
+              "op" : "\"Auto_Mode\""
+            },
+            {
+              "r" : 0,
+              "c" : 1,
+              "e" : "no",
+              "op" : "\"Jog_PB\"",
+              "down" : true
+            },
+            {
+              "r" : 0,
+              "c" : 2,
+              "e" : "no",
+              "op" : "\"Guard_OK\""
+            },
+            {
+              "r" : 0,
+              "c" : 3,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 4,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 5,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 6,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 7,
+              "e" : "coil",
+              "op" : "\"Motor\""
+            },
+            {
+              "r" : 1,
+              "c" : 0,
+              "e" : "no",
+              "op" : "\"Auto_Mode\""
+            },
+            {
+              "r" : 1,
+              "c" : 1,
+              "e" : "no",
+              "op" : "\"Level_Low\""
+            }
+          ]
+        },
+        {
+          "title" : "Mode lamps",
+          "comment" : "",
+          "lang" : "STL",
+          "stl" : [
+            "A     \"Auto_Mode\"",
+            "=     \"Auto_Lamp\"",
+            "AN    \"Auto_Mode\"",
+            "=     \"Hand_Lamp\""
+          ]
+        }
+      ]
+    },
+    {
+      "kind" : "OB",
+      "number" : 35,
+      "name" : "Run time",
+      "comment" : "every 100 ms",
+      "networks" : [
+        {
+          "title" : "Run time in 100 ms",
+          "comment" : "MD100 counts while the motor runs",
+          "lang" : "STL",
+          "stl" : [
+            "AN    \"Motor\"",
+            "JC    END",
+            "L     MD100",
+            "+     L#1",
+            "T     MD100",
+            "END:  NOP   0"
+          ]
+        }
+      ]
+    }
+  ],
+  "dbs" : [
+  ],
+  "tags" : [
+    {
+      "name" : "Clock_2Hz",
+      "type" : "Bool",
+      "address" : "M0.3",
+      "comment" : "clock memory 2 Hz"
+    },
+    {
+      "name" : "Clock_1Hz",
+      "type" : "Bool",
+      "address" : "M0.5",
+      "comment" : "clock memory 1 Hz"
+    },
+    {
+      "name" : "Auto_Mode",
+      "type" : "Bool",
+      "address" : "I0.0",
+      "comment" : "switch: 1 = auto, 0 = hand"
+    },
+    {
+      "name" : "Jog_PB",
+      "type" : "Bool",
+      "address" : "I0.1",
+      "comment" : "jog in hand mode"
+    },
+    {
+      "name" : "Level_Low",
+      "type" : "Bool",
+      "address" : "I0.2",
+      "comment" : "switch: level low (auto start)"
+    },
+    {
+      "name" : "Guard_OK",
+      "type" : "Bool",
+      "address" : "I0.3",
+      "comment" : "guard closed, NC"
+    },
+    {
+      "name" : "Motor",
+      "type" : "Bool",
+      "address" : "Q4.0",
+      "comment" : "motor"
+    },
+    {
+      "name" : "Auto_Lamp",
+      "type" : "Bool",
+      "address" : "Q4.1",
+      "comment" : "auto mode"
+    },
+    {
+      "name" : "Hand_Lamp",
+      "type" : "Bool",
+      "address" : "Q4.2",
+      "comment" : "hand mode"
+    }
+  ],
+  "watch" : [
+    {
+      "address" : "MD100",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Motor\"",
+      "format" : "BOOL",
+      "modify" : ""
+    }
+  ],
+  "diTypes" : [
+    0,
+    1,
+    0,
+    2,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "aiChannels" : [
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    }
+  ],
+  "comm" : {
+    "s7" : true,
+    "s7Port" : 102,
+    "modbus" : true,
+    "modbusPort" : 502,
+    "modbusUnit" : 1,
+    "holding" : "M",
+    "putGet" : true,
+    "allInterfaces" : false,
+    "ip" : "127.0.0.1",
+    "mask" : "255.255.255.0",
+    "ipc" : false
+  }
+}

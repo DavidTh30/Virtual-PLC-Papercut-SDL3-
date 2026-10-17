@@ -1,0 +1,1100 @@
+{
+  "format" : "VirtualPLC",
+  "version" : 1,
+  "name" : "Timers in LAD (S7-300)",
+  "author" : "Virtual PLC examples",
+  "comment" : "LAD: every timer of the S7-300 in a network of its own: an input switches it, its output drives a lamp. Try the inputs on the I/O screen and watch the times in the watch table. IEC timers (instances in DB1) and S5 timers T1..T5; Reset_PB resets TONR and SS.",
+  "cpu" : "CPU 315-2 PN/DP",
+  "family" : "S7-300",
+  "cyclicMs" : 100,
+  "clockByte" : 0,
+  "blocks" : [
+    {
+      "kind" : "OB",
+      "number" : 1,
+      "name" : "Main",
+      "comment" : "Main program cycle",
+      "networks" : [
+        {
+          "title" : "TON T#3S",
+          "comment" : "on delay: Q 3 s after IN, off with IN",
+          "lang" : "LAD",
+          "rows" : 1,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "no",
+              "op" : "\"In_TON\""
+            },
+            {
+              "r" : 0,
+              "c" : 1,
+              "e" : "ton",
+              "op" : "\"Timers\".TON_1",
+              "p" : [
+                "T#3S",
+                "\"Timers\".ET_TON"
+              ]
+            },
+            {
+              "r" : 0,
+              "c" : 2,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 3,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 4,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 5,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 6,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 7,
+              "e" : "coil",
+              "op" : "\"Out_TON\""
+            }
+          ]
+        },
+        {
+          "title" : "TOF T#3S",
+          "comment" : "off delay: Q with IN, off 3 s after IN went",
+          "lang" : "LAD",
+          "rows" : 1,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "no",
+              "op" : "\"In_TOF\""
+            },
+            {
+              "r" : 0,
+              "c" : 1,
+              "e" : "tof",
+              "op" : "\"Timers\".TOF_1",
+              "p" : [
+                "T#3S",
+                "\"Timers\".ET_TOF"
+              ]
+            },
+            {
+              "r" : 0,
+              "c" : 2,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 3,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 4,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 5,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 6,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 7,
+              "e" : "coil",
+              "op" : "\"Out_TOF\""
+            }
+          ]
+        },
+        {
+          "title" : "TP T#2S",
+          "comment" : "pulse: Q for 2 s from the rising edge of IN",
+          "lang" : "LAD",
+          "rows" : 1,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "no",
+              "op" : "\"In_TP\""
+            },
+            {
+              "r" : 0,
+              "c" : 1,
+              "e" : "tp",
+              "op" : "\"Timers\".TP_1",
+              "p" : [
+                "T#2S",
+                "\"Timers\".ET_TP"
+              ]
+            },
+            {
+              "r" : 0,
+              "c" : 2,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 3,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 4,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 5,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 6,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 7,
+              "e" : "coil",
+              "op" : "\"Out_TP\""
+            }
+          ]
+        },
+        {
+          "title" : "SP T1 S5T#2S",
+          "comment" : "pulse: on while IN, at most 2 s",
+          "lang" : "LAD",
+          "rows" : 1,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "no",
+              "op" : "\"In_SP\""
+            },
+            {
+              "r" : 0,
+              "c" : 1,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 2,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 3,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 4,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 5,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 6,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 7,
+              "e" : "sp",
+              "op" : "T1",
+              "p" : [
+                "S5T#2S"
+              ]
+            }
+          ]
+        },
+        {
+          "title" : "SP output",
+          "comment" : "the timer bit T1",
+          "lang" : "LAD",
+          "rows" : 1,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "no",
+              "op" : "T1"
+            },
+            {
+              "r" : 0,
+              "c" : 1,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 2,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 3,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 4,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 5,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 6,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 7,
+              "e" : "coil",
+              "op" : "\"Out_SP\""
+            }
+          ]
+        },
+        {
+          "title" : "SE T2 S5T#2S",
+          "comment" : "extended pulse: 2 s from the rising edge, also when IN goes",
+          "lang" : "LAD",
+          "rows" : 1,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "no",
+              "op" : "\"In_SE\""
+            },
+            {
+              "r" : 0,
+              "c" : 1,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 2,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 3,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 4,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 5,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 6,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 7,
+              "e" : "se",
+              "op" : "T2",
+              "p" : [
+                "S5T#2S"
+              ]
+            }
+          ]
+        },
+        {
+          "title" : "SE output",
+          "comment" : "the timer bit T2",
+          "lang" : "LAD",
+          "rows" : 1,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "no",
+              "op" : "T2"
+            },
+            {
+              "r" : 0,
+              "c" : 1,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 2,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 3,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 4,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 5,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 6,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 7,
+              "e" : "coil",
+              "op" : "\"Out_SE\""
+            }
+          ]
+        },
+        {
+          "title" : "SD T3 S5T#2S",
+          "comment" : "on delay: on 2 s after IN, off with IN",
+          "lang" : "LAD",
+          "rows" : 1,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "no",
+              "op" : "\"In_SD\""
+            },
+            {
+              "r" : 0,
+              "c" : 1,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 2,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 3,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 4,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 5,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 6,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 7,
+              "e" : "sd",
+              "op" : "T3",
+              "p" : [
+                "S5T#2S"
+              ]
+            }
+          ]
+        },
+        {
+          "title" : "SD output",
+          "comment" : "the timer bit T3",
+          "lang" : "LAD",
+          "rows" : 1,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "no",
+              "op" : "T3"
+            },
+            {
+              "r" : 0,
+              "c" : 1,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 2,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 3,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 4,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 5,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 6,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 7,
+              "e" : "coil",
+              "op" : "\"Out_SD\""
+            }
+          ]
+        },
+        {
+          "title" : "SS T4 S5T#2S",
+          "comment" : "retentive on delay: on 2 s after the edge, stays until R",
+          "lang" : "LAD",
+          "rows" : 1,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "no",
+              "op" : "\"In_SS\""
+            },
+            {
+              "r" : 0,
+              "c" : 1,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 2,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 3,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 4,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 5,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 6,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 7,
+              "e" : "ss",
+              "op" : "T4",
+              "p" : [
+                "S5T#2S"
+              ]
+            }
+          ]
+        },
+        {
+          "title" : "SS output",
+          "comment" : "the timer bit T4",
+          "lang" : "LAD",
+          "rows" : 1,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "no",
+              "op" : "T4"
+            },
+            {
+              "r" : 0,
+              "c" : 1,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 2,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 3,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 4,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 5,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 6,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 7,
+              "e" : "coil",
+              "op" : "\"Out_SS\""
+            }
+          ]
+        },
+        {
+          "title" : "SF T5 S5T#2S",
+          "comment" : "off delay: on with IN, off 2 s after IN went",
+          "lang" : "LAD",
+          "rows" : 1,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "no",
+              "op" : "\"In_SF\""
+            },
+            {
+              "r" : 0,
+              "c" : 1,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 2,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 3,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 4,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 5,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 6,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 7,
+              "e" : "sf",
+              "op" : "T5",
+              "p" : [
+                "S5T#2S"
+              ]
+            }
+          ]
+        },
+        {
+          "title" : "SF output",
+          "comment" : "the timer bit T5",
+          "lang" : "LAD",
+          "rows" : 1,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "no",
+              "op" : "T5"
+            },
+            {
+              "r" : 0,
+              "c" : 1,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 2,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 3,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 4,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 5,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 6,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 7,
+              "e" : "coil",
+              "op" : "\"Out_SF\""
+            }
+          ]
+        },
+        {
+          "title" : "Reset SS",
+          "comment" : "R on the timer T4",
+          "lang" : "LAD",
+          "rows" : 1,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "no",
+              "op" : "\"Reset_PB\""
+            },
+            {
+              "r" : 0,
+              "c" : 1,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 2,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 3,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 4,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 5,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 6,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 7,
+              "e" : "reset",
+              "op" : "T4"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "dbs" : [
+    {
+      "number" : 1,
+      "name" : "Timers",
+      "comment" : "",
+      "optimized" : false,
+      "vars" : [
+        {
+          "name" : "TON_1",
+          "type" : "IEC_TIMER",
+          "start" : "",
+          "comment" : "the TON instance"
+        },
+        {
+          "name" : "ET_TON",
+          "type" : "Time",
+          "start" : "",
+          "comment" : "elapsed time of TON"
+        },
+        {
+          "name" : "TOF_1",
+          "type" : "IEC_TIMER",
+          "start" : "",
+          "comment" : "the TOF instance"
+        },
+        {
+          "name" : "ET_TOF",
+          "type" : "Time",
+          "start" : "",
+          "comment" : "elapsed time of TOF"
+        },
+        {
+          "name" : "TP_1",
+          "type" : "IEC_TIMER",
+          "start" : "",
+          "comment" : "the TP instance"
+        },
+        {
+          "name" : "ET_TP",
+          "type" : "Time",
+          "start" : "",
+          "comment" : "elapsed time of TP"
+        }
+      ]
+    }
+  ],
+  "tags" : [
+    {
+      "name" : "Clock_2Hz",
+      "type" : "Bool",
+      "address" : "M0.3",
+      "comment" : "clock memory 2 Hz"
+    },
+    {
+      "name" : "Clock_1Hz",
+      "type" : "Bool",
+      "address" : "M0.5",
+      "comment" : "clock memory 1 Hz"
+    },
+    {
+      "name" : "In_TON",
+      "type" : "Bool",
+      "address" : "I0.0",
+      "comment" : "TON input"
+    },
+    {
+      "name" : "Out_TON",
+      "type" : "Bool",
+      "address" : "Q4.0",
+      "comment" : "TON output"
+    },
+    {
+      "name" : "In_TOF",
+      "type" : "Bool",
+      "address" : "I0.1",
+      "comment" : "TOF input"
+    },
+    {
+      "name" : "Out_TOF",
+      "type" : "Bool",
+      "address" : "Q4.1",
+      "comment" : "TOF output"
+    },
+    {
+      "name" : "In_TP",
+      "type" : "Bool",
+      "address" : "I0.2",
+      "comment" : "TP input"
+    },
+    {
+      "name" : "Out_TP",
+      "type" : "Bool",
+      "address" : "Q4.2",
+      "comment" : "TP output"
+    },
+    {
+      "name" : "In_SP",
+      "type" : "Bool",
+      "address" : "I0.3",
+      "comment" : "S5 timer SP input"
+    },
+    {
+      "name" : "Out_SP",
+      "type" : "Bool",
+      "address" : "Q4.3",
+      "comment" : "S5 timer SP output"
+    },
+    {
+      "name" : "In_SE",
+      "type" : "Bool",
+      "address" : "I0.4",
+      "comment" : "S5 timer SE input"
+    },
+    {
+      "name" : "Out_SE",
+      "type" : "Bool",
+      "address" : "Q4.4",
+      "comment" : "S5 timer SE output"
+    },
+    {
+      "name" : "In_SD",
+      "type" : "Bool",
+      "address" : "I0.5",
+      "comment" : "S5 timer SD input"
+    },
+    {
+      "name" : "Out_SD",
+      "type" : "Bool",
+      "address" : "Q4.5",
+      "comment" : "S5 timer SD output"
+    },
+    {
+      "name" : "In_SS",
+      "type" : "Bool",
+      "address" : "I0.6",
+      "comment" : "S5 timer SS input"
+    },
+    {
+      "name" : "Out_SS",
+      "type" : "Bool",
+      "address" : "Q4.6",
+      "comment" : "S5 timer SS output"
+    },
+    {
+      "name" : "In_SF",
+      "type" : "Bool",
+      "address" : "I0.7",
+      "comment" : "S5 timer SF input"
+    },
+    {
+      "name" : "Out_SF",
+      "type" : "Bool",
+      "address" : "Q4.7",
+      "comment" : "S5 timer SF output"
+    },
+    {
+      "name" : "Reset_PB",
+      "type" : "Bool",
+      "address" : "I1.0",
+      "comment" : "reset TONR and SS"
+    }
+  ],
+  "watch" : [
+    {
+      "address" : "\"Timers\".ET_TON",
+      "format" : "TIME",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Timers\".ET_TOF",
+      "format" : "TIME",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Timers\".ET_TP",
+      "format" : "TIME",
+      "modify" : ""
+    },
+    {
+      "address" : "T1",
+      "format" : "S5TIME",
+      "modify" : ""
+    },
+    {
+      "address" : "T2",
+      "format" : "S5TIME",
+      "modify" : ""
+    },
+    {
+      "address" : "T3",
+      "format" : "S5TIME",
+      "modify" : ""
+    },
+    {
+      "address" : "T4",
+      "format" : "S5TIME",
+      "modify" : ""
+    },
+    {
+      "address" : "T5",
+      "format" : "S5TIME",
+      "modify" : ""
+    }
+  ],
+  "diTypes" : [
+    0,
+    0,
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "aiChannels" : [
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    }
+  ],
+  "comm" : {
+    "s7" : true,
+    "s7Port" : 102,
+    "modbus" : true,
+    "modbusPort" : 502,
+    "modbusUnit" : 1,
+    "holding" : "M",
+    "putGet" : true,
+    "allInterfaces" : false,
+    "ip" : "127.0.0.1",
+    "mask" : "255.255.255.0",
+    "ipc" : false
+  }
+}

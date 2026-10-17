@@ -1,0 +1,317 @@
+{
+  "format" : "VirtualPLC",
+  "version" : 1,
+  "name" : "Alarm handling with acknowledge (S7-1200)",
+  "author" : "Virtual PLC examples",
+  "comment" : "SCL: four alarm inputs (I0.0..I0.3) are latched; a new alarm flashes its lamp and sounds the horn until Acknowledge (I0.4); an acknowledged alarm that is still there shows steady; it clears when it is gone.",
+  "cpu" : "CPU 1214C DC/DC/DC",
+  "family" : "S7-1200",
+  "cyclicMs" : 100,
+  "clockByte" : 0,
+  "blocks" : [
+    {
+      "kind" : "OB",
+      "number" : 1,
+      "name" : "Main",
+      "comment" : "Main program cycle",
+      "networks" : [
+        {
+          "title" : "Alarms",
+          "comment" : "the inputs into an array, one loop for the four alarms, the lamps out",
+          "lang" : "SCL",
+          "scl" : [
+            "VAR_TEMP",
+            "    i : Int;",
+            "    any : Bool;",
+            "END_VAR",
+            "\"Alarms\".Active[0] := \"Alarm_1\";",
+            "\"Alarms\".Active[1] := \"Alarm_2\";",
+            "\"Alarms\".Active[2] := \"Alarm_3\";",
+            "\"Alarms\".Active[3] := \"Alarm_4\";",
+            "#any := FALSE;",
+            "FOR #i := 0 TO 3 DO",
+            "    IF \"Alarms\".Active[#i] AND NOT \"Alarms\".Stored[#i] THEN",
+            "        \"Alarms\".Stored[#i] := TRUE;",
+            "        \"Alarms\".Unacked[#i] := TRUE;",
+            "    END_IF;",
+            "    IF \"Ack_PB\" THEN \"Alarms\".Unacked[#i] := FALSE; END_IF;",
+            "    IF NOT \"Alarms\".Active[#i] AND NOT \"Alarms\".Unacked[#i] THEN \"Alarms\".Stored[#i] := FALSE; END_IF;",
+            "    \"Alarms\".Lamp[#i] := (\"Alarms\".Unacked[#i] AND \"Clock_2Hz\") OR (\"Alarms\".Stored[#i] AND NOT \"Alarms\".Unacked[#i]);",
+            "    #any := #any OR \"Alarms\".Unacked[#i];",
+            "END_FOR;",
+            "\"Lamp_1\" := \"Alarms\".Lamp[0];",
+            "\"Lamp_2\" := \"Alarms\".Lamp[1];",
+            "\"Lamp_3\" := \"Alarms\".Lamp[2];",
+            "\"Lamp_4\" := \"Alarms\".Lamp[3];",
+            "\"Horn\" := #any;"
+          ]
+        }
+      ]
+    }
+  ],
+  "dbs" : [
+    {
+      "number" : 1,
+      "name" : "Alarms",
+      "comment" : "",
+      "optimized" : false,
+      "vars" : [
+        {
+          "name" : "Active",
+          "type" : "Array[0..3] of Bool",
+          "start" : "",
+          "comment" : "the input is there"
+        },
+        {
+          "name" : "Unacked",
+          "type" : "Array[0..3] of Bool",
+          "start" : "",
+          "comment" : "not acknowledged yet"
+        },
+        {
+          "name" : "Stored",
+          "type" : "Array[0..3] of Bool",
+          "start" : "",
+          "comment" : "latched"
+        },
+        {
+          "name" : "Lamp",
+          "type" : "Array[0..3] of Bool",
+          "start" : "",
+          "comment" : "lamp state"
+        }
+      ]
+    }
+  ],
+  "tags" : [
+    {
+      "name" : "Clock_2Hz",
+      "type" : "Bool",
+      "address" : "%M0.3",
+      "comment" : "clock memory 2 Hz"
+    },
+    {
+      "name" : "Clock_1Hz",
+      "type" : "Bool",
+      "address" : "%M0.5",
+      "comment" : "clock memory 1 Hz"
+    },
+    {
+      "name" : "Alarm_1",
+      "type" : "Bool",
+      "address" : "%I0.0",
+      "comment" : "switch: alarm 1"
+    },
+    {
+      "name" : "Alarm_2",
+      "type" : "Bool",
+      "address" : "%I0.1",
+      "comment" : "switch: alarm 2"
+    },
+    {
+      "name" : "Alarm_3",
+      "type" : "Bool",
+      "address" : "%I0.2",
+      "comment" : "switch: alarm 3"
+    },
+    {
+      "name" : "Alarm_4",
+      "type" : "Bool",
+      "address" : "%I0.3",
+      "comment" : "switch: alarm 4"
+    },
+    {
+      "name" : "Ack_PB",
+      "type" : "Bool",
+      "address" : "%I0.4",
+      "comment" : "acknowledge"
+    },
+    {
+      "name" : "Lamp_1",
+      "type" : "Bool",
+      "address" : "%Q0.0",
+      "comment" : "alarm lamp 1"
+    },
+    {
+      "name" : "Lamp_2",
+      "type" : "Bool",
+      "address" : "%Q0.1",
+      "comment" : "alarm lamp 2"
+    },
+    {
+      "name" : "Lamp_3",
+      "type" : "Bool",
+      "address" : "%Q0.2",
+      "comment" : "alarm lamp 3"
+    },
+    {
+      "name" : "Lamp_4",
+      "type" : "Bool",
+      "address" : "%Q0.3",
+      "comment" : "alarm lamp 4"
+    },
+    {
+      "name" : "Horn",
+      "type" : "Bool",
+      "address" : "%Q0.4",
+      "comment" : "horn"
+    }
+  ],
+  "watch" : [
+    {
+      "address" : "\"Alarms\".Unacked[0]",
+      "format" : "BOOL",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Horn\"",
+      "format" : "BOOL",
+      "modify" : ""
+    }
+  ],
+  "diTypes" : [
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "aiChannels" : [
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    }
+  ],
+  "comm" : {
+    "s7" : true,
+    "s7Port" : 102,
+    "modbus" : true,
+    "modbusPort" : 502,
+    "modbusUnit" : 1,
+    "holding" : "M",
+    "putGet" : true,
+    "allInterfaces" : false,
+    "ip" : "127.0.0.1",
+    "mask" : "255.255.255.0",
+    "ipc" : false
+  }
+}

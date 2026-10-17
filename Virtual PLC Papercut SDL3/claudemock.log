@@ -1,4 +1,4 @@
-request 1 (23411 bytes)
+request 1 (23638 bytes)
   ok   path /v1/messages
   ok   x-api-key header
   ok   anthropic-version 2023-06-01
@@ -19,7 +19,7 @@ request 1 (23411 bytes)
   ok   the JPG attachment: sent as it is, a base64 JPEG image block
   ok   the BMP attachment: sent as a base64 PNG image block
   ok   the files go before the text
-request 2 (24885 bytes)
+request 2 (25112 bytes)
   ok   path /v1/messages
   ok   x-api-key header
   ok   anthropic-version 2023-06-01
@@ -38,7 +38,7 @@ request 2 (24885 bytes)
   ok   answer 1 echoed unchanged
   ok   answer 1: one user message with the results ['toolu_m1'] (got ['toolu_m1'])
   ok   get_block returned FC2 "Clamp"
-request 3 (25694 bytes)
+request 3 (25921 bytes)
   ok   path /v1/messages
   ok   x-api-key header
   ok   anthropic-version 2023-06-01
@@ -60,7 +60,7 @@ request 3 (25694 bytes)
   ok   answer 2: one user message with the results ['toolu_m2', 'toolu_m3'] (got ['toolu_m2', 'toolu_m3'])
   ok   write_network compiled without errors
   ok   compile ran
-request 4 (26017 bytes)
+request 4 (26244 bytes)
   ok   path /v1/messages
   ok   x-api-key header
   ok   anthropic-version 2023-06-01
@@ -83,7 +83,7 @@ request 4 (26017 bytes)
   ok   answer 3 echoed unchanged
   ok   answer 3: one user message with the results ['toolu_m4'] (got ['toolu_m4'])
   ok   download_and_run: allowed and downloaded
-request 5 (26417 bytes)
+request 5 (26643 bytes)
   ok   path /v1/messages
   ok   x-api-key header
   ok   anthropic-version 2023-06-01
@@ -107,5 +107,5 @@ request 5 (26417 bytes)
   ok   answer 3: one user message with the results ['toolu_m4'] (got ['toolu_m4'])
   ok   answer 4 echoed unchanged
   ok   answer 4: one user message with the results ['toolu_m5'] (got ['toolu_m5'])
-  ok   read_values in RUN: { "cpu_mode" : "Run", "values" : { "%MW100" : "10", "\"Motor\".SpeedRpm" : "750.0" } }
+  ok   read_values in RUN: { "cpu_mode" : "Run", "values" : { "%MW100" : "8", "\"Motor\".SpeedRpm" : "750.0" } }
 0 checks failed

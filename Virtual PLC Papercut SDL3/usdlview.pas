@@ -29,7 +29,7 @@ interface
 uses
   Classes, SysUtils, StrUtils, Math, TypInfo, Forms, Controls, Clipbrd, SDL3, BGRABitmap, BGRABitmapTypes,
   uRenderPool, uPaperDL, uFrame, uUiBase, uUi, uPlcRuntime, uPlcTypes, uPlcProject, uExport, uClaude, uClaudeHttp,
-  uClaudeChat;
+  uClaudeChat, uPlcServer, uHelpForm;
 
 const
   HistLen = 300;
@@ -805,6 +805,47 @@ begin
   end;
 end;
 
+// the text of the first SCL network of the block ('#none' without one)
+function FirstScl(B: TBlock): string;
+var
+  K: Integer;
+begin
+  Result := '#none';
+  for K := 0 to B.NetCount - 1 do
+    if B.Net(K).Kind = nkSCL then Exit(Trim(B.Net(K).Stl.Text));
+end;
+
+function RowKinds(N: TNetwork): string;
+var
+  C: Integer;
+begin
+  Result := '';
+  for C := 0 to N.Cols - 1 do
+    Result := Result + Copy(LadKindNames[N.Cell(0, C).Kind], 1, 4) + ' ';
+end;
+
+function BoxCount(N: TNetwork): Integer;
+var
+  R, C: Integer;
+begin
+  Result := 0;
+  for R := 0 to N.Rows - 1 do
+    for C := 0 to N.Cols - 1 do
+      if IsBox(N.Cell(R, C).Kind) then Inc(Result);
+end;
+
+// every box has a free cell on its right: it is drawn at its full width
+function BoxesWide(N: TNetwork): Boolean;
+var
+  R, C: Integer;
+begin
+  Result := True;
+  for R := 0 to N.Rows - 1 do
+    for C := 0 to N.Cols - 2 do
+      if IsBox(N.Cell(R, C).Kind) and not N.Cell(R, C).Down and not (N.Cell(R, C + 1).Kind in [lkWire, lkEmpty]) then
+        Exit(False);
+end;
+
 procedure TSDLView.RunScript;
 
   procedure Add(AWait: Integer; const ACmd: string; const AArg: string = '');
@@ -883,6 +924,172 @@ begin
     FShotWait := FShots[0].Wait;
     Exit;
   end;
+  if (Length(FShots) = 0) and (GetEnvironmentVariable('VPLC_IPC_TEST') <> '') then
+  begin
+    // IPC on (test\ipcclient.py talks through the pipe meanwhile), its help and the PDF; the imports of
+    // tags and watch rows; the Explorer (VPLC_NO_SHELL: only noted)
+    DeleteFile(FShotDir + 'ipc_check.txt');
+    Add(10, 'sample', '13');
+    Add(10, 'run');
+    Add(5, 'screen', '6');
+    Add(10, 'uiclick2', 'ipcon:0');
+    Add(10, 'ipc', 'check on');
+    Add(400, 'ipc', 'wait client');
+    Add(10, 'shot', 'ipc_1_ports');
+    Add(5, 'uiclick2', 'ipchelp:0');
+    Add(30, 'ipc', 'helpform');
+    Add(20, 'ipc', 'helpsmall');
+    Add(5, 'ipc', 'pdf');
+    Add(5, 'ipc', 'helpclose');
+    Add(5, 'uiclick2', 'ipcon:0');
+    Add(20, 'ipc', 'check off');
+    Add(5, 'screen', '5');
+    Add(5, 'ipc', 'import tags');
+    Add(10, 'shot', 'ipc_3_tags_imported');
+    Add(5, 'screen', '3');
+    Add(5, 'ipc', 'import watch');
+    Add(10, 'shot', 'ipc_4_watch_imported');
+    Add(5, 'screen', '7');
+    Add(5, 'ipc', 'refresh');
+    Add(10, 'uiclick2', 'explorer:0');
+    Add(5, 'ipc', 'explorer');
+    Add(5, 'uirclick', 'file:0');
+    Add(10, 'shot', 'ipc_5_file_menu');
+    Add(5, 'uiclick2', 'ctx:1');
+    Add(5, 'ipc', 'explorer');
+    Add(5, 'quit');
+    FShotPos := 0;
+    FShotWait := FShots[0].Wait;
+    Exit;
+  end;
+  if (Length(FShots) = 0) and (GetEnvironmentVariable('VPLC_LADPAL_TEST') <> '') then
+  begin
+    // the LAD palette (groups, its scroll bar, a comparator, a converter), the box's type lists,
+    // the data type lists of a tag and of a DB variable
+    DeleteFile(FShotDir + 'ladpal_check.txt');
+    Add(10, 'sample', '13');
+    Add(5, 'screen', '1');
+    Add(5, 'ob1');
+    Add(5, 'mk', 'newlad');
+    Add(10, 'shot', 'ladpal_1_palette');
+    Add(5, 'vs', 'drag 8 0.05 0.75');
+    Add(10, 'shot', 'ladpal_2_scrolled');
+    Add(5, 'pal', 'cmp>=');
+    Add(10, 'pal', 'check cmp');
+    Add(5, 'mk', 'nextcell');
+    Add(10, 'pal', 'conv');
+    Add(10, 'pal', 'check conv');
+    Add(5, 'uiclick2', 'dtype2:0');
+    Add(10, 'shot', 'ladpal_3_conv_out_types');
+    Add(5, 'uiclick2', 'ctx:7');
+    Add(10, 'pal', 'check out');
+    Add(10, 'shot', 'ladpal_4_conv_box');
+    Add(5, 'screen', '5');
+    Add(10, 'uiclick2', 'tagtype:11');
+    Add(10, 'shot', 'ladpal_5_tag_types');
+    Add(5, 'uiclick2', 'ctx:11');
+    Add(10, 'pal', 'check tag');
+    Add(5, 'screen', '4');
+    Add(10, 'uiclick2', 'vartype:1');
+    Add(10, 'shot', 'ladpal_6_var_types');
+    Add(5, 'uiclick2', 'ctx:9');
+    Add(10, 'pal', 'check var');
+    Add(5, 'quit');
+    FShotPos := 0;
+    FShotWait := FShots[0].Wait;
+    Exit;
+  end;
+  if (Length(FShots) = 0) and (GetEnvironmentVariable('VPLC_CARET_TEST') <> '') then
+  begin
+    // the keyboard moves the caret: the editor scrolls so that it stays inside the frame
+    DeleteFile(FShotDir + 'caret_check.txt');
+    Add(10, 'sample', '13');
+    Add(5, 'screen', '1');
+    Add(5, 'fc1');
+    Add(5, 'stlnet', 'SCL');
+    Add(5, 'caret', 'home');
+    for V := 1 to 45 do Add(3, 'caret', 'down');
+    Add(5, 'shot', 'caret_1_scl_down');
+    for V := 1 to 45 do Add(3, 'caret', 'up');
+    Add(5, 'shot', 'caret_2_scl_up');
+    Add(5, 'ob1');
+    Add(5, 'mk', 'ladsel');
+    for V := 1 to 30 do Add(3, 'caret', 'down');
+    Add(5, 'shot', 'caret_3_lad_down');
+    for V := 1 to 30 do Add(3, 'caret', 'up');
+    Add(5, 'shot', 'caret_4_lad_up');
+    Add(5, 'quit');
+    FShotPos := 0;
+    FShotWait := FShots[0].Wait;
+    Exit;
+  end;
+  if (Length(FShots) = 0) and (GetEnvironmentVariable('VPLC_BATCH_TEST') <> '') then
+  begin
+    // scroll bars of every list, the tag checks, a field as a text box, the IP address
+    DeleteFile(FShotDir + 'vscroll_check.txt');
+    DeleteFile(FShotDir + 'batch_check.txt');
+    Add(10, 'sample', '13');
+    Add(5, 'mk', 'blocks');
+    Add(5, 'screen', '1');
+    Add(10, 'vs', 'drag 2 0.05 0.9');
+    Add(10, 'shot', 'batch_1_blocks');
+    Add(5, 'mk', 'tags');
+    Add(5, 'screen', '5');
+    Add(10, 'mk', 'tagcheck');
+    Add(5, 'shot', 'batch_2_tags_red');
+    Add(5, 'vs', 'drag 3 0.05 0.8');
+    Add(10, 'shot', 'batch_3_tags_scrolled');
+    Add(5, 'mk', 'dbs');
+    Add(5, 'screen', '4');
+    Add(10, 'vs', 'drag 4 0.05 0.7');
+    Add(5, 'vs', 'drag 5 0.05 0.6');
+    Add(10, 'shot', 'batch_4_dbs');
+    Add(5, 'mk', 'watch');
+    Add(5, 'screen', '3');
+    Add(10, 'vs', 'drag 6 0.05 0.9');
+    Add(10, 'shot', 'batch_5_watch');
+    Add(5, 'mk', 'files');
+    Add(5, 'screen', '7');
+    Add(10, 'vs', 'drag 7 0.05 0.9');
+    Add(10, 'shot', 'batch_6_files');
+    Add(5, 'mk', 'saveas');
+    Add(10, 'shot', 'batch_7_saveas');
+    Add(5, 'mk', 'saveas2');
+    Add(5, 'mk', 'rmfiles');
+    Add(5, 'screen', '6');
+    Add(10, 'mk', 'ip');
+    Add(20, 'mk', 'ipcheck');
+    Add(5, 'shot', 'batch_8_ip_not_local');
+    Add(5, 'mk', 'ipmenu');
+    Add(10, 'shot', 'batch_9_ip_menu');
+    Add(5, 'uiclick2', 'ctx:0');
+    Add(20, 'mk', 'ipcheck');
+    Add(5, 'quit');
+    FShotPos := 0;
+    FShotWait := FShots[0].Wait;
+    Exit;
+  end;
+  if (Length(FShots) = 0) and (GetEnvironmentVariable('VPLC_VSCROLL_TEST') <> '') then
+  begin
+    // the vertical scroll bars of the program editor: the thumb dragged, a click on the track
+    DeleteFile(FShotDir + 'vscroll_check.txt');
+    Add(10, 'sample', '13');
+    Add(5, 'screen', '1');
+    Add(5, 'ob1');
+    Add(10, 'vs', 'drag 0 0.02 0.5');
+    Add(10, 'shot', 'vscroll_1_dragged');
+    Add(5, 'vs', 'drag 0 0.5 0.0');
+    Add(5, 'vs', 'click 0 0.97');
+    Add(10, 'shot', 'vscroll_2_track');
+    Add(5, 'testmsgs', '20');
+    Add(10, 'vs', 'drag 1 0.05 0.6');
+    Add(10, 'shot', 'vscroll_3_messages');
+    Add(5, 'vs', 'click 1 0.98');
+    Add(5, 'quit');
+    FShotPos := 0;
+    FShotWait := FShots[0].Wait;
+    Exit;
+  end;
   if (Length(FShots) = 0) and (GetEnvironmentVariable('VPLC_STARTUP_TEST') <> '') then
   begin
     // the project the program starts with (no sample loaded by the script)
@@ -890,6 +1097,235 @@ begin
     Add(5, 'shot', 'startup_0');
     Add(5, 'screen', '1');
     Add(10, 'shot', 'startup_1_program');
+    Add(5, 'quit');
+    FShotPos := 0;
+    FShotWait := FShots[0].Wait;
+    Exit;
+  end;
+  if (Length(FShots) = 0) and (GetEnvironmentVariable('VPLC_IOIMPORT_TEST') <> '') then
+  begin
+    // the I/O import (test\import_io.csv) and its help: a window (HTML, select, copy), a PDF
+    DeleteFile(FShotDir + 'ipc_check.txt');
+    Add(10, 'sample', '7');
+    Add(5, 'screen', '2');
+    Add(10, 'ipc', 'import io');
+    Add(20, 'shot', 'ioimport_1_io_screen');
+    Add(5, 'uiclick2', 'iohelp:0');
+    Add(30, 'ipc', 'iohelpform');
+    Add(5, 'ipc', 'iohelppdf');
+    Add(5, 'ipc', 'iohelpclose');
+    Add(5, 'quit');
+    FShotPos := 0;
+    FShotWait := FShots[0].Wait;
+    Exit;
+  end;
+  if (Length(FShots) = 0) and (GetEnvironmentVariable('VPLC_MENUS_TEST') <> '') then
+  begin
+    // + network: above / below the selected network; the right button on a network head and on a text
+    DeleteFile(FShotDir + 'insert_check.txt');
+    Add(10, 'ipc', 'ex 19');
+    Add(5, 'screen', '1');
+    Add(10, 'uiclick2', 'net:1');
+    Add(5, 'uiclick2', 'addscl:0');
+    Add(10, 'shot', 'menus_1_add_above_below');
+    Add(5, 'uiclick2', 'ctx:0');
+    Add(10, 'ladins', 'check SCL above network 2: it is network 2 now');
+    Add(5, 'ladins', 'type 1');
+    Add(10, 'uirclick', 'stl:1');
+    Add(10, 'shot', 'menus_2_text_menu');
+    Add(5, 'uiclick2', 'ctx:6');
+    Add(5, 'uirclick', 'stl:1');
+    Add(5, 'uiclick2', 'ctx:3');
+    Add(10, 'ladins', 'check select all + copy: the clipboard has the text');
+    Add(5, 'uirclick', 'stl:1');
+    Add(5, 'uiclick2', 'ctx:5');
+    Add(10, 'ladins', 'check delete: the text is gone');
+    Add(5, 'uirclick', 'stl:1');
+    Add(5, 'uiclick2', 'ctx:4');
+    Add(10, 'ladins', 'check paste: the text is back');
+    Add(5, 'ladins', 'esc');
+    Add(5, 'uirclick', 'net:0');
+    Add(10, 'shot', 'menus_3_network_menu');
+    Add(5, 'uiclick2', 'ctx:1');
+    Add(10, 'ladins', 'check LAD below network 1: it is network 2');
+    Add(5, 'quit');
+    FShotPos := 0;
+    FShotWait := FShots[0].Wait;
+    Exit;
+  end;
+  if (Length(FShots) = 0) and (GetEnvironmentVariable('VPLC_XNET_TEST') <> '') then
+  begin
+    // a drop needs a wire under it; elements go from one network into another
+    DeleteFile(FShotDir + 'insert_check.txt');
+    Add(10, 'ipc', 'ex 6');
+    Add(5, 'screen', '1');
+    Add(20, 'ladins', 'xhold 0 0 2 0 1 3');
+    Add(10, 'shot', 'xnet_0_no_wire');
+    Add(5, 'ladins', 'xdrop 0 1 3');
+    Add(10, 'ladins', 'check onto empty cells: refused');
+    Add(5, 'ladins', 'xhold 0 0 1 1 0 4');
+    Add(10, 'shot', 'xnet_1_over_other_network');
+    Add(5, 'ladins', 'xdrop 1 0 4');
+    Add(10, 'ladins', 'check into the other network onto a wire');
+    Add(5, 'ladins', 'xdrag 1 0 0 0 0 2');
+    Add(10, 'ladins', 'check back onto an element: inserted');
+    Add(10, 'shot', 'xnet_2_after');
+    Add(5, 'ladins', 'undo');
+    Add(10, 'ladins', 'check undo of the move between networks');
+    Add(5, 'quit');
+    FShotPos := 0;
+    FShotWait := FShots[0].Wait;
+    Exit;
+  end;
+  if (Length(FShots) = 0) and (GetEnvironmentVariable('VPLC_NETKIND_TEST') <> '') then
+  begin
+    // the language of a network switches only while it is empty
+    DeleteFile(FShotDir + 'insert_check.txt');
+    Add(10, 'ipc', 'ex 19');
+    Add(5, 'screen', '1');
+    Add(10, 'uiclick2', 'netkind:0');
+    Add(10, 'ladins', 'check LAD with code stays LAD');
+    Add(5, 'uiclick2', 'addlad:0');
+    Add(5, 'uiclick2', 'ctx:1');
+    Add(10, 'uiclick2', 'netkind:1');
+    Add(10, 'ladins', 'check empty LAD switches to SCL');
+    Add(5, 'ladins', 'type 1');
+    Add(10, 'uiclick2', 'netkind:1');
+    Add(10, 'ladins', 'check SCL with code stays SCL');
+    Add(10, 'shot', 'netkind_1_locked');
+    Add(5, 'quit');
+    FShotPos := 0;
+    FShotWait := FShots[0].Wait;
+    Exit;
+  end;
+  if (Length(FShots) = 0) and (GetEnvironmentVariable('VPLC_DELWIRE_TEST') <> '') then
+  begin
+    // a deleted LAD element leaves a wire where the rung goes through it
+    DeleteFile(FShotDir + 'insert_check.txt');
+    Add(10, 'ipc', 'ex 6');
+    Add(5, 'screen', '1');
+    Add(20, 'shot', 'delwire_0_before');
+    Add(5, 'ladins', 'click 0 0 1');
+    Add(5, 'ladins', 'del');
+    Add(10, 'ladins', 'check del in the rung: wire');
+    Add(5, 'ladins', 'click 0 1 0');
+    Add(5, 'ladins', 'del');
+    Add(10, 'ladins', 'check del of the only contact of a branch: open, no wire');
+    Add(5, 'ladins', 'click 0 0 2');
+    Add(5, 'ladins', 'ctrlx');
+    Add(10, 'ladins', 'check cut in the rung: wire');
+    Add(5, 'ladins', 'click 0 0 7');
+    Add(5, 'ladins', 'del');
+    Add(10, 'ladins', 'check del of the coil at the end: empty');
+    Add(10, 'shot', 'delwire_1_after');
+    Add(5, 'quit');
+    FShotPos := 0;
+    FShotWait := FShots[0].Wait;
+    Exit;
+  end;
+  if (Length(FShots) = 0) and (GetEnvironmentVariable('VPLC_INSERT_TEST') <> '') then
+  begin
+    // LAD drag and drop onto an element: it is inserted there, the others slide (no overwrite)
+    DeleteFile(FShotDir + 'insert_check.txt');
+    Add(10, 'ipc', 'ex 19');
+    Add(5, 'screen', '1');
+    Add(20, 'shot', 'insert_0_before');
+    Add(5, 'ladins', 'hold 2 0 0 0 4');
+    Add(10, 'shot', 'insert_0b_ghost_contact');
+    Add(5, 'ladins', 'let go');
+    Add(5, 'ladins', 'drag 0 0 0 0 1');
+    Add(10, 'ladins', 'check swap: CTU 0, NO 2 (the box keeps its width), coil 7');
+    Add(10, 'shot', 'insert_1_swap');
+    Add(5, 'ladins', 'drag 0 0 7 0 3');
+    Add(10, 'ladins', 'check coil to 3: wires slide right');
+    Add(5, 'ladins', 'drag 1 0 0 0 5');
+    Add(10, 'ladins', 'check NO of network 2 to 5: CTD slides left');
+    Add(10, 'shot', 'insert_2_moved');
+    Add(5, 'ladins', 'undo');
+    Add(10, 'ladins', 'check undo: network 2 back');
+    Add(5, 'ladins', 'click 0 0 0');
+    Add(5, 'ladins', 'ctrlc');
+    Add(5, 'ladins', 'click 0 0 1');
+    Add(5, 'ladins', 'ctrlv');
+    Add(10, 'ladins', 'click 0 0 1');
+    Add(5, 'ladins', 'ctrlv');
+    Add(10, 'ladins', 'check pasted boxes keep their width');
+    Add(10, 'shot', 'insert_3_boxes');
+    Add(5, 'ladins', 'drag 0 0 4 0 1');
+    Add(10, 'ladins', 'check box onto box: every box keeps its width');
+    Add(10, 'shot', 'insert_4_box_drop');
+    Add(5, 'quit');
+    FShotPos := 0;
+    FShotWait := FShots[0].Wait;
+    Exit;
+  end;
+  if (Length(FShots) = 0) and (GetEnvironmentVariable('VPLC_UNDO_TEST') <> '') then
+  begin
+    // a click on the wide part of a LAD box leaves it in place; undo / redo of LAD, networks and text
+    DeleteFile(FShotDir + 'undo_check.txt');
+    Add(10, 'ipc', 'ex 19');
+    Add(5, 'screen', '1');
+    Add(20, 'undo', 'press');
+    Add(3, 'undo', 'release');
+    Add(5, 'undo', 'check box stays (click)');
+    Add(5, 'undo', 'press');
+    Add(3, 'undo', 'jitter');
+    Add(3, 'undo', 'release');
+    Add(5, 'undo', 'check box stays (a few pixels)');
+    Add(5, 'undo', 'press');
+    Add(3, 'undo', 'move 2');
+    Add(10, 'shot', 'undo_1_dragging');
+    Add(3, 'undo', 'release far');
+    Add(5, 'undo', 'check box moved 2 right');
+    Add(5, 'uiclick2', 'addlad:0');
+    Add(5, 'uiclick2', 'ctx:1');
+    Add(5, 'undo', 'check 4 networks');
+    Add(10, 'shot', 'undo_2_toolbar');
+    Add(5, 'uiclick2', 'undo:0');
+    Add(5, 'undo', 'check 3 networks');
+    Add(5, 'uiclick2', 'undo:0');
+    Add(5, 'undo', 'check box back');
+    Add(5, 'uiclick2', 'redo:0');
+    Add(5, 'undo', 'check box moved 2 right');
+    Add(5, 'uiclick2', 'redo:0');
+    Add(5, 'undo', 'check 4 networks');
+    Add(5, 'uiclick2', 'addscl:0');
+    Add(5, 'uiclick2', 'ctx:1');
+    Add(5, 'undo', 'type');
+    Add(10, 'undo', 'check text typed');
+    Add(10, 'shot', 'undo_3_text');
+    Add(5, 'undo', 'ctrlz');
+    Add(5, 'undo', 'check text gone, SCL network there');
+    Add(5, 'undo', 'ctrlz');
+    Add(5, 'undo', 'check 4 networks');
+    Add(5, 'undo', 'ctrly');
+    Add(5, 'undo', 'ctrly');
+    Add(10, 'undo', 'check text typed');
+    Add(5, 'quit');
+    FShotPos := 0;
+    FShotWait := FShots[0].Wait;
+    Exit;
+  end;
+  if (Length(FShots) = 0) and (GetEnvironmentVariable('VPLC_TIMERS_TEST') <> '') then
+  begin
+    // the timer / counter examples in the program editor, running
+    Add(10, 'ipc', 'ex 22');
+    Add(5, 'run');
+    Add(5, 'screen', '1');
+    Add(5, 'ipc', 'in on');
+    Add(200, 'shot', 'tc_1_timers_s7-300');
+    Add(10, 'ipc', 'ex 20');
+    Add(5, 'run');
+    Add(5, 'screen', '1');
+    Add(5, 'ipc', 'in on');
+    Add(200, 'shot', 'tc_2_timers_s7-1500');
+    Add(10, 'ipc', 'ex 23');
+    Add(5, 'run');
+    Add(5, 'screen', '1');
+    Add(30, 'shot', 'tc_3_counters_s7-300');
+    Add(10, 'ipc', 'ex 25');
+    Add(5, 'screen', '7');
+    Add(10, 'shot', 'tc_4_examples_list');
     Add(5, 'quit');
     FShotPos := 0;
     FShotWait := FShots[0].Wait;
@@ -909,12 +1345,21 @@ begin
     Add(10, 'saveask', 'click new');
     Add(5, 'saveask', 'answer 1');
     Add(10, 'saveask', 'check save writes the file, then New');
+    Add(5, 'ipc', 'refresh');
+    Add(5, 'uiclick2', 'folder:0');
+    Add(10, 'shot', 'saveask_1a_folder_menu');
+    Add(5, 'uiclick2', 'ctx:1');
     Add(5, 'saveask', 'change');
-    Add(10, 'saveask', 'click sample');
+    Add(10, 'saveask', 'click example');
+    Add(10, 'shot', 'saveask_1b_example');
     Add(5, 'saveask', 'answer 2');
     Add(10, 'saveask', 'check don''t save loads the sample');
-    Add(5, 'saveask', 'click sample');
-    Add(10, 'saveask', 'check no changes: no question');
+    Add(5, 'saveask', 'check the example file stays: no file name');
+    Add(5, 'saveask', 'click example');
+    Add(10, 'saveask', 'check no changes: only the load question');
+    Add(5, 'saveask', 'answer 1');
+    Add(10, 'saveask', 'check don''t save loads the sample');
+    Add(5, 'ipc', 'folder 0');
     Add(5, 'saveask', 'change');
     Add(10, 'saveask', 'click file');
     Add(10, 'shot', 'saveask_2_file');
@@ -1014,7 +1459,7 @@ begin
     Add(5, 'uiclick2', 'ask:0');
     Add(10, 'projfile', 'check:cancel keeps the project');
     Add(5, 'projfile', 'click');
-    Add(10, 'uiclick2', 'ask:1');
+    Add(10, 'uiclick2', 'ask:2');   // the project has changes: Don't save, then the file loads
     Add(20, 'projfile', 'check:OK loads the file');
     Add(5, 'projfile', 'delete');
     Add(5, 'quit');
@@ -1160,7 +1605,8 @@ begin
     Add(5, 'chatclick', '5');
     Add(150, 'chatshot', 'claude_2_done');
     // select and copy: a drag over two lines, a double click (a word), a triple click (a message)
-    Add(5, 'chatselect', '1,4,3,12,1');
+    Add(5, 'chattop');
+    Add(10, 'chatselect', '1,4,3,12,1');
     Add(5, 'chatcopy', 'chat_copy_drag.txt');
     Add(10, 'chatshot', 'claude_2b_selected');
     Add(5, 'chatselect', '0,2,0,2,2');
@@ -1453,6 +1899,299 @@ begin
     UI.MouseUp(Pt.X, Pt.Y);
   end;
   if (St.Cmd = 'infox') and (InfoForm <> nil) then InfoForm.Close;   // as the X of the window
+  if St.Cmd = 'testmsgs' then UI.TestMessages(StrToInt(St.Arg));
+  if St.Cmd = 'ipc' then
+    with TStringList.Create do
+    try
+      if FileExists(FShotDir + 'ipc_check.txt') then LoadFromFile(FShotDir + 'ipc_check.txt');
+      case St.Arg of
+        'check on', 'check off':
+          Add(Format('%s: IPC on %s', [St.Arg, BoolToStr(UI.Project.Comm.IpcOn, True)]));
+        'wait client':
+          Add('the answers of the client: ' + UI.IpcAnswer('PING') + ' | ' + UI.IpcAnswer('READ %MW100'));
+        'pdf': Add('help as PDF: ' + BoolToStr(UI.ExportIpcHelp(FShotDir + 'ipc_help.pdf'), True));
+        'import tags':
+          begin
+            Add('import tags: ' + UI.ImportTags(ExpandFileName('test\import_tags.csv')));
+            P := UI.Project.FindTag('New_Lamp');
+            if P >= 0 then
+              Add(Format('  New_Lamp %s %s "%s"', [UI.Project.Tags[P].TypeText, UI.Project.Tags[P].Address,
+                UI.Project.Tags[P].Comment]));
+            P := UI.Project.FindTag('Motor');
+            Add('  Motor comment: ' + UI.Project.Tags[P].Comment);
+          end;
+        'import watch':
+          begin
+            V := Length(UI.Project.Watch);
+            Add('import watch: ' + UI.ImportWatch(ExpandFileName('test\import_watch.csv')));
+            for P := V to High(UI.Project.Watch) do
+              Add(Format('  row %d: %s %s modify "%s"', [P + 1, UI.Project.Watch[P].Address,
+                DispFmtNames[UI.Project.Watch[P].Fmt], UI.Project.Watch[P].ModifyValue]));
+          end;
+        'explorer': Add('explorer: ' + UI.LastShell);
+        'helpform':
+          if UI.HelpForm = nil then Add('help window: FAIL not there')
+          else
+          begin
+            UI.HelpForm.SetBounds(UI.HelpForm.Left, 40, 940, 760);
+            UI.HelpForm.SaveShot(FShotDir + 'ipc_2_help.png');
+            S0 := UI.HelpForm.CopyAll;
+            Add(Format('help window: open %s, sizeable %s, text select %s, copied %d chars, has "\.\pipe\VirtualPLC" %s, has "NamedPipeClientStream" %s',
+              [BoolToStr(UI.IpcHelpOpen, True), BoolToStr(UI.HelpForm.BorderStyle = bsSizeable, True),
+              BoolToStr(UI.HelpForm.Viewer.AllowTextSelect, True), Length(S0),
+              BoolToStr(Pos('\.\pipe\VirtualPLC', S0) > 0, True), BoolToStr(Pos('NamedPipeClientStream', S0) > 0, True)]));
+            with TStringList.Create do
+            try
+              Text := S0;
+              SaveToFile(FShotDir + 'ipc_help_copied.txt');
+            finally
+              Free;
+            end;
+          end;
+        'helpsmall':
+          if UI.HelpForm <> nil then
+          begin
+            UI.HelpForm.SetBounds(UI.HelpForm.Left, 40, 520, 360);
+            UI.HelpForm.SaveShot(FShotDir + 'ipc_2b_help_small.png');
+            Add(Format('help window resized to %d x %d (%s)', [UI.HelpForm.Width, UI.HelpForm.Height, UI.HelpForm.ShotInfo]));
+          end;
+        'import io':
+          begin
+            Add('import io: ' + UI.ImportIo(ExpandFileName('test\import_io.csv')));
+            for P := 0 to High(UI.Project.Tags) do
+              if Pos(UI.Project.Tags[P].Name + ',', 'New_Sensor,Jog_PB,New_Lamp,Level,Start_PB,') > 0 then
+                Add(Format('  %s %s %s "%s"', [UI.Project.Tags[P].Name, UI.Project.Tags[P].TypeText,
+                  UI.Project.Tags[P].Address, UI.Project.Tags[P].Comment]));
+            Add(Format('  I0.5 %s %s, I0.6 %s %s, AI0 %s %d, AI1 %s', [InTypeNames[UI.Project.DIch[5].InType],
+              BoolToStr(UI.Rt.GetSimBit(0, 5), True), InTypeNames[UI.Project.DIch[6].InType],
+              BoolToStr(UI.Rt.GetSimBit(0, 6), True), AiModeNames[UI.Project.AIch[0].AiMode],
+              UI.Project.AIch[0].AiValue, AiModeNames[UI.Project.AIch[1].AiMode]]));
+          end;
+        'iohelpform':
+          if UI.IoHelpForm = nil then Add('io help window: FAIL not there')
+          else
+          begin
+            UI.IoHelpForm.SetBounds(UI.IoHelpForm.Left, 40, 940, 760);
+            UI.IoHelpForm.SaveShot(FShotDir + 'ioimport_2_help.png');
+            S0 := UI.IoHelpForm.CopyAll;
+            Add(Format('io help window: open %s, copied %d chars, has "Address" %s, has "push NC" %s, has the Python %s',
+              [BoolToStr(UI.IoHelpForm.Visible, True), Length(S0), BoolToStr(Pos('Address', S0) > 0, True),
+              BoolToStr(Pos('push NC', S0) > 0, True), BoolToStr(Pos('csv.writer', S0) > 0, True)]));
+          end;
+        'iohelppdf':
+          Add('io help as PDF: ' + BoolToStr(UI.ExportHelpDoc(FShotDir + 'io_import_help.pdf', 'The I/O import file',
+            'For developers.', IoImportHelpDoc), True));
+        'iohelpclose':
+          if UI.IoHelpForm <> nil then UI.IoHelpForm.Hide;
+        'helpclose':
+          begin
+            UI.HelpForm.Hide;
+            Add('help window closed: ' + BoolToStr(not UI.IpcHelpOpen, True));
+          end;
+        'refresh': UI.RefreshProjectFiles;
+        'folder 0': UI.FileFolder := 0;
+        'folder 1': UI.FileFolder := 1;
+        'ex 6', 'ex 19', 'ex 20', 'ex 22', 'ex 23', 'ex 25': UI.LoadExampleNow(StrToInt(Copy(St.Arg, 4, 2)));
+        'in on': UI.Rt.SetSimBit(0, 0, True);
+      end;
+      SaveToFile(FShotDir + 'ipc_check.txt');
+    finally
+      Free;
+    end;
+  if St.Cmd = 'pal' then
+    with TStringList.Create do
+    try
+      // a palette button through the UI's mouse, or a check of the cell / tag / variable
+      if FileExists(FShotDir + 'ladpal_check.txt') then LoadFromFile(FShotDir + 'ladpal_check.txt');
+      if Copy(St.Arg, 1, 6) <> 'check ' then
+      begin
+        if St.Arg = 'cmp>=' then V := Ord(lkCmp) + 256 * (Ord(coGE) + 1) else V := Ord(lkConv);
+        Pt := UI.HitPoint('pal', V);
+        Add(Format('palette button %s at %.0f, %.0f', [St.Arg, Pt.X, Pt.Y]));
+        UI.MouseMove(Pt.X, Pt.Y);
+        UI.MouseDown(Pt.X, Pt.Y);
+        UI.MouseUp(Pt.X, Pt.Y);
+        UI.KeyDown(ukEsc, #0, []);
+      end
+      else
+        with UI.Project.Block(0).Net(UI.Project.Block(0).NetCount - 1) do
+          case St.Arg of
+            'check cmp': Add('CMP >= placed: ' + BoolToStr((Cell(0, 0).Kind = lkCmp) and (Cell(0, 0).Cmp = coGE), True));
+            'check conv': Add('CONV placed: ' + BoolToStr((Cell(0, 3).Kind = lkConv) and (Cell(0, 3).DType = dtInt) and
+              (Cell(0, 3).DType2 = dtReal), True));
+            'check out': Add('CONV OUT picked from the list: ' + DataTypeNames[Cell(0, 3).DType2] + ' ' +
+              BoolToStr(Cell(0, 3).DType2 = dtDInt, True));
+            'check tag': Add(Format('tag 12 "%s" type from the list: %s %s', [UI.Project.Tags[11].Name,
+              UI.Project.Tags[11].TypeText, BoolToStr(UI.Project.Tags[11].TypeText = 'Real', True)]));
+            'check var': Add(Format('DB1 variable 2 "%s" type from the list: %s %s', [UI.Project.DB(0).Vars[1].Name,
+              UI.Project.DB(0).Vars[1].TypeText, BoolToStr(UI.Project.DB(0).Vars[1].TypeText = 'DInt', True)]));
+          end;
+      SaveToFile(FShotDir + 'ladpal_check.txt');
+    finally
+      Free;
+    end;
+  if St.Cmd = 'caret' then
+    with TStringList.Create do
+    try
+      // the key, then (the frame before) where the caret is: a line per key that leaves it outside
+      if FileExists(FShotDir + 'caret_check.txt') then LoadFromFile(FShotDir + 'caret_check.txt');
+      Ok := UI.CaretInView(S0);
+      if Count = 0 then Add('caret checks (OUTSIDE lines are the problems)');
+      if not Ok then Add('OUTSIDE  ' + S0);
+      case St.Arg of
+        'down': UI.KeyDown(ukDown, #0, []);
+        'up': UI.KeyDown(ukUp, #0, []);
+        'home': UI.KeyDown(ukHome, #0, [umCtrl]);
+      end;
+      SaveToFile(FShotDir + 'caret_check.txt');
+    finally
+      Free;
+    end;
+  if St.Cmd = 'mk' then
+    with TStringList.Create do
+    try
+      if FileExists(FShotDir + 'batch_check.txt') then LoadFromFile(FShotDir + 'batch_check.txt');
+      S1 := ExtractFilePath(ParamStr(0)) + 'projects' + PathDelim;
+      case St.Arg of
+        'blocks': for P := 10 to 21 do UI.Project.AddBlock(bkFC, P, Format('Test%d', [P])).AddNet(nkSCL);
+        'tags':
+          begin
+            for P := 0 to 24 do UI.Project.AddTag(Format('T%d', [P]), 'Int', Format('%%MW%d', [200 + P * 2]), 'filler');
+            UI.Project.AddTag('Dup', 'Bool', '%M50.0', 'the same name twice');
+            UI.Project.AddTag('Dup', 'Bool', '%M50.1', 'the same name twice');
+            UI.Project.AddTag('SameAddr', 'Bool', '%Q0.0', 'the address of "Motor"');
+            UI.Project.AddTag('IntOnBit', 'Int', '%M60.0', 'Int on a bit');
+            UI.Project.AddTag('BoolOnWord', 'Bool', '%MW62', 'Bool on a word');
+            UI.Project.AddTag('Overlap', 'Byte', '%MB201', 'inside T0 MW200');
+            UI.Project.AddTag('RealOnWord', 'Real', '%MW70', 'Real needs a double word');
+            UI.Project.AddTag('Fine', 'Real', '%MD80', 'fine');
+          end;
+        'tagcheck':
+          for P := 0 to High(UI.Project.Tags) do
+            if Pos('T', UI.Project.Tags[P].Name) <> 1 then
+              Add(Format('tag %s %s %s: [%s]', [UI.Project.Tags[P].Name, UI.Project.Tags[P].TypeText,
+                UI.Project.Tags[P].Address, UI.TagError(P)]));
+        'dbs':
+          begin
+            for P := 10 to 21 do UI.Project.AddDB(P, Format('TestDB%d', [P]));
+            for P := 0 to 29 do UI.Project.DB(0).AddVar(Format('Extra%d', [P]), 'Int', '0', 'scroll test');
+          end;
+        'watch': for P := 0 to 19 do UI.Project.AddWatch(Format('%%MW%d', [300 + P * 2]), dfDec);
+        'files':
+          begin
+            for P := 0 to 15 do UI.Project.SaveToFile(S1 + Format('zz_scroll_test_%.2d.vplc', [P]));
+            UI.Project.FileName := '';
+            UI.RefreshProjectFiles;
+          end;
+        'rmfiles':
+          begin
+            for P := 0 to 15 do DeleteFile(S1 + Format('zz_scroll_test_%.2d.vplc', [P]));
+            UI.RefreshProjectFiles;
+          end;
+        'saveas':
+          begin
+            // the Save As field as a text box: typing, Ctrl+Shift+Left selects a word, typing replaces it,
+            // Ctrl+A, Ctrl+Z, a drag over all of it with the mouse
+            Pt := UI.HitPoint('saveas', 0);
+            UI.MouseClicks := 1;
+            UI.MouseMods := [];
+            UI.MouseMove(Pt.X, Pt.Y);
+            UI.MouseDown(Pt.X, Pt.Y);
+            UI.MouseUp(Pt.X, Pt.Y);
+            UI.TextInput('hello world');
+            UI.KeyDown(ukLeft, #0, [umCtrl, umShift]);
+            UI.TextInput('there');
+            UI.KeyDown(ukChar, 'a', [umCtrl]);
+            UI.TextInput('abc');
+            UI.KeyDown(ukChar, 'z', [umCtrl]);
+            UI.KeyDown(ukHome, #0, []);
+            UI.KeyDown(ukRight, #0, [umShift]);
+            UI.KeyDown(ukRight, #0, [umShift]);
+            UI.KeyDown(ukChar, 'x', [umCtrl]);
+            Add('cut: [' + UI.ClipboardOut + ']');
+            UI.KeyDown(ukEnd, #0, []);
+            UI.Clipboard := '_v2';
+            UI.KeyDown(ukChar, 'v', [umCtrl]);
+            UI.KeyDown(ukEnter, #0, []);
+            Add('save as field after typing, word select, Ctrl+A, Ctrl+Z, cut, paste: [' + UI.SaveAsText + ']');
+          end;
+        'saveas2':
+          begin
+            // the mouse: a drag from the left over the whole text selects it, typing replaces it
+            Pt := UI.HitPoint('saveas', 0);
+            UI.MouseClicks := 1;
+            UI.MouseMods := [];
+            UI.MouseMove(Pt.X - 134, Pt.Y);
+            UI.MouseDown(Pt.X - 134, Pt.Y);
+            UI.MouseMove(Pt.X + 125, Pt.Y);
+            UI.MouseUp(Pt.X + 125, Pt.Y);
+            UI.TextInput('my_line_2');
+            UI.KeyDown(ukEnter, #0, []);
+            Add('save as field after a mouse drag over all and typing: [' + UI.SaveAsText + ']');
+          end;
+        'ip':
+          begin
+            // an address that is not this PC's (never 0.0.0.0 in a test: Windows would ask about the firewall)
+            Pt := UI.HitPoint('ip', 0);
+            UI.MouseClicks := 3;
+            UI.MouseMove(Pt.X, Pt.Y);
+            UI.MouseDown(Pt.X, Pt.Y);
+            UI.MouseUp(Pt.X, Pt.Y);
+            UI.MouseClicks := 1;
+            UI.TextInput('300.1.2.3');
+            UI.KeyDown(ukEnter, #0, []);
+            Add('ip after "300.1.2.3" (refused): ' + CommIp(UI.Project.Comm));
+            UI.MouseClicks := 3;
+            UI.MouseDown(Pt.X, Pt.Y);
+            UI.MouseUp(Pt.X, Pt.Y);
+            UI.MouseClicks := 1;
+            UI.TextInput('10.255.255.1');
+            UI.KeyDown(ukEnter, #0, []);
+            Add('ip after "10.255.255.1": ' + CommIp(UI.Project.Comm));
+          end;
+        'ipcheck': Add('S7 server: ' + UI.Hub.Status[prS7] + '  |  Modbus: ' + UI.Hub.Status[prModbus]);
+        'ladsel': UI.SelectCell(0, 0, 0);
+        'newlad':
+          begin
+            UI.Project.Block(0).AddNet(nkLAD);
+            UI.SelectCell(-1, 0, 0);
+          end;
+        'nextcell': UI.SelectCell(-1, 0, 3);
+        'ipmenu':
+          begin
+            Pt := UI.HitPoint('ipmenu', 0);
+            UI.MouseMove(Pt.X, Pt.Y);
+            UI.MouseDown(Pt.X, Pt.Y);
+            UI.MouseUp(Pt.X, Pt.Y);
+          end;
+      end;
+      SaveToFile(FShotDir + 'batch_check.txt');
+    finally
+      Free;
+    end;
+  if St.Cmd = 'vs' then
+    with TStringList.Create do
+    try
+      // drag <bar> <from> <to> (0 top .. 1 bottom of the bar), or click <bar> <at>
+      if FileExists(FShotDir + 'vscroll_check.txt') then LoadFromFile(FShotDir + 'vscroll_check.txt');
+      V := StrToInt(ExtractWord(2, St.Arg, [' ']));
+      Pt := UI.VScrollPoint(V, StrToFloat(ExtractWord(3, St.Arg, [' ']), DefaultFormatSettings));
+      if ExtractWord(1, St.Arg, [' ']) = 'drag' then
+        Pp := UI.VScrollPoint(V, StrToFloat(ExtractWord(4, St.Arg, [' ']), DefaultFormatSettings))
+      else
+        Pp := Pt;
+      S0 := FormatFloat('0.0', UI.VScrollPos(V));
+      UI.MouseClicks := 1;
+      UI.MouseMods := [];
+      UI.MouseMove(Pt.X, Pt.Y);
+      UI.MouseDown(Pt.X, Pt.Y);
+      for P := 1 to 8 do UI.MouseMove(Pt.X, Pt.Y + (Pp.Y - Pt.Y) * P / 8);
+      UI.MouseUp(Pp.X, Pp.Y);
+      Add(Format('%s: position %s -> %s', [St.Arg, S0, FormatFloat('0.0', UI.VScrollPos(V))]));
+      SaveToFile(FShotDir + 'vscroll_check.txt');
+    finally
+      Free;
+    end;
   if St.Cmd = 'startcheck' then
     with TStringList.Create do
     try
@@ -1480,7 +2219,7 @@ begin
       else if Copy(S0, 1, 6) = 'click ' then
       begin
         if S0 = 'click new' then Pt := UI.HitPoint('new', 7)
-        else if S0 = 'click sample' then Pt := UI.HitPoint('sample', 13)
+        else if S0 = 'click example' then Pt := UI.HitPoint('example', 4)
         else Pt := UI.HitPoint('file', 0);
         UI.MouseMove(Pt.X, Pt.Y);
         UI.MouseDown(Pt.X, Pt.Y);
@@ -1511,13 +2250,213 @@ begin
         if Pos('cancel keeps', S0) > 0 then Ok := (UI.Project.Name = 'zz saveask test') and UI.Project.Modified and not UI.AskOpen
         else if Pos('save writes', S0) > 0 then Ok := FileExists(S1) and (UI.Project.Name <> 'zz saveask test') and not UI.AskOpen
         else if Pos('loads the sample', S0) > 0 then Ok := (UI.Project.Name <> 'zz saveask test') and not UI.Project.Modified
-        else if Pos('no question', S0) > 0 then Ok := not UI.AskOpen
+        else if Pos('no file name', S0) > 0 then Ok := (UI.Project.FileName = '') and (Pos('Traffic', UI.Project.Name) > 0)
+        else if Pos('only the load question', S0) > 0 then Ok := UI.AskOpen and (UI.AskTitle = 'Load example project')
         else if Pos('runs on', S0) > 0 then Ok := FRunning and not UI.QuitRequested and not UI.AskOpen
         else Ok := UI.QuitRequested;
         Add(S0 + ': ' + BoolToStr(Ok, True) + '   (' + UI.Project.Name + ')');
         if Pos('program ends', S0) > 0 then DeleteFile(S1);
       end;
       SaveToFile(FShotDir + 'saveask_check.txt');
+    finally
+      Free;
+    end;
+  if St.Cmd = 'ladins' then
+    with TStringList.Create do
+    try
+      if FileExists(FShotDir + 'insert_check.txt') then LoadFromFile(FShotDir + 'insert_check.txt');
+      S0 := St.Arg;
+      if Copy(S0, 1, 5) = 'drag ' then
+      begin
+        // drag net r c -> r2 c2 (the middle of the cells)
+        V := StrToInt(ExtractWord(2, S0, [' ']));
+        Pt := UI.CellPoint(V, StrToInt(ExtractWord(3, S0, [' '])), StrToInt(ExtractWord(4, S0, [' '])));
+        Pp := UI.CellPoint(V, StrToInt(ExtractWord(5, S0, [' '])), StrToInt(ExtractWord(6, S0, [' '])));
+        Pt := UI.DesignToPixel(Pt.X, Pt.Y);
+        Pp := UI.DesignToPixel(Pp.X, Pp.Y);
+        UI.MouseMove(Pt.X, Pt.Y);
+        UI.MouseDown(Pt.X, Pt.Y);
+        UI.MouseMove((Pt.X + Pp.X) / 2, (Pt.Y + Pp.Y) / 2);
+        UI.MouseMove(Pp.X, Pp.Y);
+        UI.MouseUp(Pp.X, Pp.Y);
+      end
+      else if (Copy(S0, 1, 6) = 'xhold ') or (Copy(S0, 1, 6) = 'xdrag ') then
+      begin
+        // from net r c to net2 r2 c2 (xhold: the button stays down)
+        Pt := UI.CellPoint(StrToInt(ExtractWord(2, S0, [' '])), StrToInt(ExtractWord(3, S0, [' '])),
+          StrToInt(ExtractWord(4, S0, [' '])));
+        Pp := UI.CellPoint(StrToInt(ExtractWord(5, S0, [' '])), StrToInt(ExtractWord(6, S0, [' '])),
+          StrToInt(ExtractWord(7, S0, [' '])));
+        Pt := UI.DesignToPixel(Pt.X, Pt.Y);
+        Pp := UI.DesignToPixel(Pp.X, Pp.Y);
+        UI.MouseMove(Pt.X, Pt.Y);
+        UI.MouseDown(Pt.X, Pt.Y);
+        UI.MouseMove((Pt.X + Pp.X) / 2, (Pt.Y + Pp.Y) / 2);
+        UI.MouseMove(Pp.X, Pp.Y);
+        if Copy(S0, 1, 6) = 'xdrag ' then UI.MouseUp(Pp.X, Pp.Y);
+      end
+      else if Copy(S0, 1, 6) = 'xdrop ' then
+      begin
+        Pp := UI.CellPoint(StrToInt(ExtractWord(2, S0, [' '])), StrToInt(ExtractWord(3, S0, [' '])),
+          StrToInt(ExtractWord(4, S0, [' '])));
+        Pp := UI.DesignToPixel(Pp.X, Pp.Y);
+        UI.MouseMove(Pp.X, Pp.Y);
+        UI.MouseUp(Pp.X, Pp.Y);
+      end
+      else if Copy(S0, 1, 5) = 'hold ' then
+      begin
+        // the same as drag, but the button stays down: the ghost shows
+        V := StrToInt(ExtractWord(2, S0, [' ']));
+        Pt := UI.CellPoint(V, StrToInt(ExtractWord(3, S0, [' '])), StrToInt(ExtractWord(4, S0, [' '])));
+        Pp := UI.CellPoint(V, StrToInt(ExtractWord(5, S0, [' '])), StrToInt(ExtractWord(6, S0, [' '])));
+        Pt := UI.DesignToPixel(Pt.X, Pt.Y);
+        Pp := UI.DesignToPixel(Pp.X - 20, Pp.Y + 14);
+        UI.MouseMove(Pt.X, Pt.Y);
+        UI.MouseDown(Pt.X, Pt.Y);
+        UI.MouseMove((Pt.X + Pp.X) / 2, (Pt.Y + Pp.Y) / 2);
+        UI.MouseMove(Pp.X, Pp.Y);
+      end
+      else if S0 = 'let go' then
+      begin
+        // back to where it was taken: nothing moves
+        Pt := UI.CellPoint(2, 0, 0);
+        Pt := UI.DesignToPixel(Pt.X, Pt.Y);
+        UI.MouseMove(Pt.X, Pt.Y);
+        UI.MouseUp(Pt.X, Pt.Y);
+      end
+      else if S0 = 'undo' then UI.UndoPublic(False)
+      else if S0 = 'ctrlc' then UI.KeyDown(ukChar, 'c', [umCtrl])
+      else if S0 = 'ctrlv' then UI.KeyDown(ukChar, 'v', [umCtrl])
+      else if S0 = 'ctrlx' then UI.KeyDown(ukChar, 'x', [umCtrl])
+      else if S0 = 'del' then UI.KeyDown(ukDel, #0, [])
+      else if S0 = 'esc' then UI.KeyDown(ukEsc, #0, [])
+      else if Copy(S0, 1, 5) = 'type ' then
+      begin
+        UI.FocusStl(StrToInt(Copy(S0, 6, 3)), 0, 0);
+        UI.TextInput('#x := 1;');
+        UI.KeyDown(ukEsc, #0, []);
+      end
+      else if Copy(S0, 1, 6) = 'click ' then
+      begin
+        Pt := UI.CellPoint(StrToInt(ExtractWord(2, S0, [' '])), StrToInt(ExtractWord(3, S0, [' '])),
+          StrToInt(ExtractWord(4, S0, [' '])));
+        Pt := UI.DesignToPixel(Pt.X, Pt.Y);
+        UI.MouseMove(Pt.X, Pt.Y);
+        UI.MouseDown(Pt.X, Pt.Y);
+        UI.MouseUp(Pt.X, Pt.Y);
+      end
+      else
+      begin
+        S0 := Copy(S0, 7, MaxInt);
+        with UI.CurBlockPublic do
+          if Pos('swap', S0) > 0 then
+            Ok := (Net(0).Cell(0, 0).Kind = lkCTU) and (Net(0).Cell(0, 1).Kind = lkWire) and (Net(0).Cell(0, 2).Kind = lkNO) and
+              (Net(0).Cell(0, 7).Kind = lkCoil)
+          else if Pos('coil to 3', S0) > 0 then
+            Ok := (Net(0).Cell(0, 3).Kind = lkCoil) and (Net(0).Cell(0, 4).Kind = lkWire) and (Net(0).Cell(0, 7).Kind = lkWire) and
+              (Net(0).Cell(0, 2).Kind = lkNO)
+          else if Pos('SCL above network 2', S0) > 0 then
+            Ok := (NetCount = 4) and (Net(1).Kind = nkSCL) and (Net(2).Kind = nkLAD) and (UI.NetSel = 1)
+          else if Pos('the clipboard has', S0) > 0 then Ok := Trim(Clipboard.AsText) = '#x := 1;'
+          else if Pos('the text is gone', S0) > 0 then Ok := Trim(Net(1).Stl.Text) = ''
+          else if Pos('the text is back', S0) > 0 then Ok := Trim(Net(1).Stl.Text) = '#x := 1;'
+          else if Pos('LAD below network 1', S0) > 0 then
+            Ok := (NetCount = 5) and (Net(1).Kind = nkLAD) and not UI.NetHasCodePublic(Net(1)) and (Net(2).Kind = nkSCL)
+          else if Pos('onto empty cells', S0) > 0 then
+            Ok := (Net(0).Cell(0, 2).Kind = lkNC) and (Net(0).Cell(1, 3).Kind = lkEmpty) and (UI.UndoCount = 0)
+          else if Pos('onto a wire', S0) > 0 then
+            Ok := (Net(1).Cell(0, 4).Kind = lkNO) and (Net(1).Cell(0, 4).Opnd = '"Stop_PB"') and
+              (Net(0).Cell(0, 1).Kind = lkWire) and (Net(1).Cell(0, 1).Kind = lkCTU)
+          else if Pos('onto an element', S0) > 0 then
+            Ok := (Net(0).Cell(0, 2).Kind = lkNO) and (Net(0).Cell(0, 2).Opnd = '"Box_Sensor"') and
+              (Net(0).Cell(0, 3).Kind = lkNC) and (Net(1).Cell(0, 0).Kind = lkWire) and (Net(1).Cell(0, 1).Kind = lkCTU)
+          else if Pos('undo of the move between', S0) > 0 then
+            Ok := (Net(1).Cell(0, 0).Kind = lkNO) and (Net(0).Cell(0, 2).Kind = lkNC) and (Net(1).Cell(0, 4).Kind = lkNO)
+          else if Pos('LAD with code stays', S0) > 0 then Ok := Net(0).Kind = nkLAD
+          else if Pos('empty LAD switches', S0) > 0 then Ok := (NetCount = 4) and (Net(1).Kind = nkSCL)
+          else if Pos('SCL with code stays', S0) > 0 then
+            Ok := (Net(1).Kind = nkSCL) and (Trim(Net(1).Stl.Text) = '#x := 1;')
+          else if Pos('del in the rung', S0) > 0 then
+            Ok := (Net(0).Cell(0, 1).Kind = lkWire) and (Net(0).Cell(0, 0).Kind = lkNO)
+          else if Pos('only contact of a branch', S0) > 0 then
+            Ok := (Net(0).Cell(1, 0).Kind = lkEmpty) and Net(0).Cell(0, 0).Down
+          else if Pos('cut in the rung', S0) > 0 then
+            Ok := Net(0).Cell(0, 2).Kind = lkWire
+          else if Pos('coil at the end', S0) > 0 then
+            Ok := (Net(0).Cell(0, 7).Kind = lkEmpty) and (Net(0).Cell(0, 6).Kind = lkWire)
+          else if Pos('keep', S0) > 0 then
+            Ok := (BoxCount(Net(0)) >= 3) and BoxesWide(Net(0)) and BoxesWide(Net(1)) and BoxesWide(Net(2))
+          else if Pos('network 2 to 5', S0) > 0 then
+            Ok := (Net(1).Cell(0, 0).Kind = lkCTD) and (Net(1).Cell(0, 5).Kind = lkNO) and (Net(1).Cell(0, 7).Kind = lkCoil)
+          else if Pos('back', S0) > 0 then
+            Ok := (Net(1).Cell(0, 0).Kind = lkNO) and (Net(1).Cell(0, 1).Kind = lkCTD) and (Net(0).Cell(0, 3).Kind = lkCoil)
+          else Ok := False;
+        Add(Format('%s: %s   (net 1: %s | net 2: %s)', [S0, BoolToStr(Ok, True), RowKinds(UI.CurBlockPublic.Net(0)),
+          RowKinds(UI.CurBlockPublic.Net(1))]));
+        if Pos('keep', S0) > 0 then Add('  net 1 now: ' + RowKinds(UI.CurBlockPublic.Net(0)));
+      end;
+      SaveToFile(FShotDir + 'insert_check.txt');
+    finally
+      Free;
+    end;
+  if St.Cmd = 'undo' then
+    with TStringList.Create do
+    try
+      if FileExists(FShotDir + 'undo_check.txt') then LoadFromFile(FShotDir + 'undo_check.txt');
+      // the right part of the CTU box in network 1: over column 3 of the grid
+      Pt := UI.CellPoint(0, 0, 2);
+      Pp := UI.CellPoint(0, 0, 1);
+      Pt := UI.DesignToPixel(Pt.X - (Pt.X - Pp.X) * 0.3, Pt.Y + 8);
+      Pp := UI.CellPoint(0, 0, 1);
+      S0 := St.Arg;
+      if S0 = 'press' then
+      begin
+        UI.MouseMove(Pt.X, Pt.Y);
+        UI.MouseDown(Pt.X, Pt.Y);
+      end
+      else if S0 = 'jitter' then UI.MouseMove(Pt.X + 4, Pt.Y + 2)
+      else if S0 = 'move 2' then
+      begin
+        Pp := UI.CellPoint(0, 0, 4);
+        Pp := UI.DesignToPixel(Pp.X - (Pp.X - UI.CellPoint(0, 0, 3).X) * 0.3, Pp.Y + 8);
+        UI.MouseMove((Pt.X + Pp.X) / 2, Pt.Y);
+        UI.MouseMove(Pp.X, Pp.Y);
+      end
+      else if S0 = 'release' then UI.MouseUp(Pt.X, Pt.Y)
+      else if S0 = 'release far' then
+      begin
+        Pp := UI.CellPoint(0, 0, 4);
+        Pp := UI.DesignToPixel(Pp.X - (Pp.X - UI.CellPoint(0, 0, 3).X) * 0.3, Pp.Y + 8);
+        UI.MouseUp(Pp.X, Pp.Y);
+      end
+      else if S0 = 'type' then
+      begin
+        UI.FocusStl(UI.NetSel, 0, 0);
+        UI.TextInput('#x := 1;');
+      end
+      else if S0 = 'ctrlz' then UI.KeyDown(ukChar, 'z', [umCtrl])
+      else if S0 = 'ctrly' then UI.KeyDown(ukChar, 'y', [umCtrl])
+      else
+      begin
+        S0 := Copy(S0, 7, MaxInt);
+        V := UI.CurBlockPublic.NetCount;
+        if Pos('box stays', S0) > 0 then
+          Ok := (UI.CurBlockPublic.Net(0).Cell(0, 1).Kind = lkCTU) and (UI.UndoCount = 0)
+        else if Pos('moved 2', S0) > 0 then
+          Ok := (UI.CurBlockPublic.Net(0).Cell(0, 3).Kind = lkCTU) and (UI.CurBlockPublic.Net(0).Cell(0, 1).Kind <> lkCTU)
+        else if Pos('box back', S0) > 0 then
+          Ok := (UI.CurBlockPublic.Net(0).Cell(0, 1).Kind = lkCTU) and (UI.UndoCount = 0) and (UI.RedoCount = 2)
+        else if Pos('4 networks', S0) > 0 then Ok := V = 4
+        else if Pos('3 networks', S0) > 0 then Ok := V = 3
+        else if Pos('text typed', S0) > 0 then
+          Ok := (V = 5) and (FirstScl(UI.CurBlockPublic) = '#x := 1;')
+        else if Pos('text gone', S0) > 0 then
+          Ok := (V = 5) and (FirstScl(UI.CurBlockPublic) = '')
+        else Ok := False;
+        Add(Format('%s: %s   (networks %d, undo %d, redo %d)', [S0, BoolToStr(Ok, True), V, UI.UndoCount,
+          UI.RedoCount]));
+      end;
+      SaveToFile(FShotDir + 'undo_check.txt');
     finally
       Free;
     end;
@@ -1680,6 +2619,8 @@ begin
       end
       else if St.Arg = 'click' then
       begin
+        UI.ShowProjectFile(UI.ProjectFileIndex('zz_export_test.vplc'));
+        UI.Build(FStatic, FDyn);   // the list scrolled to it: its regions now
         Pt := UI.HitPoint('file', UI.ProjectFileIndex('zz_export_test.vplc'));
         UI.MouseMove(Pt.X, Pt.Y);
         UI.MouseDown(Pt.X, Pt.Y);
@@ -1952,12 +2893,13 @@ begin
   end;
   if St.Cmd = 'ladmove' then
   begin
-    // grab the NC contact (in the selection) and move the selection one row down
+    // grab the NC contact (in the selection) and move the selection one column to the right (onto the
+    // wire there: a drop needs a wire)
     FDragShot := CellsText(UI.Project.Block(0).Net(3));
     Pt := UI.CellPoint(3, 0, 1);
     Pp := UI.DesignToPixel(Pt.X, Pt.Y);
     UI.MouseDown(Pp.X, Pp.Y);
-    Pp := UI.DesignToPixel(Pt.X, Pt.Y + 70);
+    Pp := UI.DesignToPixel(UI.CellPoint(3, 0, 2).X, Pt.Y);
     UI.MouseMove(Pp.X, Pp.Y);
     UI.MouseUp(Pp.X, Pp.Y);
     FDragShot2 := CellsText(UI.Project.Block(0).Net(3));

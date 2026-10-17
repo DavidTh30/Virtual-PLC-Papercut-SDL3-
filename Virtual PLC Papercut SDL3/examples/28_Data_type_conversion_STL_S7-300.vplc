@@ -1,0 +1,366 @@
+{
+  "format" : "VirtualPLC",
+  "version" : 1,
+  "name" : "Data type conversion in STL (S7-300)",
+  "author" : "Virtual PLC examples",
+  "comment" : "STL: the accumulator converts: ITD (Int -> DInt), DTR (DInt -> Real), RND / TRUNC / RND+ / RND- (Real -> DInt), ITB / BTI (BCD), and a Word is an Int with the same 16 bits. The analog input PIW288 is the source; MD40 is a Real you can modify in the watch table.",
+  "cpu" : "CPU 315-2 PN/DP",
+  "family" : "S7-300",
+  "cyclicMs" : 100,
+  "clockByte" : 0,
+  "blocks" : [
+    {
+      "kind" : "OB",
+      "number" : 1,
+      "name" : "Main",
+      "comment" : "Main program cycle",
+      "networks" : [
+        {
+          "title" : "Int -> DInt -> Real -> volts",
+          "comment" : "ITD widens, DTR makes a Real; the division in Real",
+          "lang" : "STL",
+          "stl" : [
+            "L     \"AI_Raw\"",
+            "T     \"Raw_Int\"",
+            "ITD                         // Int -> DInt",
+            "T     \"Raw_DInt\"",
+            "DTR                         // DInt -> Real",
+            "T     \"Raw_Real\"",
+            "L     1.000000e+001",
+            "*R",
+            "L     2.764800e+004",
+            "/R",
+            "T     \"Volts\""
+          ]
+        },
+        {
+          "title" : "Real -> DInt: RND, TRUNC, RND+, RND-",
+          "comment" : "modify \"Value\" (MD40) in the watch table",
+          "lang" : "STL",
+          "stl" : [
+            "L     \"Value\"",
+            "RND                         // to the nearest (a half to the even)",
+            "T     \"Rnd\"",
+            "L     \"Value\"",
+            "TRUNC                       // the fraction goes",
+            "T     \"Trc\"",
+            "L     \"Value\"",
+            "RND+                        // up",
+            "T     \"Up\"",
+            "L     \"Value\"",
+            "RND-                        // down",
+            "T     \"Down\""
+          ]
+        },
+        {
+          "title" : "BCD and bit patterns",
+          "comment" : "ITB / BTI: Int <-> BCD (3 digits: -999..999); a Word loaded as an Int",
+          "lang" : "STL",
+          "stl" : [
+            "L     123",
+            "ITB                         // Int -> BCD (W#16#0123)",
+            "T     \"Bcd\"",
+            "BTI                         // BCD -> Int",
+            "T     \"From_Bcd\"",
+            "L     W#16#FFFF",
+            "T     \"Pattern\"",
+            "L     \"Pattern\"",
+            "T     \"As_Int\"                // the same 16 bits: -1"
+          ]
+        }
+      ]
+    }
+  ],
+  "dbs" : [
+  ],
+  "tags" : [
+    {
+      "name" : "Clock_2Hz",
+      "type" : "Bool",
+      "address" : "M0.3",
+      "comment" : "clock memory 2 Hz"
+    },
+    {
+      "name" : "Clock_1Hz",
+      "type" : "Bool",
+      "address" : "M0.5",
+      "comment" : "clock memory 1 Hz"
+    },
+    {
+      "name" : "AI_Raw",
+      "type" : "Int",
+      "address" : "PIW288",
+      "comment" : "analog input 0..27648"
+    },
+    {
+      "name" : "Raw_Int",
+      "type" : "Int",
+      "address" : "MW10",
+      "comment" : "the input"
+    },
+    {
+      "name" : "Raw_DInt",
+      "type" : "DInt",
+      "address" : "MD12",
+      "comment" : "ITD"
+    },
+    {
+      "name" : "Raw_Real",
+      "type" : "Real",
+      "address" : "MD16",
+      "comment" : "DTR"
+    },
+    {
+      "name" : "Volts",
+      "type" : "Real",
+      "address" : "MD20",
+      "comment" : "Real * 10 / 27648"
+    },
+    {
+      "name" : "Value",
+      "type" : "Real",
+      "address" : "MD40",
+      "comment" : "modify: 2.5, -2.5, 2.7"
+    },
+    {
+      "name" : "Rnd",
+      "type" : "DInt",
+      "address" : "MD44",
+      "comment" : "RND"
+    },
+    {
+      "name" : "Trc",
+      "type" : "DInt",
+      "address" : "MD48",
+      "comment" : "TRUNC"
+    },
+    {
+      "name" : "Up",
+      "type" : "DInt",
+      "address" : "MD52",
+      "comment" : "RND+"
+    },
+    {
+      "name" : "Down",
+      "type" : "DInt",
+      "address" : "MD56",
+      "comment" : "RND-"
+    },
+    {
+      "name" : "Bcd",
+      "type" : "Word",
+      "address" : "MW60",
+      "comment" : "ITB of 123: W#16#0123"
+    },
+    {
+      "name" : "From_Bcd",
+      "type" : "Int",
+      "address" : "MW62",
+      "comment" : "BTI back: 123"
+    },
+    {
+      "name" : "Pattern",
+      "type" : "Word",
+      "address" : "MW64",
+      "comment" : "W#16#FFFF"
+    },
+    {
+      "name" : "As_Int",
+      "type" : "Int",
+      "address" : "MW66",
+      "comment" : "the same bits: -1"
+    }
+  ],
+  "watch" : [
+    {
+      "address" : "\"Raw_Int\"",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Volts\"",
+      "format" : "REAL",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Value\"",
+      "format" : "REAL",
+      "modify" : "-2.5"
+    },
+    {
+      "address" : "\"Rnd\"",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Trc\"",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Up\"",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Down\"",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Bcd\"",
+      "format" : "HEX",
+      "modify" : ""
+    },
+    {
+      "address" : "\"As_Int\"",
+      "format" : "DEC",
+      "modify" : ""
+    }
+  ],
+  "diTypes" : [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "aiChannels" : [
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    }
+  ],
+  "comm" : {
+    "s7" : true,
+    "s7Port" : 102,
+    "modbus" : true,
+    "modbusPort" : 502,
+    "modbusUnit" : 1,
+    "holding" : "M",
+    "putGet" : true,
+    "allInterfaces" : false,
+    "ip" : "127.0.0.1",
+    "mask" : "255.255.255.0",
+    "ipc" : false
+  }
+}

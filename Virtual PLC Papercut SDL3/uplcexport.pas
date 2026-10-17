@@ -27,11 +27,105 @@ function NetText(B: TBlock; NI: Integer): string;
 function DataBlockText(P: TPlcProject; D: TDataBlock; Live: TLiveFn): string;
 function DataBlockCsv(D: TDataBlock; Live: TLiveFn): string;
 function JsonText(J: TJSONData): string;   // formatted, and frees J
+type
+  TCsvRow = array of string;
+  TCsvRows = array of TCsvRow;
+
+{ a CSV text (a BOM, quotes, "" in quotes; the separator , ; or a tab, from the first line) }
+function CsvRows(const Text: string): TCsvRows;
+function CsvColumn(const Head: TCsvRow; const Words: array of string): Integer;   // -1 none
 function CsvField(const S: string): string;
 function CsvLine(const Fields: array of string): string;
 procedure WriteUtf8File(const FileName, S: string; Bom: Boolean);
 
 implementation
+
+function CsvRows(const Text: string): TCsvRows;
+var
+  S: string;
+  P, N: Integer;
+  Sep: Char;
+  InQ: Boolean;
+  Cell: string;
+  Row: TCsvRow;
+  FirstLine: string;
+
+  procedure EndCell;
+  begin
+    SetLength(Row, Length(Row) + 1);
+    Row[High(Row)] := Cell;
+    Cell := '';
+  end;
+
+  procedure EndRow;
+  var
+    K: Integer;
+    Empty: Boolean;
+  begin
+    EndCell;
+    Empty := True;
+    for K := 0 to High(Row) do
+      if Trim(Row[K]) <> '' then Empty := False;
+    if not Empty then
+    begin
+      SetLength(Result, Length(Result) + 1);
+      Result[High(Result)] := Row;
+    end;
+    Row := nil;
+  end;
+
+begin
+  Result := nil;
+  S := Text;
+  if Copy(S, 1, 3) = #$EF#$BB#$BF then Delete(S, 1, 3);
+  // the separator: the one the first line has most of
+  P := Pos(#10, S);
+  if P = 0 then FirstLine := S else FirstLine := Copy(S, 1, P - 1);
+  Sep := ',';
+  N := 0;
+  for P := 1 to Length(FirstLine) do if FirstLine[P] = ',' then Inc(N);
+  if Length(FirstLine) - Length(StringReplace(FirstLine, ';', '', [rfReplaceAll])) > N then Sep := ';';
+  if Length(FirstLine) - Length(StringReplace(FirstLine, #9, '', [rfReplaceAll])) >
+    Length(FirstLine) - Length(StringReplace(FirstLine, string(Sep), '', [rfReplaceAll])) then Sep := #9;
+  Cell := '';
+  Row := nil;
+  InQ := False;
+  P := 1;
+  while P <= Length(S) do
+  begin
+    if InQ then
+    begin
+      if S[P] = '"' then
+      begin
+        if (P < Length(S)) and (S[P + 1] = '"') then
+        begin
+          Cell := Cell + '"';
+          Inc(P);
+        end
+        else
+          InQ := False;
+      end
+      else
+        Cell := Cell + S[P];
+    end
+    else if S[P] = '"' then InQ := True
+    else if S[P] = Sep then EndCell
+    else if S[P] = #10 then EndRow
+    else if S[P] <> #13 then Cell := Cell + S[P];
+    Inc(P);
+  end;
+  if (Cell <> '') or (Length(Row) > 0) then EndRow;
+end;
+
+function CsvColumn(const Head: TCsvRow; const Words: array of string): Integer;
+var
+  K, W: Integer;
+begin
+  for W := 0 to High(Words) do
+    for K := 0 to High(Head) do
+      if Pos(LowerCase(Words[W]), LowerCase(Trim(Head[K]))) > 0 then Exit(K);
+  Result := -1;
+end;
 
 function CsvField(const S: string): string;
 begin
@@ -95,8 +189,8 @@ var
   Ps: string;
 begin
   Result := LadKindIds[Ce.Kind];
-  if Ce.Kind in [lkCmp, lkMove, lkAdd, lkSub, lkMul, lkDiv, lkNormX, lkScaleX] then
-    Result := Result + ' ' + DataTypeNames[Ce.DType];
+  if LadHasType(Ce.Kind) then Result := Result + ' ' + DataTypeNames[Ce.DType];
+  if LadHasType2(Ce.Kind) then Result := Result + ' to ' + DataTypeNames[Ce.DType2];
   if Ce.Kind = lkCmp then Result := Result + ' ' + CmpOpNames[Ce.Cmp];
   if Ce.Opnd <> '' then Result := Result + ' ' + Ce.Opnd;
   Ps := '';

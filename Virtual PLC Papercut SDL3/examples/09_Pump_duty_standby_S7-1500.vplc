@@ -1,0 +1,299 @@
+{
+  "format" : "VirtualPLC",
+  "version" : 1,
+  "name" : "Two pumps: duty / standby with alternation (S7-1500)",
+  "author" : "Virtual PLC examples",
+  "comment" : "SCL: on every demand (I0.0) the other pump runs (equal wear); a pump with a fault (I0.1 / I0.2) is replaced by the other at once. The run seconds of both are counted.",
+  "cpu" : "CPU 1516-3 PN/DP",
+  "family" : "S7-1500",
+  "cyclicMs" : 100,
+  "clockByte" : 0,
+  "blocks" : [
+    {
+      "kind" : "OB",
+      "number" : 1,
+      "name" : "Main",
+      "comment" : "Main program cycle",
+      "networks" : [
+        {
+          "title" : "Duty / standby",
+          "comment" : "the lead pump changes on every new demand",
+          "lang" : "SCL",
+          "scl" : [
+            "IF \"Demand\" AND NOT \"Pumps\".DemandOld THEN",
+            "    IF \"Pumps\".Lead = 1 THEN \"Pumps\".Lead := 2; ELSE \"Pumps\".Lead := 1; END_IF;",
+            "END_IF;",
+            "\"Pumps\".DemandOld := \"Demand\";",
+            "\"Pump1\" := \"Demand\" AND NOT \"Fault_P1\" AND ((\"Pumps\".Lead = 1) OR \"Fault_P2\");",
+            "\"Pump2\" := \"Demand\" AND NOT \"Fault_P2\" AND ((\"Pumps\".Lead = 2) OR \"Fault_P1\");",
+            "\"Fault_Lamp\" := (\"Fault_P1\" OR \"Fault_P2\") AND \"Clock_1Hz\";"
+          ]
+        },
+        {
+          "title" : "Run seconds",
+          "comment" : "a 1 s pulse counts the seconds of the running pump",
+          "lang" : "SCL",
+          "scl" : [
+            "\"Pumps\".Pulse.TON(IN := NOT \"Pumps\".Pulse.Q, PT := T#1S);",
+            "IF \"Pumps\".Pulse.Q THEN",
+            "    IF \"Pump1\" THEN \"Pumps\".Sec1 := \"Pumps\".Sec1 + 1; END_IF;",
+            "    IF \"Pump2\" THEN \"Pumps\".Sec2 := \"Pumps\".Sec2 + 1; END_IF;",
+            "END_IF;"
+          ]
+        }
+      ]
+    }
+  ],
+  "dbs" : [
+    {
+      "number" : 1,
+      "name" : "Pumps",
+      "comment" : "",
+      "optimized" : false,
+      "vars" : [
+        {
+          "name" : "Lead",
+          "type" : "Int",
+          "start" : "1",
+          "comment" : "the pump of the next demand"
+        },
+        {
+          "name" : "DemandOld",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "edge memory"
+        },
+        {
+          "name" : "Sec1",
+          "type" : "DInt",
+          "start" : "0",
+          "comment" : "run seconds pump 1"
+        },
+        {
+          "name" : "Sec2",
+          "type" : "DInt",
+          "start" : "0",
+          "comment" : "run seconds pump 2"
+        },
+        {
+          "name" : "Pulse",
+          "type" : "IEC_TIMER",
+          "start" : "",
+          "comment" : "one pulse per second"
+        }
+      ]
+    }
+  ],
+  "tags" : [
+    {
+      "name" : "Clock_2Hz",
+      "type" : "Bool",
+      "address" : "%M0.3",
+      "comment" : "clock memory 2 Hz"
+    },
+    {
+      "name" : "Clock_1Hz",
+      "type" : "Bool",
+      "address" : "%M0.5",
+      "comment" : "clock memory 1 Hz"
+    },
+    {
+      "name" : "Demand",
+      "type" : "Bool",
+      "address" : "%I0.0",
+      "comment" : "switch: water needed"
+    },
+    {
+      "name" : "Fault_P1",
+      "type" : "Bool",
+      "address" : "%I0.1",
+      "comment" : "switch: pump 1 fault"
+    },
+    {
+      "name" : "Fault_P2",
+      "type" : "Bool",
+      "address" : "%I0.2",
+      "comment" : "switch: pump 2 fault"
+    },
+    {
+      "name" : "Pump1",
+      "type" : "Bool",
+      "address" : "%Q0.0",
+      "comment" : "pump 1"
+    },
+    {
+      "name" : "Pump2",
+      "type" : "Bool",
+      "address" : "%Q0.1",
+      "comment" : "pump 2"
+    },
+    {
+      "name" : "Fault_Lamp",
+      "type" : "Bool",
+      "address" : "%Q0.2",
+      "comment" : "a pump has a fault"
+    }
+  ],
+  "watch" : [
+    {
+      "address" : "\"Pumps\".Lead",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Pumps\".Sec1",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Pumps\".Sec2",
+      "format" : "DEC",
+      "modify" : ""
+    }
+  ],
+  "diTypes" : [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "aiChannels" : [
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    }
+  ],
+  "comm" : {
+    "s7" : true,
+    "s7Port" : 102,
+    "modbus" : true,
+    "modbusPort" : 502,
+    "modbusUnit" : 1,
+    "holding" : "M",
+    "putGet" : true,
+    "allInterfaces" : false,
+    "ip" : "127.0.0.1",
+    "mask" : "255.255.255.0",
+    "ipc" : false
+  }
+}

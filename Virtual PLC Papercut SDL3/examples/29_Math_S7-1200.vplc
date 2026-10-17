@@ -1,0 +1,610 @@
+{
+  "format" : "VirtualPLC",
+  "version" : 1,
+  "name" : "Math: arithmetic, functions, trigonometry (S7-1200)",
+  "author" : "Virtual PLC examples",
+  "comment" : "SCL and LAD: Int division and MOD, Real arithmetic, SQRT / SQR / EXP / LN / LOG, SIN / COS / TAN in degrees, MIN / MAX / LIMIT / ABS, the average of an array with FOR, a polynomial, and the LAD boxes ADD / SUB / MUL / DIV. Modify A, B, X, Y, R, Angle in the watch table.",
+  "cpu" : "CPU 1214C DC/DC/DC",
+  "family" : "S7-1200",
+  "cyclicMs" : 100,
+  "clockByte" : 0,
+  "blocks" : [
+    {
+      "kind" : "OB",
+      "number" : 1,
+      "name" : "Main",
+      "comment" : "Main program cycle",
+      "networks" : [
+        {
+          "title" : "Integer arithmetic",
+          "comment" : "Int / Int is an Int division, MOD the rest",
+          "lang" : "SCL",
+          "scl" : [
+            "\"Math\".Sum := \"Math\".A + \"Math\".B;",
+            "\"Math\".Diff := \"Math\".A - \"Math\".B;",
+            "\"Math\".Prod := \"Math\".A * \"Math\".B;",
+            "\"Math\".Quot := \"Math\".A / \"Math\".B;",
+            "\"Math\".Rest := \"Math\".A MOD \"Math\".B;"
+          ]
+        },
+        {
+          "title" : "Real arithmetic and geometry",
+          "comment" : "Pythagoras, a circle, a power",
+          "lang" : "SCL",
+          "scl" : [
+            "\"Math\".Hyp := SQRT(\"Math\".X * \"Math\".X + \"Math\".Y * \"Math\".Y);",
+            "\"Math\".Ratio := \"Math\".X / \"Math\".Y;",
+            "\"Math\".Pow := \"Math\".X ** 3.0;",
+            "\"Math\".Area := 3.14159265 * \"Math\".R * \"Math\".R;"
+          ]
+        },
+        {
+          "title" : "Trigonometry in degrees",
+          "comment" : "SIN / COS / TAN take radians",
+          "lang" : "SCL",
+          "scl" : [
+            "VAR_TEMP",
+            "    rad : Real;",
+            "END_VAR",
+            "#rad := \"Math\".Angle * 3.14159265 / 180.0;",
+            "\"Math\".SinA := SIN(#rad);",
+            "\"Math\".CosA := COS(#rad);",
+            "\"Math\".TanA := TAN(#rad);"
+          ]
+        },
+        {
+          "title" : "Roots, powers, logarithms",
+          "comment" : "",
+          "lang" : "SCL",
+          "scl" : [
+            "\"Math\".Root2 := SQRT(2.0);",
+            "\"Math\".Sq := SQR(1.5);",
+            "\"Math\".E1 := EXP(1.0);",
+            "\"Math\".Ln10 := LN(10.0);",
+            "\"Math\".Log1000 := LOG(1000.0);",
+            "\"Math\".Frac := FRAC(\"Math\".X / \"Math\".Y);"
+          ]
+        },
+        {
+          "title" : "MIN, MAX, LIMIT, ABS",
+          "comment" : "",
+          "lang" : "SCL",
+          "scl" : [
+            "\"Math\".MinAB := MIN(IN1 := \"Math\".A, IN2 := \"Math\".B);",
+            "\"Math\".MaxAB := MAX(IN1 := \"Math\".A, IN2 := \"Math\".B);",
+            "\"Math\".Lim := LIMIT(MN := 0, IN := \"Math\".A * \"Math\".B, MX := 20);",
+            "\"Math\".AbsV := ABS(\"Math\".X - \"Math\".Y);"
+          ]
+        },
+        {
+          "title" : "The average of an array, a polynomial",
+          "comment" : "FOR over Vals[1..5]; Horner: (2 X - 3) X + 1",
+          "lang" : "SCL",
+          "scl" : [
+            "VAR_TEMP",
+            "    i : Int;",
+            "    sum : Real;",
+            "END_VAR",
+            "FOR #i := 1 TO 5 DO",
+            "    \"Math\".Vals[#i] := INT_TO_REAL(#i) * 1.5;",
+            "END_FOR;",
+            "#sum := 0.0;",
+            "FOR #i := 1 TO 5 DO",
+            "    #sum := #sum + \"Math\".Vals[#i];",
+            "END_FOR;",
+            "\"Math\".Avg := #sum / 5.0;",
+            "\"Math\".Poly := (2.0 * \"Math\".X - 3.0) * \"Math\".X + 1.0;"
+          ]
+        },
+        {
+          "title" : "LAD: ADD Int",
+          "comment" : "",
+          "lang" : "LAD",
+          "rows" : 1,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "add",
+              "p" : [
+                "\"Math\".A",
+                "\"Math\".B",
+                "\"Math\".Lad_Sum"
+              ],
+              "type" : "Int"
+            }
+          ]
+        },
+        {
+          "title" : "LAD: SUB DInt",
+          "comment" : "",
+          "lang" : "LAD",
+          "rows" : 1,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "sub",
+              "p" : [
+                "\"Math\".Big",
+                "70000",
+                "\"Math\".Lad_Diff"
+              ],
+              "type" : "DInt"
+            }
+          ]
+        },
+        {
+          "title" : "LAD: MUL Real",
+          "comment" : "",
+          "lang" : "LAD",
+          "rows" : 1,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "mul",
+              "p" : [
+                "\"Math\".X",
+                "\"Math\".Y",
+                "\"Math\".Lad_Prod"
+              ],
+              "type" : "Real"
+            }
+          ]
+        },
+        {
+          "title" : "LAD: DIV Real",
+          "comment" : "",
+          "lang" : "LAD",
+          "rows" : 1,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "div",
+              "p" : [
+                "\"Math\".X",
+                "\"Math\".Y",
+                "\"Math\".Lad_Quot"
+              ],
+              "type" : "Real"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "dbs" : [
+    {
+      "number" : 1,
+      "name" : "Math",
+      "comment" : "",
+      "optimized" : false,
+      "vars" : [
+        {
+          "name" : "A",
+          "type" : "Int",
+          "start" : "7",
+          "comment" : "Int operand"
+        },
+        {
+          "name" : "B",
+          "type" : "Int",
+          "start" : "3",
+          "comment" : "Int operand"
+        },
+        {
+          "name" : "Sum",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "A + B"
+        },
+        {
+          "name" : "Diff",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "A - B"
+        },
+        {
+          "name" : "Prod",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "A * B"
+        },
+        {
+          "name" : "Quot",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "A / B: Int division (2)"
+        },
+        {
+          "name" : "Rest",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "A MOD B (1)"
+        },
+        {
+          "name" : "X",
+          "type" : "Real",
+          "start" : "3.0",
+          "comment" : "Real operand"
+        },
+        {
+          "name" : "Y",
+          "type" : "Real",
+          "start" : "4.0",
+          "comment" : "Real operand"
+        },
+        {
+          "name" : "Hyp",
+          "type" : "Real",
+          "start" : "0.0",
+          "comment" : "SQRT(X*X + Y*Y): 5"
+        },
+        {
+          "name" : "Ratio",
+          "type" : "Real",
+          "start" : "0.0",
+          "comment" : "X / Y"
+        },
+        {
+          "name" : "Pow",
+          "type" : "Real",
+          "start" : "0.0",
+          "comment" : "X ** 3"
+        },
+        {
+          "name" : "R",
+          "type" : "Real",
+          "start" : "2.0",
+          "comment" : "radius"
+        },
+        {
+          "name" : "Area",
+          "type" : "Real",
+          "start" : "0.0",
+          "comment" : "pi * R * R"
+        },
+        {
+          "name" : "Angle",
+          "type" : "Real",
+          "start" : "30.0",
+          "comment" : "degrees"
+        },
+        {
+          "name" : "SinA",
+          "type" : "Real",
+          "start" : "0.0",
+          "comment" : "SIN: 0.5"
+        },
+        {
+          "name" : "CosA",
+          "type" : "Real",
+          "start" : "0.0",
+          "comment" : "COS"
+        },
+        {
+          "name" : "TanA",
+          "type" : "Real",
+          "start" : "0.0",
+          "comment" : "TAN"
+        },
+        {
+          "name" : "Root2",
+          "type" : "Real",
+          "start" : "0.0",
+          "comment" : "SQRT(2)"
+        },
+        {
+          "name" : "Sq",
+          "type" : "Real",
+          "start" : "0.0",
+          "comment" : "SQR(1.5)"
+        },
+        {
+          "name" : "E1",
+          "type" : "Real",
+          "start" : "0.0",
+          "comment" : "EXP(1)"
+        },
+        {
+          "name" : "Ln10",
+          "type" : "Real",
+          "start" : "0.0",
+          "comment" : "LN(10)"
+        },
+        {
+          "name" : "Log1000",
+          "type" : "Real",
+          "start" : "0.0",
+          "comment" : "LOG(1000): 3"
+        },
+        {
+          "name" : "Frac",
+          "type" : "Real",
+          "start" : "0.0",
+          "comment" : "FRAC(X / Y)"
+        },
+        {
+          "name" : "MinAB",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "MIN"
+        },
+        {
+          "name" : "MaxAB",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "MAX"
+        },
+        {
+          "name" : "Lim",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "LIMIT(0, A * B, 20)"
+        },
+        {
+          "name" : "AbsV",
+          "type" : "Real",
+          "start" : "0.0",
+          "comment" : "ABS(X - Y)"
+        },
+        {
+          "name" : "Vals",
+          "type" : "Array[1..5] of Real",
+          "start" : "",
+          "comment" : "five values for the average"
+        },
+        {
+          "name" : "Avg",
+          "type" : "Real",
+          "start" : "0.0",
+          "comment" : "the average of Vals"
+        },
+        {
+          "name" : "Poly",
+          "type" : "Real",
+          "start" : "0.0",
+          "comment" : "2 X^2 - 3 X + 1"
+        },
+        {
+          "name" : "Lad_Sum",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "LAD ADD"
+        },
+        {
+          "name" : "Big",
+          "type" : "DInt",
+          "start" : "100000",
+          "comment" : "a DInt operand"
+        },
+        {
+          "name" : "Lad_Diff",
+          "type" : "DInt",
+          "start" : "0",
+          "comment" : "LAD SUB: Big - 70000"
+        },
+        {
+          "name" : "Lad_Prod",
+          "type" : "Real",
+          "start" : "0.0",
+          "comment" : "LAD MUL"
+        },
+        {
+          "name" : "Lad_Quot",
+          "type" : "Real",
+          "start" : "0.0",
+          "comment" : "LAD DIV"
+        }
+      ]
+    }
+  ],
+  "tags" : [
+    {
+      "name" : "Clock_2Hz",
+      "type" : "Bool",
+      "address" : "%M0.3",
+      "comment" : "clock memory 2 Hz"
+    },
+    {
+      "name" : "Clock_1Hz",
+      "type" : "Bool",
+      "address" : "%M0.5",
+      "comment" : "clock memory 1 Hz"
+    }
+  ],
+  "watch" : [
+    {
+      "address" : "\"Math\".A",
+      "format" : "DEC",
+      "modify" : "17"
+    },
+    {
+      "address" : "\"Math\".Quot",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Math\".Rest",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Math\".Hyp",
+      "format" : "REAL",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Math\".Angle",
+      "format" : "REAL",
+      "modify" : "45.0"
+    },
+    {
+      "address" : "\"Math\".SinA",
+      "format" : "REAL",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Math\".Log1000",
+      "format" : "REAL",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Math\".Avg",
+      "format" : "REAL",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Math\".Poly",
+      "format" : "REAL",
+      "modify" : ""
+    }
+  ],
+  "diTypes" : [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "aiChannels" : [
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    }
+  ],
+  "comm" : {
+    "s7" : true,
+    "s7Port" : 102,
+    "modbus" : true,
+    "modbusPort" : 502,
+    "modbusUnit" : 1,
+    "holding" : "M",
+    "putGet" : true,
+    "allInterfaces" : false,
+    "ip" : "127.0.0.1",
+    "mask" : "255.255.255.0",
+    "ipc" : false
+  }
+}

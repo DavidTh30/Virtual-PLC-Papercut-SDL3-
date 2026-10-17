@@ -58,6 +58,8 @@ type
     opPContact, opNContact,
     opTON, opTOF, opTP, opTONR, opCTU, opCTD, opCTUD,
     opBoxCmp, opBoxMove, opBoxMath, opNormX, opScaleX,
+    opBoxRange,  // IN_RANGE / OUT_RANGE (Sub 1): MIN, VAL, MAX of DType
+    opBoxConv,   // CONV / ROUND / TRUNC / CEIL / FLOOR: Sub = mode shl 8 + the OUT type, DType the IN type
     // SCL: a value stack (Double holds every S7 value exactly up to 32 bit)
     opSPush, opSPushK, opSPushIdx, opSStore, opSStoreIdx, opSBin, opSUn, opSTern,
     opSJmp, opSJz, opSPop, opSSetReg, opSGetReg, opSTimer, opSCounter, opSIndex, opSCopy,
@@ -2126,6 +2128,25 @@ begin
             Par(2, Ce.P[2], TypeBytes(Ce.DType), False, False, False) and
             Par(3, Ce.P[3], TypeBytes(Ce.DType), True, False, False) then
             EmitBox(opScaleX, 4, tcFloat, 6);
+        lkInRange, lkOutRange:
+          if Par(0, Ce.P[0], TypeBytes(Ce.DType), False, False, False) and
+            Par(1, Ce.P[1], TypeBytes(Ce.DType), False, False, False) and
+            Par(2, Ce.P[2], TypeBytes(Ce.DType), False, False, False) then
+          begin
+            if Ce.DType = dtReal then EmitBox(opBoxRange, 3, tcFloat, 3) else EmitBox(opBoxRange, 3, tcFix, 3);
+            FBlock.Ops[Op].Sub := Ord(Ce.Kind = lkOutRange);
+          end;
+        lkConv, lkRound, lkTrunc, lkCeil, lkFloor:
+          if (Ce.Kind <> lkConv) and (Ce.DType <> dtReal) then
+            Msg(LadKindNames[Ce.Kind] + ': IN is a Real')
+          else if (Ce.Kind <> lkConv) and (Ce.DType2 in [dtReal, dtBool]) then
+            Msg(LadKindNames[Ce.Kind] + ': OUT is an integer type')
+          else if Par(0, Ce.P[0], TypeBytes(Ce.DType), False, False, False) and
+            Par(1, Ce.P[1], TypeBytes(Ce.DType2), True, False, False) then
+          begin
+            EmitBox(opBoxConv, 2, tcFloat, 3);
+            FBlock.Ops[Op].Sub := (Ord(Ce.Kind) - Ord(lkConv)) shl 8 + Ord(Ce.DType2);
+          end;
         lkCall:
           begin
             // the pins of the box: the block's parameters (Input, InOut, Output, Return)

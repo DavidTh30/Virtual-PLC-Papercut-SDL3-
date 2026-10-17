@@ -1,0 +1,444 @@
+{
+  "format" : "VirtualPLC",
+  "version" : 1,
+  "name" : "Garage door with limit switches and light barrier (S7-1200)",
+  "author" : "Virtual PLC examples",
+  "comment" : "LAD: Open / Close / Stop push buttons, the limit switches end the run, the light barrier (NC) stops closing and opens again; the warning lamp flashes while the door moves.",
+  "cpu" : "CPU 1214C DC/DC/DC",
+  "family" : "S7-1200",
+  "cyclicMs" : 100,
+  "clockByte" : 0,
+  "blocks" : [
+    {
+      "kind" : "OB",
+      "number" : 1,
+      "name" : "Main",
+      "comment" : "Main program cycle",
+      "networks" : [
+        {
+          "title" : "Open",
+          "comment" : "self holding until the open limit; the beam reopens a closing door",
+          "lang" : "LAD",
+          "rows" : 3,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "no",
+              "op" : "\"Open_PB\""
+            },
+            {
+              "r" : 0,
+              "c" : 1,
+              "e" : "wire",
+              "down" : true
+            },
+            {
+              "r" : 0,
+              "c" : 2,
+              "e" : "no",
+              "op" : "\"Stop_PB\""
+            },
+            {
+              "r" : 0,
+              "c" : 3,
+              "e" : "nc",
+              "op" : "\"Limit_Open\""
+            },
+            {
+              "r" : 0,
+              "c" : 4,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 5,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 6,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 7,
+              "e" : "coil",
+              "op" : "\"Motor_Open\""
+            },
+            {
+              "r" : 1,
+              "c" : 0,
+              "e" : "no",
+              "op" : "\"Motor_Open\""
+            },
+            {
+              "r" : 1,
+              "c" : 1,
+              "e" : "wire",
+              "down" : true
+            },
+            {
+              "r" : 2,
+              "c" : 0,
+              "e" : "nc",
+              "op" : "\"Beam_Free\""
+            },
+            {
+              "r" : 2,
+              "c" : 1,
+              "e" : "no",
+              "op" : "\"Motor_Close\""
+            }
+          ]
+        },
+        {
+          "title" : "Close",
+          "comment" : "only with the beam free",
+          "lang" : "LAD",
+          "rows" : 2,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "no",
+              "op" : "\"Close_PB\"",
+              "down" : true
+            },
+            {
+              "r" : 0,
+              "c" : 1,
+              "e" : "no",
+              "op" : "\"Stop_PB\""
+            },
+            {
+              "r" : 0,
+              "c" : 2,
+              "e" : "nc",
+              "op" : "\"Limit_Closed\""
+            },
+            {
+              "r" : 0,
+              "c" : 3,
+              "e" : "no",
+              "op" : "\"Beam_Free\""
+            },
+            {
+              "r" : 0,
+              "c" : 4,
+              "e" : "nc",
+              "op" : "\"Motor_Open\""
+            },
+            {
+              "r" : 0,
+              "c" : 5,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 6,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 7,
+              "e" : "coil",
+              "op" : "\"Motor_Close\""
+            },
+            {
+              "r" : 1,
+              "c" : 0,
+              "e" : "no",
+              "op" : "\"Motor_Close\""
+            }
+          ]
+        },
+        {
+          "title" : "Warning lamp",
+          "comment" : "flashes 2 Hz while the door moves",
+          "lang" : "LAD",
+          "rows" : 2,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "no",
+              "op" : "\"Motor_Open\"",
+              "down" : true
+            },
+            {
+              "r" : 0,
+              "c" : 1,
+              "e" : "no",
+              "op" : "\"Clock_2Hz\""
+            },
+            {
+              "r" : 0,
+              "c" : 2,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 3,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 4,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 5,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 6,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 7,
+              "e" : "coil",
+              "op" : "\"Warning\""
+            },
+            {
+              "r" : 1,
+              "c" : 0,
+              "e" : "no",
+              "op" : "\"Motor_Close\""
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "dbs" : [
+  ],
+  "tags" : [
+    {
+      "name" : "Clock_2Hz",
+      "type" : "Bool",
+      "address" : "%M0.3",
+      "comment" : "clock memory 2 Hz"
+    },
+    {
+      "name" : "Clock_1Hz",
+      "type" : "Bool",
+      "address" : "%M0.5",
+      "comment" : "clock memory 1 Hz"
+    },
+    {
+      "name" : "Open_PB",
+      "type" : "Bool",
+      "address" : "%I0.0",
+      "comment" : "open"
+    },
+    {
+      "name" : "Close_PB",
+      "type" : "Bool",
+      "address" : "%I0.1",
+      "comment" : "close"
+    },
+    {
+      "name" : "Stop_PB",
+      "type" : "Bool",
+      "address" : "%I0.2",
+      "comment" : "stop, wired NC"
+    },
+    {
+      "name" : "Limit_Open",
+      "type" : "Bool",
+      "address" : "%I0.3",
+      "comment" : "switch: door fully open"
+    },
+    {
+      "name" : "Limit_Closed",
+      "type" : "Bool",
+      "address" : "%I0.4",
+      "comment" : "switch: door closed"
+    },
+    {
+      "name" : "Beam_Free",
+      "type" : "Bool",
+      "address" : "%I0.5",
+      "comment" : "switch: light barrier free (NC)"
+    },
+    {
+      "name" : "Motor_Open",
+      "type" : "Bool",
+      "address" : "%Q0.0",
+      "comment" : "motor up"
+    },
+    {
+      "name" : "Motor_Close",
+      "type" : "Bool",
+      "address" : "%Q0.1",
+      "comment" : "motor down"
+    },
+    {
+      "name" : "Warning",
+      "type" : "Bool",
+      "address" : "%Q0.2",
+      "comment" : "flashing lamp"
+    }
+  ],
+  "watch" : [
+    {
+      "address" : "\"Motor_Open\"",
+      "format" : "BOOL",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Motor_Close\"",
+      "format" : "BOOL",
+      "modify" : ""
+    }
+  ],
+  "diTypes" : [
+    1,
+    1,
+    2,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "aiChannels" : [
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    }
+  ],
+  "comm" : {
+    "s7" : true,
+    "s7Port" : 102,
+    "modbus" : true,
+    "modbusPort" : 502,
+    "modbusUnit" : 1,
+    "holding" : "M",
+    "putGet" : true,
+    "allInterfaces" : false,
+    "ip" : "127.0.0.1",
+    "mask" : "255.255.255.0",
+    "ipc" : false
+  }
+}

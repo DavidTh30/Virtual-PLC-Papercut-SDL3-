@@ -115,7 +115,7 @@ const
       '"block":{"type":"string"},"network":{"type":"integer","description":"1-based; 0 or missing appends"},' +
       '"language":{"type":"string","enum":["SCL","STL","LAD"]},"title":{"type":"string"},"comment":{"type":"string"},' +
       '"code":{"type":"string","description":"SCL or STL code, lines separated by \\n"},' +
-      '"cells":{"type":"array","description":"LAD cells","items":{"type":"object","properties":{"r":{"type":"integer"},"c":{"type":"integer"},"e":{"type":"string"},"op":{"type":"string"},"p":{"type":"array","items":{"type":"string"}},"args":{"type":"array","items":{"type":"string"}},"down":{"type":"boolean"},"type":{"type":"string"},"cmp":{"type":"string"}},"required":["r","c","e"]}}},' +
+      '"cells":{"type":"array","description":"LAD cells","items":{"type":"object","properties":{"r":{"type":"integer"},"c":{"type":"integer"},"e":{"type":"string"},"op":{"type":"string"},"p":{"type":"array","items":{"type":"string"}},"args":{"type":"array","items":{"type":"string"}},"down":{"type":"boolean"},"type":{"type":"string"},"cmp":{"type":"string"},"type2":{"type":"string"}},"required":["r","c","e"]}}},' +
       '"required":["block","language"]}},' +
     '{"name":"delete_network","description":"Deletes network n (1-based) of a block.","input_schema":{"type":"object","properties":{"block":{"type":"string"},"network":{"type":"integer"}},"required":["block","network"]}},' +
     '{"name":"create_block","description":"Creates an FC or an FB (without networks: write them with write_network). For an FB, instance_db creates its instance DB too.","input_schema":{"type":"object","properties":{' +
@@ -228,8 +228,9 @@ begin
     'reset; IEC boxes (op = the IEC_TIMER / IEC_COUNTER variable): ton tof tp (p:[PT, ET]), tonr (p:[PT, R, ET]), ' +
     'ctu (p:[PV, R, CV]), ctd (p:[PV, LD, CV]), ctud (p:[PV, CD, R, LD, CV]); S5 timers (300/400, op = T n, p:[S5T#..]): ' +
     'sd se sp ss sf; counters cu cd sc (op = C n, sc p:[C#..]); boxes with type (Int, DInt, Real ..): cmp (cmp "==" ' +
-    '"<>" ">" "<" ">=" "<=", p:[IN1, IN2]), move (p:[IN, OUT1]), add sub mul div (p:[IN1, IN2, OUT]), normx scalex ' +
-    '(p:[MIN, VALUE, MAX, OUT]); call (op = FCn / "Fc" or an instance DB "Inst_DB"; args = the operands of its ' +
+    '"<>" ">" "<" ">=" "<=", p:[IN1, IN2]), inrange outrange (p:[MIN, VAL, MAX]), move (p:[IN, OUT1]), add sub mul div ' +
+    '(p:[IN1, IN2, OUT]), normx scalex (p:[MIN, VALUE, MAX, OUT]); converters conv (p:[IN, OUT], type = IN, type2 = OUT, ' +
+    'e.g. Int to Real), round trunc ceil floor (p:[IN, OUT], IN Real, type2 = the integer OUT, e.g. DInt); call (op = FCn / "Fc" or an instance DB "Inst_DB"; args = the operands of its ' +
     'parameters in the order Input, InOut, Output, Return). A box takes two columns when the next cell is empty.' + LineEnding +
     'Not available: the S7-1200 has no STL and no S5 timers / counters; the 300/400 have no SInt / USInt / UInt / ' +
     'UDInt and no optimized DBs.';
@@ -765,8 +766,8 @@ begin
     end;
   end;
   if Ce.Down then Result.Add('down', True);
-  if Ce.Kind in [lkCmp, lkMove, lkAdd, lkSub, lkMul, lkDiv, lkNormX, lkScaleX] then
-    Result.Add('type', DataTypeNames[Ce.DType]);
+  if LadHasType(Ce.Kind) then Result.Add('type', DataTypeNames[Ce.DType]);
+  if LadHasType2(Ce.Kind) then Result.Add('type2', DataTypeNames[Ce.DType2]);
   if Ce.Kind = lkCmp then Result.Add('cmp', CmpOpNames[Ce.Cmp]);
 end;
 
@@ -1041,6 +1042,11 @@ begin
               begin
                 if not ParseDataType(O.Get('type', 'Int'), T, Lo, Hi) then raise Exception.Create('unknown type ' + O.Get('type', ''));
                 Ce.DType := T;
+              end;
+              if O.Find('type2') <> nil then
+              begin
+                if not ParseDataType(O.Get('type2', 'Real'), T, Lo, Hi) then raise Exception.Create('unknown type ' + O.Get('type2', ''));
+                Ce.DType2 := T;
               end;
               if O.Find('cmp') <> nil then
               begin

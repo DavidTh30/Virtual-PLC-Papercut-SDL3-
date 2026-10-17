@@ -2435,6 +2435,20 @@ begin
   end;
 end;
 
+{ the values an integer type holds (CONV, ROUND, ...: a value outside is ENO = 0) }
+function InTypeRange(T: TDataType; V: Int64): Boolean;
+begin
+  case T of
+    dtByte, dtUSInt, dtChar: Result := (V >= 0) and (V <= 255);
+    dtSInt: Result := (V >= -128) and (V <= 127);
+    dtWord, dtUInt: Result := (V >= 0) and (V <= 65535);
+    dtInt: Result := (V >= -32768) and (V <= 32767);
+    dtDWord, dtUDInt: Result := (V >= 0) and (V <= 4294967295);
+  else
+    Result := (V >= -2147483648) and (V <= 2147483647);
+  end;
+end;
+
 procedure TPlcRuntime.ExecBlock(BI: Integer);
 var
   B: TCBlock;
@@ -2443,6 +2457,7 @@ var
   V, V2, E, Done: Boolean;
   A1, A2, R: LongWord;
   I1, I2, IR: Int64;
+  T2: TDataType;
   S1, S2, SR: Single;
   D1: Double;
   Opd2, CpDst: TOperand;
@@ -3614,6 +3629,63 @@ begin
                 if Op^.DType = dtInt then Ok := Ok and (IR >= -32768) and (IR <= 32767)
                 else if Op^.DType = dtDInt then Ok := Ok and (IR >= -2147483648) and (IR <= 2147483647);
                 WriteInt(Par(2), Op^.DType, IR);
+              end;
+            end;
+            FCtx.RLO := E and Ok;
+            FCtx.ORb := False;
+            FCtx.FC := True;
+          end;
+        opBoxRange:
+          begin
+            // IN_RANGE: MIN <= VAL <= MAX; OUT_RANGE: VAL < MIN or VAL > MAX
+            E := Eff;
+            V := False;
+            if E then
+            begin
+              D1 := ReadReal(Par(1), Op^.DType);
+              V := (D1 >= ReadReal(Par(0), Op^.DType)) and (D1 <= ReadReal(Par(2), Op^.DType));
+              if Op^.Sub = 1 then V := not V;
+            end;
+            FCtx.RLO := E and V;
+            FCtx.ORb := False;
+            FCtx.FC := True;
+          end;
+        opBoxConv:
+          begin
+            // CONV (any number to any), ROUND (to the nearest, a half to the even), TRUNC, CEIL, FLOOR;
+            // a value OUT cannot hold: ENO = 0, OUT unchanged
+            E := Eff;
+            Ok := True;
+            if E then
+            begin
+              T2 := TDataType(Op^.Sub and $FF);
+              if Op^.DType = dtReal then
+              begin
+                D1 := ReadReal(Par(0), dtReal);
+                if T2 = dtReal then WriteReal(Par(1), D1)
+                else if IsNan(D1) or IsInfinite(D1) or (Abs(D1) > 4.3E9) then Ok := False
+                else
+                begin
+                  case Op^.Sub shr 8 of
+                    2: IR := Trunc(D1);
+                    3: IR := Ceil(D1);
+                    4: IR := Floor(D1);
+                  else
+                    IR := Round(D1);
+                  end;
+                  Ok := InTypeRange(T2, IR);
+                  if Ok then WriteInt(Par(1), T2, IR);
+                end;
+              end
+              else
+              begin
+                IR := ReadInt(Par(0), Op^.DType);
+                if T2 = dtReal then WriteReal(Par(1), IR)
+                else
+                begin
+                  Ok := InTypeRange(T2, IR);
+                  if Ok then WriteInt(Par(1), T2, IR);
+                end;
               end;
             end;
             FCtx.RLO := E and Ok;

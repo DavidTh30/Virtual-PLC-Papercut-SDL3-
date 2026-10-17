@@ -1,0 +1,394 @@
+{
+  "format" : "VirtualPLC",
+  "version" : 1,
+  "name" : "Tank level control with hysteresis (S7-1200)",
+  "author" : "Virtual PLC examples",
+  "comment" : "The level sensor (IW64, 0..27648) is scaled to 0..100 %. The pump fills below 20 % and stops above 80 %; above 95 % the alarm lamp flashes. I/O: move the AI slider (or let the sine generator run).",
+  "cpu" : "CPU 1214C DC/DC/DC",
+  "family" : "S7-1200",
+  "cyclicMs" : 100,
+  "clockByte" : 0,
+  "blocks" : [
+    {
+      "kind" : "OB",
+      "number" : 1,
+      "name" : "Main",
+      "comment" : "Main program cycle",
+      "networks" : [
+        {
+          "title" : "Scale the level",
+          "comment" : "NORM_X: 0..27648 to 0..1, SCALE_X: to 0..100 %",
+          "lang" : "SCL",
+          "scl" : [
+            "\"Tank\".Level := SCALE_X(MIN := 0.0, VALUE := NORM_X(MIN := 0, VALUE := \"Level_AI\", MAX := 27648), MAX := 100.0);"
+          ]
+        },
+        {
+          "title" : "Two-point control",
+          "comment" : "between the limits the pump keeps its state (hysteresis)",
+          "lang" : "SCL",
+          "scl" : [
+            "IF NOT \"Auto_On\" THEN",
+            "    \"Pump\" := FALSE;",
+            "ELSIF \"Tank\".Level < \"Tank\".LowLimit THEN",
+            "    \"Pump\" := TRUE;",
+            "ELSIF \"Tank\".Level > \"Tank\".HighLimit THEN",
+            "    \"Pump\" := FALSE;",
+            "END_IF;"
+          ]
+        },
+        {
+          "title" : "High level alarm",
+          "comment" : "IN_RANGE would be the other way: here a CMP > and the 2 Hz clock",
+          "lang" : "LAD",
+          "rows" : 1,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "cmp",
+              "p" : [
+                "\"Tank\".Level",
+                "\"Tank\".AlarmLimit"
+              ],
+              "type" : "Real",
+              "cmp" : ">"
+            },
+            {
+              "r" : 0,
+              "c" : 1,
+              "e" : "no",
+              "op" : "\"Clock_2Hz\""
+            },
+            {
+              "r" : 0,
+              "c" : 2,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 3,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 4,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 5,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 6,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 7,
+              "e" : "coil",
+              "op" : "\"High_Alarm\""
+            }
+          ]
+        },
+        {
+          "title" : "Low level lamp",
+          "comment" : "OUT_RANGE of 20..100 %",
+          "lang" : "LAD",
+          "rows" : 1,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "outrange",
+              "p" : [
+                "\"Tank\".LowLimit",
+                "\"Tank\".Level",
+                "100.0"
+              ],
+              "type" : "Real"
+            },
+            {
+              "r" : 0,
+              "c" : 1,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 2,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 3,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 4,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 5,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 6,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 7,
+              "e" : "coil",
+              "op" : "\"Low_Lamp\""
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "dbs" : [
+    {
+      "number" : 1,
+      "name" : "Tank",
+      "comment" : "",
+      "optimized" : false,
+      "vars" : [
+        {
+          "name" : "Level",
+          "type" : "Real",
+          "start" : "0.0",
+          "comment" : "level in %"
+        },
+        {
+          "name" : "LowLimit",
+          "type" : "Real",
+          "start" : "20.0",
+          "comment" : "the pump starts below"
+        },
+        {
+          "name" : "HighLimit",
+          "type" : "Real",
+          "start" : "80.0",
+          "comment" : "the pump stops above"
+        },
+        {
+          "name" : "AlarmLimit",
+          "type" : "Real",
+          "start" : "95.0",
+          "comment" : "alarm above"
+        }
+      ]
+    }
+  ],
+  "tags" : [
+    {
+      "name" : "Clock_2Hz",
+      "type" : "Bool",
+      "address" : "%M0.3",
+      "comment" : "clock memory 2 Hz"
+    },
+    {
+      "name" : "Clock_1Hz",
+      "type" : "Bool",
+      "address" : "%M0.5",
+      "comment" : "clock memory 1 Hz"
+    },
+    {
+      "name" : "Level_AI",
+      "type" : "Int",
+      "address" : "%IW64",
+      "comment" : "level sensor 0..10 V"
+    },
+    {
+      "name" : "Auto_On",
+      "type" : "Bool",
+      "address" : "%I0.0",
+      "comment" : "switch: automatic"
+    },
+    {
+      "name" : "Pump",
+      "type" : "Bool",
+      "address" : "%Q0.0",
+      "comment" : "fill pump"
+    },
+    {
+      "name" : "High_Alarm",
+      "type" : "Bool",
+      "address" : "%Q0.1",
+      "comment" : "level above 95 %"
+    },
+    {
+      "name" : "Low_Lamp",
+      "type" : "Bool",
+      "address" : "%Q0.2",
+      "comment" : "level below 20 %"
+    }
+  ],
+  "watch" : [
+    {
+      "address" : "\"Tank\".Level",
+      "format" : "REAL",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Pump\"",
+      "format" : "BOOL",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Level_AI\"",
+      "format" : "DEC",
+      "modify" : ""
+    }
+  ],
+  "diTypes" : [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "aiChannels" : [
+    {
+      "mode" : "manual",
+      "value" : 6000
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    }
+  ],
+  "comm" : {
+    "s7" : true,
+    "s7Port" : 102,
+    "modbus" : true,
+    "modbusPort" : 502,
+    "modbusUnit" : 1,
+    "holding" : "M",
+    "putGet" : true,
+    "allInterfaces" : false,
+    "ip" : "127.0.0.1",
+    "mask" : "255.255.255.0",
+    "ipc" : false
+  }
+}

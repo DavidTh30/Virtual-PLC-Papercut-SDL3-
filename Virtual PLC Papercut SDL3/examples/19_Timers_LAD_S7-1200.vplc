@@ -1,0 +1,535 @@
+{
+  "format" : "VirtualPLC",
+  "version" : 1,
+  "name" : "Timers in LAD (S7-1200)",
+  "author" : "Virtual PLC examples",
+  "comment" : "LAD: every timer of the S7-1200 in a network of its own: an input switches it, its output drives a lamp. Try the inputs on the I/O screen and watch the times in the watch table. IEC timers (instances in DB1); Reset_PB resets TONR.",
+  "cpu" : "CPU 1214C DC/DC/DC",
+  "family" : "S7-1200",
+  "cyclicMs" : 100,
+  "clockByte" : 0,
+  "blocks" : [
+    {
+      "kind" : "OB",
+      "number" : 1,
+      "name" : "Main",
+      "comment" : "Main program cycle",
+      "networks" : [
+        {
+          "title" : "TON T#3S",
+          "comment" : "on delay: Q 3 s after IN, off with IN",
+          "lang" : "LAD",
+          "rows" : 1,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "no",
+              "op" : "\"In_TON\""
+            },
+            {
+              "r" : 0,
+              "c" : 1,
+              "e" : "ton",
+              "op" : "\"Timers\".TON_1",
+              "p" : [
+                "T#3S",
+                "\"Timers\".ET_TON"
+              ]
+            },
+            {
+              "r" : 0,
+              "c" : 2,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 3,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 4,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 5,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 6,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 7,
+              "e" : "coil",
+              "op" : "\"Out_TON\""
+            }
+          ]
+        },
+        {
+          "title" : "TOF T#3S",
+          "comment" : "off delay: Q with IN, off 3 s after IN went",
+          "lang" : "LAD",
+          "rows" : 1,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "no",
+              "op" : "\"In_TOF\""
+            },
+            {
+              "r" : 0,
+              "c" : 1,
+              "e" : "tof",
+              "op" : "\"Timers\".TOF_1",
+              "p" : [
+                "T#3S",
+                "\"Timers\".ET_TOF"
+              ]
+            },
+            {
+              "r" : 0,
+              "c" : 2,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 3,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 4,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 5,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 6,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 7,
+              "e" : "coil",
+              "op" : "\"Out_TOF\""
+            }
+          ]
+        },
+        {
+          "title" : "TP T#2S",
+          "comment" : "pulse: Q for 2 s from the rising edge of IN",
+          "lang" : "LAD",
+          "rows" : 1,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "no",
+              "op" : "\"In_TP\""
+            },
+            {
+              "r" : 0,
+              "c" : 1,
+              "e" : "tp",
+              "op" : "\"Timers\".TP_1",
+              "p" : [
+                "T#2S",
+                "\"Timers\".ET_TP"
+              ]
+            },
+            {
+              "r" : 0,
+              "c" : 2,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 3,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 4,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 5,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 6,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 7,
+              "e" : "coil",
+              "op" : "\"Out_TP\""
+            }
+          ]
+        },
+        {
+          "title" : "TONR T#5S",
+          "comment" : "accumulating on delay: the time adds up while IN is on, R resets it",
+          "lang" : "LAD",
+          "rows" : 1,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "no",
+              "op" : "\"In_TONR\""
+            },
+            {
+              "r" : 0,
+              "c" : 1,
+              "e" : "tonr",
+              "op" : "\"Timers\".TONR_1",
+              "p" : [
+                "T#5S",
+                "\"Reset_PB\"",
+                "\"Timers\".ET_TONR"
+              ]
+            },
+            {
+              "r" : 0,
+              "c" : 2,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 3,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 4,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 5,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 6,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 7,
+              "e" : "coil",
+              "op" : "\"Out_TONR\""
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "dbs" : [
+    {
+      "number" : 1,
+      "name" : "Timers",
+      "comment" : "",
+      "optimized" : false,
+      "vars" : [
+        {
+          "name" : "TON_1",
+          "type" : "IEC_TIMER",
+          "start" : "",
+          "comment" : "the TON instance"
+        },
+        {
+          "name" : "ET_TON",
+          "type" : "Time",
+          "start" : "",
+          "comment" : "elapsed time of TON"
+        },
+        {
+          "name" : "TOF_1",
+          "type" : "IEC_TIMER",
+          "start" : "",
+          "comment" : "the TOF instance"
+        },
+        {
+          "name" : "ET_TOF",
+          "type" : "Time",
+          "start" : "",
+          "comment" : "elapsed time of TOF"
+        },
+        {
+          "name" : "TP_1",
+          "type" : "IEC_TIMER",
+          "start" : "",
+          "comment" : "the TP instance"
+        },
+        {
+          "name" : "ET_TP",
+          "type" : "Time",
+          "start" : "",
+          "comment" : "elapsed time of TP"
+        },
+        {
+          "name" : "TONR_1",
+          "type" : "IEC_TIMER",
+          "start" : "",
+          "comment" : "the TONR instance"
+        },
+        {
+          "name" : "ET_TONR",
+          "type" : "Time",
+          "start" : "",
+          "comment" : "elapsed time of TONR"
+        }
+      ]
+    }
+  ],
+  "tags" : [
+    {
+      "name" : "Clock_2Hz",
+      "type" : "Bool",
+      "address" : "%M0.3",
+      "comment" : "clock memory 2 Hz"
+    },
+    {
+      "name" : "Clock_1Hz",
+      "type" : "Bool",
+      "address" : "%M0.5",
+      "comment" : "clock memory 1 Hz"
+    },
+    {
+      "name" : "In_TON",
+      "type" : "Bool",
+      "address" : "%I0.0",
+      "comment" : "TON input"
+    },
+    {
+      "name" : "Out_TON",
+      "type" : "Bool",
+      "address" : "%Q0.0",
+      "comment" : "TON output"
+    },
+    {
+      "name" : "In_TOF",
+      "type" : "Bool",
+      "address" : "%I0.1",
+      "comment" : "TOF input"
+    },
+    {
+      "name" : "Out_TOF",
+      "type" : "Bool",
+      "address" : "%Q0.1",
+      "comment" : "TOF output"
+    },
+    {
+      "name" : "In_TP",
+      "type" : "Bool",
+      "address" : "%I0.2",
+      "comment" : "TP input"
+    },
+    {
+      "name" : "Out_TP",
+      "type" : "Bool",
+      "address" : "%Q0.2",
+      "comment" : "TP output"
+    },
+    {
+      "name" : "In_TONR",
+      "type" : "Bool",
+      "address" : "%I0.3",
+      "comment" : "TONR input"
+    },
+    {
+      "name" : "Out_TONR",
+      "type" : "Bool",
+      "address" : "%Q0.3",
+      "comment" : "TONR output"
+    },
+    {
+      "name" : "Reset_PB",
+      "type" : "Bool",
+      "address" : "%I0.4",
+      "comment" : "reset TONR"
+    }
+  ],
+  "watch" : [
+    {
+      "address" : "\"Timers\".ET_TON",
+      "format" : "TIME",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Timers\".ET_TOF",
+      "format" : "TIME",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Timers\".ET_TP",
+      "format" : "TIME",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Timers\".ET_TONR",
+      "format" : "TIME",
+      "modify" : ""
+    }
+  ],
+  "diTypes" : [
+    0,
+    0,
+    1,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "aiChannels" : [
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    }
+  ],
+  "comm" : {
+    "s7" : true,
+    "s7Port" : 102,
+    "modbus" : true,
+    "modbusPort" : 502,
+    "modbusUnit" : 1,
+    "holding" : "M",
+    "putGet" : true,
+    "allInterfaces" : false,
+    "ip" : "127.0.0.1",
+    "mask" : "255.255.255.0",
+    "ipc" : false
+  }
+}

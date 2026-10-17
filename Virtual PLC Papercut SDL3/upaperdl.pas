@@ -143,6 +143,9 @@ type
     procedure Image(X1, Y1, X2, Y2: Single; AImg: TBGRABitmap);
     procedure Clip(X1, Y1, X2, Y2: Single);
     procedure Unclip;
+    { a copy of the commands I0 .. I1 - 1 moved by DX, DY with A / 255 of their alpha on ToLayer (the
+      ghost of what the mouse drags); clips and images are left out }
+    procedure Ghost(I0, I1: Integer; DX, DY: Single; A: Integer; ToLayer: TLayer);
     { drawing (any thread): the band's rows BandTop .. BandTop + B.Height - 1 }
     procedure Render(B: TBGRABitmap; BandTop: Integer; Layers: TLayerSet);
     procedure ToSvg(SL: TStrings; Layers: TLayerSet; var DefId: Integer);
@@ -721,6 +724,44 @@ begin
   Add(dkClip, R.Left, R.Top, R.Right, R.Bottom, BGRABlack, -1E9, 1E9);
   Cmds[N - 1].Top := -MaxInt div 2;
   Cmds[N - 1].Bot := MaxInt div 2;
+end;
+
+procedure TDisplayList.Ghost(I0, I1: Integer; DX, DY: Single; A: Integer; ToLayer: TLayer);
+var
+  K, J: Integer;
+  L: TLayer;
+  Cm: TCmd;
+begin
+  // layer by layer, as the frame shows them: the text stays above its box
+  for L := Low(TLayer) to High(TLayer) do
+  for K := Max(0, I0) to Min(I1, N) - 1 do
+  begin
+    Cm := Cmds[K];
+    if (Cm.Layer <> L) or (Cm.Kind in [dkClip, dkUnclip, dkImage]) then Continue;
+    Cm.Layer := ToLayer;
+    Cm.X1 := Cm.X1 + DX;
+    Cm.Y1 := Cm.Y1 + DY;
+    if Cm.Kind in [dkRect, dkRRect, dkRRectLine, dkLine, dkShadow, dkVGrad] then
+    begin
+      Cm.X2 := Cm.X2 + DX;
+      Cm.Y2 := Cm.Y2 + DY;
+    end;
+    Cm.Top := Floor(Cm.Top + DY) - 1;
+    Cm.Bot := Ceil(Cm.Bot + DY) + 1;
+    Cm.C.alpha := Cm.C.alpha * A div 255;
+    Cm.C2.alpha := Cm.C2.alpha * A div 255;
+    if Cm.PN > 0 then
+    begin
+      if NP + Cm.PN > Length(Pts) then SetLength(Pts, (NP + Cm.PN) * 2);
+      for J := 0 to Cm.PN - 1 do
+        Pts[NP + J] := PointF(Pts[Cm.P0 + J].X + DX, Pts[Cm.P0 + J].Y + DY);
+      Cm.P0 := NP;
+      Inc(NP, Cm.PN);
+    end;
+    if N >= Length(Cmds) then SetLength(Cmds, Length(Cmds) * 2);
+    Cmds[N] := Cm;
+    Inc(N);
+  end;
 end;
 
 procedure TDisplayList.Unclip;

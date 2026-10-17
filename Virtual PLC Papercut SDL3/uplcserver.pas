@@ -101,13 +101,13 @@ type
     FLock: TCriticalSection;
     FListen: array[TProto] of TListenThread;
     FPortNow: array[TProto] of Integer;
-    FAllNow: array[TProto] of Boolean;
+    FIpNow: array[TProto] of string;
     FClients: TList;
     FConns: TConnRows;
     FNextId: Integer;
     FLog: TLogRows;
     FLogPos, FLogCount: Integer;
-    procedure StartProto(P: TProto; APort: Integer; AAll: Boolean);
+    procedure StartProto(P: TProto; APort: Integer; const AIp: string);
     procedure StopProto(P: TProto);
     function AddConn(P: TProto; const APeer: string): Integer;
     procedure ConnUpdate(Id: Integer; DReq, DIn, DOut: Int64; const AInfo: string; AActive: Boolean);
@@ -338,7 +338,7 @@ begin
   end;
 end;
 
-procedure TCommHub.StartProto(P: TProto; APort: Integer; AAll: Boolean);
+procedure TCommHub.StartProto(P: TProto; APort: Integer; const AIp: string);
 var
   S: LongInt;
   A: TInetSockAddr;
@@ -357,10 +357,14 @@ begin
   FillChar(A, SizeOf(A), 0);
   A.sin_family := AF_INET;
   A.sin_port := htons(APort);
-  if AAll then A.sin_addr.s_addr := 0 else A.sin_addr := StrToNetAddr('127.0.0.1');
+  if AIp = '0.0.0.0' then A.sin_addr.s_addr := 0 else A.sin_addr := StrToNetAddr(AIp);
   if fpBind(S, @A, SizeOf(A)) <> 0 then
   begin
-    Status[P] := Format('port %d in use or not allowed (error %d)', [APort, SocketError]);
+    FIpNow[P] := AIp;
+    if (AIp <> '127.0.0.1') and (AIp <> '0.0.0.0') and (SocketError = 10049) then
+      Status[P] := Format('%s is not an address of this PC (error %d)', [AIp, SocketError])
+    else
+      Status[P] := Format('port %d in use or not allowed (error %d)', [APort, SocketError]);
     CloseSocket(S);
     Log(P, '', Status[P], False);
     Exit;
@@ -373,10 +377,10 @@ begin
   end;
   FListen[P] := TListenThread.Create(Self, P, S);
   FPortNow[P] := APort;
-  FAllNow[P] := AAll;
+  FIpNow[P] := AIp;
   Listening[P] := True;
-  if AAll then Status[P] := Format('listening on all interfaces, TCP %d', [APort])
-  else Status[P] := Format('listening on 127.0.0.1, TCP %d', [APort]);
+  if AIp = '0.0.0.0' then Status[P] := Format('listening on all interfaces, TCP %d', [APort])
+  else Status[P] := Format('listening on %s, TCP %d', [AIp, APort]);
   Log(P, '', Status[P]);
 end;
 
@@ -418,14 +422,14 @@ begin
   Settings := S;
   if S.S7On then
   begin
-    if not Listening[prS7] or (FPortNow[prS7] <> S.S7Port) or (FAllNow[prS7] <> S.AllIfaces) then
-      StartProto(prS7, S.S7Port, S.AllIfaces);
+    if not Listening[prS7] or (FPortNow[prS7] <> S.S7Port) or (FIpNow[prS7] <> CommIp(S)) then
+      StartProto(prS7, S.S7Port, CommIp(S));
   end
   else if Listening[prS7] then StopProto(prS7);
   if S.MbOn then
   begin
-    if not Listening[prModbus] or (FPortNow[prModbus] <> S.MbPort) or (FAllNow[prModbus] <> S.AllIfaces) then
-      StartProto(prModbus, S.MbPort, S.AllIfaces);
+    if not Listening[prModbus] or (FPortNow[prModbus] <> S.MbPort) or (FIpNow[prModbus] <> CommIp(S)) then
+      StartProto(prModbus, S.MbPort, CommIp(S));
   end
   else if Listening[prModbus] then StopProto(prModbus);
   Cleanup;

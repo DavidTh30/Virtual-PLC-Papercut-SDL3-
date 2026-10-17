@@ -1,0 +1,502 @@
+{
+  "format" : "VirtualPLC",
+  "version" : 1,
+  "name" : "Star-delta starter (S7-300)",
+  "author" : "Virtual PLC examples",
+  "comment" : "LAD with an S5 timer (SD T1): Start (I0.0) switches Main and Star, after 5 s Star goes and Delta comes. Stop (I0.1, NC) and the overload (I0.2) switch off. Star and Delta lock each other.",
+  "cpu" : "CPU 315-2 PN/DP",
+  "family" : "S7-300",
+  "cyclicMs" : 100,
+  "clockByte" : 0,
+  "blocks" : [
+    {
+      "kind" : "OB",
+      "number" : 1,
+      "name" : "Main",
+      "comment" : "Main program cycle",
+      "networks" : [
+        {
+          "title" : "Main contactor",
+          "comment" : "self holding",
+          "lang" : "LAD",
+          "rows" : 2,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "no",
+              "op" : "\"Start_PB\"",
+              "down" : true
+            },
+            {
+              "r" : 0,
+              "c" : 1,
+              "e" : "no",
+              "op" : "\"Stop_PB\""
+            },
+            {
+              "r" : 0,
+              "c" : 2,
+              "e" : "no",
+              "op" : "\"Overload_OK\""
+            },
+            {
+              "r" : 0,
+              "c" : 3,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 4,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 5,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 6,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 7,
+              "e" : "coil",
+              "op" : "\"Main_K\""
+            },
+            {
+              "r" : 1,
+              "c" : 0,
+              "e" : "no",
+              "op" : "\"Main_K\""
+            }
+          ]
+        },
+        {
+          "title" : "Star-delta time",
+          "comment" : "SD: on delay 5 s while Main",
+          "lang" : "LAD",
+          "rows" : 1,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "no",
+              "op" : "\"Main_K\""
+            },
+            {
+              "r" : 0,
+              "c" : 1,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 2,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 3,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 4,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 5,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 6,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 7,
+              "e" : "sd",
+              "op" : "T1",
+              "p" : [
+                "S5T#5S"
+              ]
+            }
+          ]
+        },
+        {
+          "title" : "Star",
+          "comment" : "until the time has run out, never with Delta",
+          "lang" : "LAD",
+          "rows" : 1,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "no",
+              "op" : "\"Main_K\""
+            },
+            {
+              "r" : 0,
+              "c" : 1,
+              "e" : "nc",
+              "op" : "T1"
+            },
+            {
+              "r" : 0,
+              "c" : 2,
+              "e" : "nc",
+              "op" : "\"Delta_K\""
+            },
+            {
+              "r" : 0,
+              "c" : 3,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 4,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 5,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 6,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 7,
+              "e" : "coil",
+              "op" : "\"Star_K\""
+            }
+          ]
+        },
+        {
+          "title" : "Delta",
+          "comment" : "after the time, never with Star",
+          "lang" : "LAD",
+          "rows" : 1,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "no",
+              "op" : "\"Main_K\""
+            },
+            {
+              "r" : 0,
+              "c" : 1,
+              "e" : "no",
+              "op" : "T1"
+            },
+            {
+              "r" : 0,
+              "c" : 2,
+              "e" : "nc",
+              "op" : "\"Star_K\""
+            },
+            {
+              "r" : 0,
+              "c" : 3,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 4,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 5,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 6,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 7,
+              "e" : "coil",
+              "op" : "\"Delta_K\""
+            }
+          ]
+        },
+        {
+          "title" : "Run lamp",
+          "comment" : "",
+          "lang" : "LAD",
+          "rows" : 1,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "no",
+              "op" : "\"Delta_K\""
+            },
+            {
+              "r" : 0,
+              "c" : 1,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 2,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 3,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 4,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 5,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 6,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 7,
+              "e" : "coil",
+              "op" : "\"Run_Lamp\""
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "dbs" : [
+  ],
+  "tags" : [
+    {
+      "name" : "Clock_2Hz",
+      "type" : "Bool",
+      "address" : "M0.3",
+      "comment" : "clock memory 2 Hz"
+    },
+    {
+      "name" : "Clock_1Hz",
+      "type" : "Bool",
+      "address" : "M0.5",
+      "comment" : "clock memory 1 Hz"
+    },
+    {
+      "name" : "Start_PB",
+      "type" : "Bool",
+      "address" : "I0.0",
+      "comment" : "start"
+    },
+    {
+      "name" : "Stop_PB",
+      "type" : "Bool",
+      "address" : "I0.1",
+      "comment" : "stop, wired NC"
+    },
+    {
+      "name" : "Overload_OK",
+      "type" : "Bool",
+      "address" : "I0.2",
+      "comment" : "thermal overload healthy"
+    },
+    {
+      "name" : "Main_K",
+      "type" : "Bool",
+      "address" : "Q4.0",
+      "comment" : "main contactor"
+    },
+    {
+      "name" : "Star_K",
+      "type" : "Bool",
+      "address" : "Q4.1",
+      "comment" : "star contactor"
+    },
+    {
+      "name" : "Delta_K",
+      "type" : "Bool",
+      "address" : "Q4.2",
+      "comment" : "delta contactor"
+    },
+    {
+      "name" : "Run_Lamp",
+      "type" : "Bool",
+      "address" : "Q4.3",
+      "comment" : "motor runs in delta"
+    }
+  ],
+  "watch" : [
+    {
+      "address" : "T1",
+      "format" : "S5TIME",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Main_K\"",
+      "format" : "BOOL",
+      "modify" : ""
+    }
+  ],
+  "diTypes" : [
+    1,
+    2,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "aiChannels" : [
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    }
+  ],
+  "comm" : {
+    "s7" : true,
+    "s7Port" : 102,
+    "modbus" : true,
+    "modbusPort" : 502,
+    "modbusUnit" : 1,
+    "holding" : "M",
+    "putGet" : true,
+    "allInterfaces" : false,
+    "ip" : "127.0.0.1",
+    "mask" : "255.255.255.0",
+    "ipc" : false
+  }
+}
