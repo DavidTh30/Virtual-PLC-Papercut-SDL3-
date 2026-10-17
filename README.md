@@ -3,6 +3,8 @@ Virtual PLC Papercut SDL3
 
 releases:
 
+https://github.com/DavidTh30/Virtual-PLC-Papercut-SDL3-/releases/tag/Virtual-PLC-Papercut-SDL3-V1.0
+
 https://github.com/DavidTh30/Virtual-PLC-Papercut-SDL3-/releases/tag/Virtual-PLC-Papercut-SDL3
 
 Lazarus-SDL-3.0-Package: https://github.com/sechshelme/Lazarus-SDL-3.0-Packages-and-Examples
