@@ -14,6 +14,8 @@ type
   PBytes = ^TBytes;
 
   EVmError = class(Exception);
+  { an error of the program (an S7 CPU calls OB121 for it): array index, missing DB, null pointer, address }
+  EVmProgError = class(EVmError);
 
   TVirtualPlc = class
   private
@@ -28,6 +30,12 @@ type
     FNowNs: Int64;
     FDepth: Integer;
     FLastCyclic: array of Int64;
+    FSubst: TBytes;                // the substitute of a faulty access: reads 0, writes go nowhere
+    FContinue: Boolean;            // a faulty access goes on with the substitute (S7-1200, or OB121 loaded)
+    FOb121: Integer;               // the block index of OB121, -1 none
+    FOb121Due: Boolean;            // a programming error in this OB: OB121 runs after it
+    function SubstAddr(const Msg: string; BI: Integer): Int64;
+    procedure NoteError(const Msg: string; BI: Integer);
     procedure Push(const V: TVmValue); inline;
     procedure PushI(V: Int64); inline;
     procedure PushF(V: Double); inline;
@@ -39,8 +47,19 @@ type
     procedure SysFB(Id: Integer; CntVT: Byte; Inst: Int64);
     procedure EnsureL(Top: Integer);
     procedure RunOB(BI: Integer; const Inputs: array of string);
+    procedure RunOBSafe(BI: Integer; const Inputs: array of string);
+    procedure ProgramError(BI: Integer; E: EVmError);
   public
     CycleCount: Int64;
+    { the CPU's answer to a run-time error of the program (array index, missing DB, null pointer), like a
+      real one: the S7-1200 - and every CPU with OB121 - enters it in the diagnostic buffer and goes on (the
+      faulty read gives 0, the faulty write is not done; OB121 runs after the OB); without OB121 the
+      S7-300 / 400 / 1500 go to STOP. An internal error (not of the program) always stops. }
+    Stopped: Boolean;
+    StopNs: Int64;                 // the time of the STOP
+    StopReason: string;
+    Diag: TStringList;             // the diagnostic buffer, oldest first
+    ProgErrors: Integer;
     constructor Create(AImg: TSvImage; AOwns: Boolean = False);
     destructor Destroy; override;
     procedure ColdStart;
@@ -48,6 +67,7 @@ type
     function ReadAddr(A: Int64; VT: Byte): TVmValue;
     procedure WriteAddr(A: Int64; VT: Byte; const V: TVmValue);
     function ReadStringAt(A: Int64; Wide: Boolean): string;
+    procedure WriteStringAt(A: Int64; const S: string; Wide: Boolean);   { the max. length from the header }
     function FindVar(const Path: string; out A: Int64; out VT: Byte; out TypeText: string): Boolean;
     property NowNs: Int64 read FNowNs write FNowNs;
     property Image: TSvImage read FImg;
@@ -57,6 +77,8 @@ implementation
 
 const
   STACK_SIZE = 4096;
+  AREA_SUBST = 15;      // inside the VM only: the substitute of a faulty access
+  SUBST_SIZE = 65536;
   L_SIZE = 1024 * 1024;
   PROC_IMG = 8192;
 
@@ -71,10 +93,14 @@ begin
   SetLength(FM, PROC_IMG);
   SetLength(FL, 64 * 1024);
   SetLength(FDB, 65536);
+  SetLength(FSubst, SUBST_SIZE);
+  FOb121 := -1;
+  Diag := TStringList.Create;
 end;
 
 destructor TVirtualPlc.Destroy;
 begin
+  Diag.Free;
   if FOwnsImg then FImg.Free;
   inherited;
 end;
@@ -135,14 +161,25 @@ begin
     AREA_M: Result := @FM;
     AREA_L: Result := @FL;
     AREA_C: Result := @FImg.ConstPool;
+    AREA_SUBST: Result := @FSubst;
     AREA_DB:
       begin
         N := AddrDB(A);
-        if Length(FDB[N]) = 0 then raise EVmError.CreateFmt('DB%d does not exist', [N]);
-        Result := @FDB[N];
+        if (N > High(FDB)) or (Length(FDB[N]) = 0) then
+        begin
+          if not FContinue then raise EVmProgError.CreateFmt('DB%d does not exist', [N]);
+          SubstAddr(Format('DB%d does not exist', [N]), -1);
+          Result := @FSubst;
+        end
+        else
+          Result := @FDB[N];
       end;
   else
-    raise EVmError.CreateFmt('Invalid address %x', [A]);
+    begin
+      if not FContinue then raise EVmProgError.CreateFmt('Invalid address %x', [A]);
+      SubstAddr(Format('Invalid address %x', [A]), -1);
+      Result := @FSubst;
+    end;
   end;
 end;
 
@@ -174,6 +211,18 @@ begin
   Result := MemReadString(AreaMem(A)^, AddrBit(A), Wide);
 end;
 
+procedure TVirtualPlc.WriteStringAt(A: Int64; const S: string; Wide: Boolean);
+var
+  M: PBytes;
+  MaxLen: Integer;
+begin
+  if AddrArea(A) = AREA_C then raise EVmError.Create('Write to constant area');
+  M := AreaMem(A);
+  if Wide then MaxLen := MemReadBE(M^, AddrBit(A) div 8, 2)
+  else MaxLen := MemReadBE(M^, AddrBit(A) div 8, 1);
+  MemWriteString(M^, AddrBit(A), MaxLen, S, Wide);
+end;
+
 procedure TVirtualPlc.ColdStart;
 var
   I: Integer;
@@ -193,15 +242,131 @@ begin
   FLTop := 0;
   SetLength(FPending, 0);
   CycleCount := 0;
+  Stopped := False;
+  StopReason := '';
+  ProgErrors := 0;
+  Diag.Clear;
+  FOb121 := -1;
+  for I := 0 to FImg.Blocks.Count - 1 do
+    if (FImg.Block(I).Kind = BK_OB) and (FImg.Block(I).EventClass = 121) then FOb121 := I;
+  FContinue := (FImg.Cpu = 2) or (FOb121 >= 0);
   SetLength(FLastCyclic, FImg.Blocks.Count);
   for I := 0 to High(FLastCyclic) do FLastCyclic[I] := 0;
   Order := TList.Create;
   try
     for I := 0 to FImg.Blocks.Count - 1 do
-      if (FImg.Block(I).Kind = BK_OB) and (FImg.Block(I).EventClass = 100) then
-        RunOB(I, ['LostRetentive', 'LostRTC']);
+      if not Stopped and (FImg.Block(I).Kind = BK_OB) and (FImg.Block(I).EventClass = 100) then
+        RunOBSafe(I, ['LostRetentive', 'LostRTC']);
   finally
     Order.Free;
+  end;
+end;
+
+procedure TVirtualPlc.RunOBSafe(BI: Integer; const Inputs: array of string);
+begin
+  FOb121Due := False;
+  try
+    RunOB(BI, Inputs);
+  except
+    on E: EVmError do ProgramError(BI, E);
+  end;
+  // a programming error went on with the substitute: now OB121
+  if FOb121Due and not Stopped and (FOb121 >= 0) and (BI <> FOb121) then
+  begin
+    FOb121Due := False;
+    try
+      RunOB(FOb121, []);
+    except
+      on E2: EVmError do
+      begin
+        FSP := 0;
+        FLTop := 0;
+        FDepth := 0;
+        SetLength(FPending, 0);
+        Diag.Add(Format('t=%.2fs error in OB121: %s', [FNowNs / 1e9, E2.Message]));
+        Stopped := True;
+        StopNs := FNowNs;
+        StopReason := 'error in OB121: ' + E2.Message;
+      end;
+    end;
+  end;
+end;
+
+{ an entry of the diagnostic buffer; the same error again is counted, not listed again }
+procedure TVirtualPlc.NoteError(const Msg: string; BI: Integer);
+var
+  T, Last: string;
+  P: Integer;
+begin
+  Inc(ProgErrors);
+  if BI >= 0 then T := 'programming error in ' + FImg.Block(BI).Name + ': ' + Msg
+  else T := 'programming error: ' + Msg;
+  Last := '';
+  if Diag.Count > 0 then
+  begin
+    Last := Diag[Diag.Count - 1];
+    P := Pos(' ', Last);
+    Last := Copy(Last, P + 1, MaxInt);
+  end;
+  if Last <> T then Diag.Add(Format('t=%.2fs %s', [FNowNs / 1e9, T]));
+end;
+
+function TVirtualPlc.SubstAddr(const Msg: string; BI: Integer): Int64;
+begin
+  if not FContinue then raise EVmProgError.Create(Msg);
+  NoteError(Msg, BI);
+  FOb121Due := True;
+  FillChar(FSubst[0], SUBST_SIZE, 0);
+  Result := MakeAddr(AREA_SUBST, 0, 0);
+end;
+
+procedure TVirtualPlc.ProgramError(BI: Integer; E: EVmError);
+var
+  I, Ob121: Integer;
+begin
+  // the OB stops where the error was: its stack and frames go
+  FSP := 0;
+  FLTop := 0;
+  FDepth := 0;
+  SetLength(FPending, 0);
+  if not (E is EVmProgError) then
+  begin
+    Diag.Add(Format('t=%.2fs internal error in %s: %s', [FNowNs / 1e9, FImg.Block(BI).Name, E.Message]));
+    Stopped := True;
+    StopNs := FNowNs;
+    StopReason := 'internal error: ' + E.Message;
+    Exit;
+  end;
+  NoteError(E.Message, BI);
+  Ob121 := -1;
+  for I := 0 to FImg.Blocks.Count - 1 do
+    if (FImg.Block(I).Kind = BK_OB) and (FImg.Block(I).EventClass = 121) then Ob121 := I;
+  if (Ob121 >= 0) and (Ob121 <> BI) then
+  begin
+    // OB121 handles it, the CPU stays in RUN (an error in OB121 itself stops)
+    try
+      RunOB(Ob121, []);
+    except
+      on E2: EVmError do
+      begin
+        FSP := 0;
+        FLTop := 0;
+        FDepth := 0;
+        SetLength(FPending, 0);
+        Diag.Add(Format('t=%.2fs error in OB121: %s', [FNowNs / 1e9, E2.Message]));
+        Stopped := True;
+        StopNs := FNowNs;
+        StopReason := 'error in OB121: ' + E2.Message;
+      end;
+    end;
+  end
+  else if (Ob121 < 0) and (FImg.Cpu = 2) then
+    // S7-1200 without OB121: entered in the diagnostic buffer, the CPU stays in RUN
+  else
+  begin
+    Stopped := True;
+    StopNs := FNowNs;
+    StopReason := 'programming error, OB121 not loaded: ' + E.Message;
   end;
 end;
 
@@ -231,19 +396,26 @@ var
   I: Integer;
   B: TSvBlock;
 begin
+  if Stopped then
+  begin
+    // in STOP the time goes on, the program does not run
+    Inc(FNowNs, Int64(CycleMs) * 1000000);
+    Exit;
+  end;
   for I := 0 to FImg.Blocks.Count - 1 do
   begin
     B := FImg.Block(I);
-    if (B.Kind = BK_OB) and (B.EventClass = 1) then RunOB(I, []);
+    if (B.Kind = BK_OB) and (B.EventClass = 1) then RunOBSafe(I, []);
+    if Stopped then Break;
   end;
   for I := 0 to FImg.Blocks.Count - 1 do
   begin
     B := FImg.Block(I);
     if (B.Kind = BK_OB) and (B.EventClass = 30) and (B.Interval > 0) then
-      if FNowNs - FLastCyclic[I] >= Int64(B.Interval) * 1000000 then
+      if not Stopped and (FNowNs - FLastCyclic[I] >= Int64(B.Interval) * 1000000) then
       begin
         FLastCyclic[I] := FNowNs;
-        RunOB(I, []);
+        RunOBSafe(I, []);
       end;
   end;
   Inc(CycleCount);
@@ -368,9 +540,9 @@ begin
           Idx := PopI;
           A := PopI;
           if (Idx < Lo) or (Idx >= Int64(Lo) + Cnt) then
-            raise EVmError.CreateFmt('Array index %d out of range [%d..%d] in %s', [Idx, Lo, Int64(Lo) + Cnt - 1,
-              FImg.Block(BI).Name]);
-          PushI(AddBits(A, (Idx - Lo) * Stride));
+            PushI(SubstAddr(Format('Array index %d out of range [%d..%d]', [Idx, Lo, Int64(Lo) + Cnt - 1]), BI))
+          else
+            PushI(AddBits(A, (Idx - Lo) * Stride));
         end;
       opLoad:
         begin
@@ -389,7 +561,7 @@ begin
         begin
           A := PopI;
           X := ReadAddr(A, VT_PTR);
-          if X.I = 0 then raise EVmError.Create('Null pointer (InOut parameter not assigned)');
+          if X.I = 0 then X.I := SubstAddr('Null pointer (InOut parameter not assigned)', BI);
           Push(X);
         end;
       opMemCpy:

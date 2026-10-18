@@ -60,6 +60,7 @@ type
     function ParseMul: TExpr;
     function ParsePow: TExpr;
     function ParseUnary: TExpr;
+    function ParseSignedPostfix: TExpr;
     function ParsePostfix: TExpr;
     function ParsePrimary: TExpr;
     function ParseCallArgs(Callee: TExpr): TCall;
@@ -1139,7 +1140,7 @@ var
   Op: TBinOp;
   R: TExpr;
 begin
-  Result := ParsePow;
+  Result := ParseUnary;
   while (Tok.Kind in [tkStar, tkSlash]) or IsKw('MOD') do
   begin
     P := Tok.Pos;
@@ -1148,7 +1149,7 @@ begin
     else Op := boMod;
     Next;
     try
-      R := ParsePow;
+      R := ParseUnary;
     except
       Result.Free;
       raise;
@@ -1157,18 +1158,21 @@ begin
   end;
 end;
 
+{ ** binds tighter than the unary operators (S7-SCL / IEC 61131-3): -x ** 2 = -(x ** 2);
+  it goes from left to right: a ** b ** c = (a ** b) ** c. The exponent may have a sign: 2 ** -1 }
 function TSclParser.ParsePow: TExpr;
 var
   P: TSrcPos;
   R: TExpr;
 begin
-  Result := ParseUnary;
+  Result := ParsePostfix;
   while Tok.Kind = tkPower do
   begin
     P := Tok.Pos;
     Next;
     try
-      R := ParseUnary;
+      if (Tok.Kind = tkMinus) or (Tok.Kind = tkPlus) then R := ParseSignedPostfix
+      else R := ParsePostfix;
     except
       Result.Free;
       raise;
@@ -1193,7 +1197,7 @@ begin
     else Op := uoNot;
     Next;
     Inner := ParseUnary();
-    { fold "-literal" into the literal so that e.g. -32768 fits Int }
+    { fold "-literal" into the literal so that e.g. -32768 fits Int (not "-2 ** 2": its inner part is the power) }
     if (Op = uoNeg) and (Inner is TLiteral) and (TLiteral(Inner).LitKind in [lkInt, lkReal]) then
     begin
       Lit := TLiteral(Inner);
@@ -1210,7 +1214,34 @@ begin
     Result := U;
   end
   else
-    Result := ParsePostfix;
+    Result := ParsePow;
+end;
+
+{ the exponent of **: a sign and an operand (no further **, no NOT) }
+function TSclParser.ParseSignedPostfix: TExpr;
+var
+  U: TUnary;
+  P: TSrcPos;
+  Neg: Boolean;
+  Inner: TExpr;
+begin
+  P := Tok.Pos;
+  Neg := Tok.Kind = tkMinus;
+  Next;
+  Inner := ParsePostfix;
+  if not Neg then Exit(Inner);
+  if (Inner is TLiteral) and (TLiteral(Inner).LitKind in [lkInt, lkReal]) then
+  begin
+    TLiteral(Inner).I := -TLiteral(Inner).I;
+    TLiteral(Inner).F := -TLiteral(Inner).F;
+    TLiteral(Inner).Pos := P;
+    Exit(Inner);
+  end;
+  U := TUnary.Create;
+  U.Pos := P;
+  U.Op := uoNeg;
+  U.Operand := Inner;
+  Result := U;
 end;
 
 function TSclParser.ParseCallArgs(Callee: TExpr): TCall;

@@ -154,6 +154,7 @@ type
     function CommonType(A, B: TSclType; const P: TSrcPos; const OpText: string): TSclType;
     function ImplicitOK(Src, Dst: TSclType; E: TExpr; out Msg: string): Boolean;
     function CheckAssign(Src, Dst: TSclType; E: TExpr; const P: TSrcPos): Boolean;
+    procedure CheckStringFits(const P: TSrcPos; const S: string; T: TSclType);
     function IsLValue(E: TExpr): Boolean;
     function ConstFits(const C: TConstValue; T: TSclType): Boolean;
     function FoldUnary(E: TUnary): Boolean;
@@ -728,6 +729,17 @@ begin
   if Result then V := C.I;
 end;
 
+{ a string constant longer than its String[n] / WString[n]: the CPU keeps the first n characters }
+procedure TSclCompiler.CheckStringFits(const P: TSrcPos; const S: string; T: TSclType);
+var
+  N: Integer;
+begin
+  if T.Kind = tkWString then N := Length(UTF8Decode(S)) else N := Length(S);
+  if N > T.MaxLen then
+    Warn(P, Format('String constant of %d characters does not fit %s: only the first %d are kept',
+      [N, TypeName(T), T.MaxLen]));
+end;
+
 function TSclCompiler.EvalConstFor(E: TExpr; Ctx: TBlockInfo; T: TSclType; out C: TConstValue): Boolean;
 var
   Old: TBlockInfo;
@@ -764,6 +776,7 @@ begin
     begin
       if C.S <> '' then C := CInt(Ord(C.S[1])) else C := CInt(0);
     end;
+    if IsStringKind(T.Kind) and (C.Kind = ckString) then CheckStringFits(E.Pos, C.S, T);
   end
   else
     C := E.CVal;
@@ -3637,6 +3650,8 @@ begin
     Exit;
   end;
   if not CheckAssign(VT, TT, S.Value, S.Value.Pos) then Exit;
+  if IsStringKind(TT.Kind) and S.Value.IsConst and (S.Value.CVal.Kind = ckString) then
+    CheckStringFits(S.Value.Pos, S.Value.CVal.S, TT);
   if (TT.Kind in [tkArray, tkStruct, tkFBInst, tkSysFB]) and not IsLValue(S.Value) then
   begin
     Err(S.Value.Pos, 'Variable expected');
