@@ -1,0 +1,113 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 600" width="1000" height="600" font-family="Tahoma, 'Leelawadee UI', sans-serif" font-size="12">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#334155"/></marker>
+    <marker id="r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#dc2626"/></marker>
+  </defs>
+  <style>
+    .st{stroke-width:2}
+    .t{font-weight:bold;font-size:13px}
+    .s{font-size:11px;fill:#334155}
+    .l{stroke:#334155;stroke-width:1.4;fill:none}
+    .lr{stroke:#dc2626;stroke-width:1.4;fill:none;stroke-dasharray:5 3}
+    .lbl{font-size:11px;fill:#0f172a}
+    .bg{fill:#fff;opacity:0.9}
+  </style>
+  <rect width="1000" height="600" fill="#fff"/>
+  <text x="20" y="30" font-size="18" font-weight="bold">รูปที่ 5  State diagram ของ FB_Sequencer (สถานะเชิงแนวคิด)</text>
+
+  <!-- states -->
+  <rect x="40" y="230" width="160" height="80" rx="14" fill="#f1f5f9" stroke="#475569" class="st"/>
+  <text x="120" y="257" text-anchor="middle" class="t">S0  IDLE</text>
+  <text x="120" y="277" text-anchor="middle" class="s">AutoMode=0</text>
+  <text x="120" y="293" text-anchor="middle" class="s">ทุกอุปกรณ์หยุด</text>
+
+  <rect x="300" y="80" width="190" height="90" rx="14" fill="#dbeafe" stroke="#1d4ed8" class="st"/>
+  <text x="395" y="105" text-anchor="middle" class="t">S1  AUTO – BLOWER</text>
+  <text x="395" y="125" text-anchor="middle" class="s">BlowerCmd=1, ScrewCmd=0</text>
+  <text x="395" y="141" text-anchor="middle" class="s">รอ Blower วิ่ง ≥ Delay[0] (7 s)</text>
+  <text x="395" y="157" text-anchor="middle" class="s">และ Request ค้าง ≥ Delay[1] (3 s)</text>
+
+  <rect x="580" y="80" width="180" height="90" rx="14" fill="#ede9fe" stroke="#6d28d9" class="st"/>
+  <text x="670" y="105" text-anchor="middle" class="t">S2  AUTO – SCREW</text>
+  <text x="670" y="125" text-anchor="middle" class="s">ScrewCmd=1</text>
+  <text x="670" y="141" text-anchor="middle" class="s">รอ Screw วิ่ง ≥ Delay[2] (3 s)</text>
+  <text x="670" y="157" text-anchor="middle" class="s">PatternCmd=0</text>
+
+  <rect x="820" y="80" width="160" height="90" rx="14" fill="#dcfce7" stroke="#15803d" class="st"/>
+  <text x="900" y="105" text-anchor="middle" class="t">S3  AUTO – PATTERN</text>
+  <text x="900" y="125" text-anchor="middle" class="s">PatternCmd=1</text>
+  <text x="900" y="141" text-anchor="middle" class="s">Paddle ตาม Pattern</text>
+  <text x="900" y="157" text-anchor="middle" class="s">วนซ้ำตลอด</text>
+
+  <rect x="470" y="380" width="230" height="90" rx="14" fill="#fef9c3" stroke="#a16207" class="st"/>
+  <text x="585" y="405" text-anchor="middle" class="t">S4  BLOWER STOP DELAY</text>
+  <text x="585" y="425" text-anchor="middle" class="s">AutoMode=0, BlowerStopPending=1</text>
+  <text x="585" y="441" text-anchor="middle" class="s">Screw/Paddle หยุดแล้ว, Blower วิ่งต่อ</text>
+  <text x="585" y="457" text-anchor="middle" class="s">Delay[4] หรือ Delay[5] (5 s)</text>
+
+  <rect x="40" y="440" width="190" height="90" rx="14" fill="#fee2e2" stroke="#b91c1c" class="st"/>
+  <text x="135" y="465" text-anchor="middle" class="t">S5  E-STOP</text>
+  <text x="135" y="485" text-anchor="middle" class="s">EStopLatch=1 → ทุกอย่างหยุด</text>
+  <text x="135" y="501" text-anchor="middle" class="s">Auto Start ถูกปฏิเสธ</text>
+  <text x="135" y="517" text-anchor="middle" class="s">(+ Safety relay ตัด hardware)</text>
+
+  <!-- transitions -->
+  <!-- S0 -> S1 -->
+  <path d="M170,230 C200,150 240,130 298,125" class="l" marker-end="url(#a)"/>
+  <rect x="150" y="140" width="140" height="32" class="bg"/>
+  <text x="155" y="153" class="lbl">Auto Start (rising edge)</text>
+  <text x="155" y="167" class="lbl">ไม่มี Auto Stop / E-Stop</text>
+  <!-- S1 -> S2 -->
+  <path d="M490,110 L578,110" class="l" marker-end="url(#a)"/>
+  <text x="495" y="74" class="lbl">tmBlowerReady.Q</text>
+  <text x="495" y="88" class="lbl">AND tmReqOn.Q</text>
+  <!-- S2 -> S3 -->
+  <path d="M760,110 L818,110" class="l" marker-end="url(#a)"/>
+  <text x="764" y="74" class="lbl">tmScrewReady.Q</text>
+  <text x="764" y="88" class="lbl">AND ExtReq</text>
+  <!-- S3 -> S2 -->
+  <path d="M820,150 L762,150" class="l" marker-end="url(#a)"/>
+  <rect x="725" y="178" width="270" height="32" class="bg"/>
+  <text x="728" y="191" class="lbl">ExtReq = 0 → Paddle หยุดทันที (Pattern reset)</text>
+  <text x="728" y="205" class="lbl">ScrewCmd ยังค้างอยู่อีก Delay[3]</text>
+  <!-- S2 -> S1 -->
+  <path d="M580,150 L492,150" class="l" marker-end="url(#a)"/>
+  <rect x="480" y="178" width="200" height="46" class="bg"/>
+  <text x="485" y="191" class="lbl">tmReqOff.Q (Request หาย ≥ 3 s)</text>
+  <text x="485" y="205" class="lbl">หรือ Blower ไม่วิ่ง → ScrewCmd=0</text>
+  <text x="485" y="219" class="lbl">(S3 ก็กลับมา S1 ได้ด้วยเหตุเดียวกัน)</text>
+
+  <!-- Auto stop / screw trip -> S4 -->
+  <path d="M395,170 C395,320 450,400 468,415" class="l" marker-end="url(#a)"/>
+  <path d="M670,170 L620,378" class="l" marker-end="url(#a)"/>
+  <path d="M900,170 C900,330 760,420 702,425" class="l" marker-end="url(#a)"/>
+  <rect x="720" y="270" width="260" height="62" class="bg"/>
+  <text x="725" y="283" class="lbl">Auto Stop (Cmd/PB) → Delay[5] = 5 s</text>
+  <text x="725" y="299" class="lbl">Screw trip (เคยวิ่งแล้วหยุดเอง) → Delay[4] = 5 s</text>
+  <text x="725" y="315" class="lbl">(Screw trip เกิดได้เฉพาะใน S2/S3)</text>
+  <text x="725" y="329" class="lbl" fill="#b91c1c">⚠ Screw สตาร์ทไม่ติด (FC2) ไม่นับเป็น trip</text>
+
+  <!-- S4 -> S0 -->
+  <path d="M470,440 C350,440 220,330 200,300" class="l" marker-end="url(#a)"/>
+  <text x="290" y="415" class="lbl">tmBlowerStop.Q</text>
+  <text x="290" y="429" class="lbl">→ BlowerCmd=0</text>
+  <!-- S4 -> S1 -->
+  <path d="M520,380 C470,300 440,250 430,172" class="l" marker-end="url(#a)"/>
+  <text x="465" y="300" class="lbl">Auto Start อีกครั้ง</text>
+
+  <!-- blower trip -->
+  <path d="M300,150 C250,190 220,210 200,240" class="l" stroke-dasharray="3 3" marker-end="url(#a)"/>
+  <rect x="190" y="185" width="150" height="32" class="bg"/>
+  <text x="195" y="198" class="lbl">Blower trip และ</text>
+  <text x="195" y="212" class="lbl">RestartAfterBlowerTrip=0</text>
+
+  <!-- E-Stop -->
+  <path d="M120,310 L120,438" class="lr" marker-end="url(#r)"/>
+  <text x="128" y="360" class="lbl" fill="#dc2626">E-Stop จากทุกสถานะ</text>
+  <path d="M230,500 C330,520 450,500 470,470" class="lr" marker-start="url(#r)"/>
+  <path d="M170,440 C190,380 190,340 175,312" class="l" marker-end="url(#a)"/>
+  <text x="185" y="380" class="lbl">Reset + EStop_OK</text>
+  <text x="185" y="394" class="lbl">(ไม่สตาร์ทเอง)</text>
+
+  <text x="20" y="585" class="s">หมายเหตุ: ค่า Delay[] อ่านจาก DB_HMI (หน่วย 0.1 s) ค่าเริ่มต้น 70/30/30/30/50/50 · Auto Stop ปุ่มหน้าตู้เป็น NC (สายขาด = หยุด)</text>
+</svg>

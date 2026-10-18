@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 600" width="1000" height="600" font-family="Tahoma, 'Leelawadee UI', sans-serif" font-size="13">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#334155"/></marker>
+  </defs>
+  <style>
+    .ob{fill:#fee2e2;stroke:#b91c1c;stroke-width:2}
+    .fb{fill:#ede9fe;stroke:#6d28d9;stroke-width:2}
+    .fc{fill:#dcfce7;stroke:#15803d;stroke-width:2}
+    .db{fill:#dbeafe;stroke:#1d4ed8;stroke-width:2}
+    .udt{fill:#fef9c3;stroke:#a16207;stroke-width:2}
+    .t{font-weight:bold}
+    .s{font-size:11px;fill:#475569}
+    .l{stroke:#334155;stroke-width:1.5;fill:none}
+    .d{stroke:#1d4ed8;stroke-width:1.2;fill:none;stroke-dasharray:5 4}
+  </style>
+  <rect width="1000" height="600" fill="#fff"/>
+  <text x="20" y="30" font-size="18" font-weight="bold">รูปที่ 2  โครงสร้างโปรแกรม (Call tree และการเข้าถึงข้อมูล)</text>
+
+  <!-- OBs -->
+  <rect x="40" y="60" width="170" height="54" rx="6" class="ob"/><text x="125" y="83" text-anchor="middle" class="t">OB100 "Startup"</text><text x="125" y="102" text-anchor="middle" class="s">ครั้งเดียวตอน STOP→RUN</text>
+  <rect x="40" y="250" width="170" height="54" rx="6" class="ob"/><text x="125" y="273" text-anchor="middle" class="t">OB1 "Main"</text><text x="125" y="292" text-anchor="middle" class="s">ทุก scan (cyclic)</text>
+
+  <!-- OB100 calls -->
+  <rect x="270" y="50" width="170" height="40" rx="6" class="fc"/><text x="355" y="75" text-anchor="middle" class="t">FC_LoadDefaults</text>
+  <rect x="270" y="100" width="170" height="40" rx="6" class="fc"/><text x="355" y="125" text-anchor="middle" class="t">FC_ValidateParams</text>
+  <path d="M210,80 L268,70" class="l" marker-end="url(#a)"/>
+  <path d="M210,95 L268,118" class="l" marker-end="url(#a)"/>
+  <text x="215" y="62" class="s">ถ้า LostRetentive</text>
+
+  <!-- iDB / FB_FluffSilo -->
+  <rect x="270" y="235" width="200" height="84" rx="6" class="fb"/>
+  <text x="370" y="260" text-anchor="middle" class="t">FB_FluffSilo</text>
+  <text x="370" y="280" text-anchor="middle" class="s">instance: "iDB_FluffSilo"</text>
+  <text x="370" y="298" text-anchor="middle" class="s">(NON_RETAIN, optimized)</text>
+  <path d="M210,277 L268,277" class="l" marker-end="url(#a)"/>
+
+  <!-- children -->
+  <rect x="540" y="160" width="190" height="46" rx="6" class="fb"/><text x="635" y="180" text-anchor="middle" class="t">FB_Sequencer</text><text x="635" y="197" text-anchor="middle" class="s">multi-instance #Seq</text>
+  <rect x="540" y="216" width="190" height="46" rx="6" class="fb"/><text x="635" y="236" text-anchor="middle" class="t">FB_PaddlePattern</text><text x="635" y="253" text-anchor="middle" class="s">multi-instance #Pattern</text>
+  <rect x="540" y="272" width="190" height="62" rx="6" class="fb"/><text x="635" y="292" text-anchor="middle" class="t">FB_Motor × 5</text><text x="635" y="309" text-anchor="middle" class="s">#Blower01 #Screw01</text><text x="635" y="324" text-anchor="middle" class="s">#Paddle01 #Paddle02 #Paddle03</text>
+  <rect x="540" y="344" width="190" height="34" rx="6" class="fc"/><text x="635" y="366" text-anchor="middle" class="t">FC_ValidateParams</text>
+  <rect x="540" y="386" width="190" height="34" rx="6" class="fc"/><text x="635" y="408" text-anchor="middle" class="t">FC_TenthsToTime × 6</text>
+  <rect x="540" y="428" width="190" height="34" rx="6" class="fc"/><text x="635" y="450" text-anchor="middle" class="t">FC_ScaleAnalog</text>
+
+  <path d="M470,260 C505,260 505,183 538,183" class="l" marker-end="url(#a)"/>
+  <path d="M470,268 C505,268 505,239 538,239" class="l" marker-end="url(#a)"/>
+  <path d="M470,285 L538,300" class="l" marker-end="url(#a)"/>
+  <path d="M470,295 C505,295 505,361 538,361" class="l" marker-end="url(#a)"/>
+  <path d="M470,302 C500,302 500,403 538,403" class="l" marker-end="url(#a)"/>
+  <path d="M470,310 C495,310 495,445 538,445" class="l" marker-end="url(#a)"/>
+
+  <!-- pattern children -->
+  <rect x="790" y="200" width="180" height="34" rx="6" class="fc"/><text x="880" y="222" text-anchor="middle" class="t">FC_StepBlocked</text>
+  <rect x="790" y="244" width="180" height="34" rx="6" class="fc"/><text x="880" y="266" text-anchor="middle" class="t">FC_TenthsToTime</text>
+  <path d="M730,233 L788,218" class="l" marker-end="url(#a)"/>
+  <path d="M730,245 L788,260" class="l" marker-end="url(#a)"/>
+  <!-- motor UDT -->
+  <rect x="790" y="295" width="180" height="40" rx="6" class="udt"/><text x="880" y="314" text-anchor="middle" class="t">UDT typeDevStatus</text><text x="880" y="329" text-anchor="middle" class="s">output #Status</text>
+  <path d="M730,310 L788,315" class="l" marker-end="url(#a)" stroke-dasharray="3 3"/>
+
+  <!-- DB_HMI -->
+  <rect x="270" y="500" width="460" height="70" rx="6" class="db"/>
+  <text x="500" y="525" text-anchor="middle" class="t">DB10 "DB_HMI"  (Global, Standard access, 82 byte)</text>
+  <text x="500" y="547" text-anchor="middle" class="s">Dev[0..4] : typeDevStatus · Sys · Cmd · DevCmd[0..39] · Delay[0..5] · Proc · Pattern</text>
+  <text x="500" y="562" text-anchor="middle" class="s">↔ FluffSilo HMI ผ่าน PUT/GET</text>
+  <path d="M370,320 L370,498" class="d" marker-end="url(#a)"/>
+  <text x="378" y="420" class="s" fill="#1d4ed8">อ่านคำสั่ง/พารามิเตอร์,</text>
+  <text x="378" y="435" class="s" fill="#1d4ed8">เขียนสถานะ, ล้าง pulse</text>
+  <text x="450" y="75" class="s" fill="#1d4ed8">→ เขียน DB_HMI.Delay / Pattern</text>
+  <text x="450" y="125" class="s" fill="#1d4ed8">→ จำกัดช่วงค่าใน DB_HMI</text>
+  <path d="M635,462 L635,498" class="d" marker-end="url(#a)"/>
+  <text x="643" y="485" class="s" fill="#1d4ed8">FC เขียน Delay/Pattern ใน DB โดยตรง</text>
+
+  <!-- PLC tags -->
+  <rect x="40" y="500" width="190" height="70" rx="6" fill="#f1f5f9" stroke="#475569" stroke-width="2"/>
+  <text x="135" y="525" text-anchor="middle" class="t">PLC Tags (I/Q/IW)</text>
+  <text x="135" y="545" text-anchor="middle" class="s">25 tag ใน "FluffSilo_IO"</text>
+  <path d="M230,520 C260,450 280,360 300,322" class="l" stroke-dasharray="3 3" marker-end="url(#a)"/>
+
+  <!-- legend -->
+  <g transform="translate(790,420)">
+    <rect x="0" y="0" width="180" height="150" rx="6" fill="#fff" stroke="#cbd5e1"/>
+    <text x="10" y="20" class="t">คำอธิบาย</text>
+    <rect x="10" y="30" width="22" height="14" class="ob"/><text x="40" y="42" class="s">OB (Organization block)</text>
+    <rect x="10" y="52" width="22" height="14" class="fb"/><text x="40" y="64" class="s">FB (มี instance/static)</text>
+    <rect x="10" y="74" width="22" height="14" class="fc"/><text x="40" y="86" class="s">FC (ไม่มีหน่วยความจำ)</text>
+    <rect x="10" y="96" width="22" height="14" class="db"/><text x="40" y="108" class="s">Global DB</text>
+    <rect x="10" y="118" width="22" height="14" class="udt"/><text x="40" y="130" class="s">UDT</text>
+    <line x1="10" y1="142" x2="32" y2="142" class="d"/><text x="40" y="146" class="s">เข้าถึงข้อมูล</text>
+  </g>
+</svg>

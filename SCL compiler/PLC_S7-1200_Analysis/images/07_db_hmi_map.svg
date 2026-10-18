@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 566" width="1000" height="566" font-family="Tahoma, 'Leelawadee UI', sans-serif" font-size="12">
+<rect width="1000" height="566" fill="#fff"/>
+<text x="20" y="30" font-size="18" font-weight="bold">รูปที่ 7  แผนผังหน่วยความจำ DB10 "DB_HMI" (Standard access, 82 byte) — ความสูงไม่ตามสเกล</text>
+
+<rect x="150" y="70.0" width="260" height="40.0" fill="#dbeafe" stroke="#1d4ed8"/>
+<text x="140" y="81.0" text-anchor="end" font-size="11" fill="#475569">DBB0–9</text>
+<text x="280" y="94.0" text-anchor="middle" font-size="12" font-weight="bold">Dev[0..4] : typeDevStatus</text>
+<line x1="410" y1="90.0" x2="430" y2="90.0" stroke="#1d4ed8"/>
+<text x="436" y="94.0" font-size="11" fill="#334155">2 byte/อุปกรณ์: Blower01, Screw01, Paddle01..03</text>
+<rect x="150" y="110.0" width="260" height="26.0" fill="#dbeafe" stroke="#1d4ed8"/>
+<text x="140" y="121.0" text-anchor="end" font-size="11" fill="#475569">DBB10</text>
+<text x="280" y="127.0" text-anchor="middle" font-size="12" font-weight="bold">Sys</text>
+<line x1="410" y1="123.0" x2="430" y2="123.0" stroke="#1d4ed8"/>
+<text x="436" y="127.0" font-size="11" fill="#334155">X10.0 AutoMode · .1 ExtRequest · .2 PatternActive · .3 EStop</text>
+<rect x="150" y="136.0" width="260" height="14.0" fill="#f1f5f9" stroke="#94a3b8"/>
+<text x="140" y="147.0" text-anchor="end" font-size="11" fill="#475569">DBB11</text>
+<rect x="150" y="150.0" width="260" height="26.0" fill="#ffedd5" stroke="#c2410c"/>
+<text x="140" y="161.0" text-anchor="end" font-size="11" fill="#475569">DBB12</text>
+<text x="280" y="167.0" text-anchor="middle" font-size="12" font-weight="bold">Cmd</text>
+<line x1="410" y1="163.0" x2="430" y2="163.0" stroke="#c2410c"/>
+<text x="436" y="167.0" font-size="11" fill="#334155">X12.0 AutoStart · .1 AutoStop · .2 EStop · .3 ResetEStop (pulse) · .4 ExtRequest (คงค่า)</text>
+<rect x="150" y="176.0" width="260" height="14.0" fill="#f1f5f9" stroke="#94a3b8"/>
+<text x="140" y="187.0" text-anchor="end" font-size="11" fill="#475569">DBB13</text>
+<rect x="150" y="190.0" width="260" height="26.0" fill="#ffedd5" stroke="#c2410c"/>
+<text x="140" y="201.0" text-anchor="end" font-size="11" fill="#475569">DBB14–18</text>
+<text x="280" y="207.0" text-anchor="middle" font-size="12" font-weight="bold">DevCmd[0..39] : Bool</text>
+<line x1="410" y1="203.0" x2="430" y2="203.0" stroke="#c2410c"/>
+<text x="436" y="207.0" font-size="11" fill="#334155">index = device×8 + cmd  (cmd 0..5, 6..7 สำรอง)</text>
+<rect x="150" y="216.0" width="260" height="14.0" fill="#f1f5f9" stroke="#94a3b8"/>
+<text x="140" y="227.0" text-anchor="end" font-size="11" fill="#475569">DBB19</text>
+<rect x="150" y="230.0" width="260" height="48.0" fill="#dcfce7" stroke="#15803d"/>
+<text x="140" y="241.0" text-anchor="end" font-size="11" fill="#475569">DBB20–31</text>
+<text x="280" y="258.0" text-anchor="middle" font-size="12" font-weight="bold">Delay[0..5] : Int (0.1 s)</text>
+<line x1="410" y1="254.0" x2="430" y2="254.0" stroke="#15803d"/>
+<text x="436" y="258.0" font-size="11" fill="#334155">DBW20 B→S · 22 ReqHold · 24 S→P · 26 ReqOff · 28 ScrewTrip · 30 AutoStop</text>
+<rect x="150" y="278.0" width="260" height="32.0" fill="#dbeafe" stroke="#1d4ed8"/>
+<text x="140" y="289.0" text-anchor="end" font-size="11" fill="#475569">DBB32–39</text>
+<text x="280" y="298.0" text-anchor="middle" font-size="12" font-weight="bold">Proc</text>
+<line x1="410" y1="294.0" x2="430" y2="294.0" stroke="#1d4ed8"/>
+<text x="436" y="298.0" font-size="11" fill="#334155">DBW32 CurrentStep · 34 StepElapsed · 36 SiloLevel(0.1 %) · 38 Spare</text>
+<rect x="150" y="310.0" width="260" height="26.0" fill="#dcfce7" stroke="#15803d"/>
+<text x="140" y="321.0" text-anchor="end" font-size="11" fill="#475569">DBB40–41</text>
+<text x="280" y="327.0" text-anchor="middle" font-size="12" font-weight="bold">Pattern.StepCount</text>
+<line x1="410" y1="323.0" x2="430" y2="323.0" stroke="#15803d"/>
+<text x="436" y="327.0" font-size="11" fill="#334155">DBW40  0..10</text>
+<rect x="150" y="336.0" width="260" height="80.0" fill="#dcfce7" stroke="#15803d"/>
+<text x="140" y="347.0" text-anchor="end" font-size="11" fill="#475569">DBB42–61</text>
+<text x="280" y="380.0" text-anchor="middle" font-size="12" font-weight="bold">Pattern.Mask[0..9]</text>
+<line x1="410" y1="376.0" x2="430" y2="376.0" stroke="#15803d"/>
+<text x="436" y="380.0" font-size="11" fill="#334155">DBW42..60  bit0 P01 · bit1 P02 · bit2 P03 · 0 = พัก</text>
+<rect x="150" y="416.0" width="260" height="80.0" fill="#dcfce7" stroke="#15803d"/>
+<text x="140" y="427.0" text-anchor="end" font-size="11" fill="#475569">DBB62–81</text>
+<text x="280" y="460.0" text-anchor="middle" font-size="12" font-weight="bold">Pattern.StepTime[0..9]</text>
+<line x1="410" y1="456.0" x2="430" y2="456.0" stroke="#15803d"/>
+<text x="436" y="460.0" font-size="11" fill="#334155">DBW62..80  0.1 s (min 5 = 0.5 s)</text>
+<rect x="20" y="521.0" width="18" height="14" fill="#dbeafe" stroke="#1d4ed8"/>
+<text x="44" y="533.0" font-size="11">PLC → HMI</text>
+<rect x="260" y="521.0" width="18" height="14" fill="#ffedd5" stroke="#c2410c"/>
+<text x="284" y="533.0" font-size="11">HMI → PLC (pulse ถูกล้างโดย PLC)</text>
+<rect x="500" y="521.0" width="18" height="14" fill="#dcfce7" stroke="#15803d"/>
+<text x="524" y="533.0" font-size="11">HMI ↔ PLC (พารามิเตอร์, retain)</text>
+<rect x="740" y="521.0" width="18" height="14" fill="#f1f5f9" stroke="#94a3b8"/>
+<text x="764" y="533.0" font-size="11">padding / ไม่ใช้</text>
+<text x="20" y="559.0" font-size="11" fill="#64748b">กฎ Standard access: Bool เรียงเป็น bit, Struct/Array/Int เริ่มที่ byte คู่ → จึงมี padding ที่ byte 11, 13, 19</text>
+</svg>

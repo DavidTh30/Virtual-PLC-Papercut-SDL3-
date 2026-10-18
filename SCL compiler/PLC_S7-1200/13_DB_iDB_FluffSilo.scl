@@ -1,0 +1,16 @@
+// =============================================================================
+// Fluff Silo System - S7-1200
+// Instance DB of FB_FluffSilo (contains the multi-instances of FB_Sequencer,
+// FB_PaddlePattern and the 5 FB_Motor).
+// NON_RETAIN on purpose: after a power cycle Manual Start / Disable / fault latches
+// and Auto mode are cleared - the plant never restarts by itself.
+// =============================================================================
+DATA_BLOCK "iDB_FluffSilo"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+NON_RETAIN
+"FB_FluffSilo"
+
+BEGIN
+
+END_DATA_BLOCK

@@ -1,0 +1,13 @@
+// =============================================================================
+// Fluff Silo System - S7-1200
+// OB1 "Main" : cyclic program
+// =============================================================================
+ORGANIZATION_BLOCK "Main"
+TITLE = 'Main Program Sweep (Cycle)'
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+
+BEGIN
+	"iDB_FluffSilo"();
+
+END_ORGANIZATION_BLOCK

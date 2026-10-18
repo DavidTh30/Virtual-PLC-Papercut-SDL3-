@@ -1,0 +1,18 @@
+// =============================================================================
+// Fluff Silo System - S7-1200
+// FC "FC_TenthsToTime" : HMI value in 0.1 s (Int) -> TIME
+//   70 -> T#7S, negative values -> T#0S
+// =============================================================================
+FUNCTION "FC_TenthsToTime" : Time
+TITLE = '0.1 s (Int) to TIME'
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      Tenths : Int;   // time in 0.1 s
+   END_VAR
+
+
+BEGIN
+	#FC_TenthsToTime := DINT_TO_TIME(INT_TO_DINT(MAX(IN1 := #Tenths, IN2 := 0)) * 100);
+
+END_FUNCTION

@@ -1,0 +1,98 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 630" width="1000" height="630" font-family="Tahoma, 'Leelawadee UI', sans-serif" font-size="12">
+<rect width="1000" height="630" fill="#fff"/>
+<text x="20" y="30" font-size="18" font-weight="bold">รูปที่ 6  Timing chart: Auto Start → Pattern → Request หาย → Auto Stop (ค่าเริ่มต้น)</text>
+
+<defs><marker id="m" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#b91c1c"/></marker></defs>
+<line x1="200.0" y1="75" x2="200.0" y2="510" stroke="#e2e8f0"/>
+<text x="200.0" y="70" text-anchor="middle" font-size="10" fill="#64748b">0s</text>
+<line x1="227.0" y1="75" x2="227.0" y2="510" stroke="#e2e8f0"/>
+<line x1="254.0" y1="75" x2="254.0" y2="510" stroke="#e2e8f0"/>
+<text x="254.0" y="70" text-anchor="middle" font-size="10" fill="#64748b">4s</text>
+<line x1="281.0" y1="75" x2="281.0" y2="510" stroke="#e2e8f0"/>
+<line x1="308.0" y1="75" x2="308.0" y2="510" stroke="#e2e8f0"/>
+<text x="308.0" y="70" text-anchor="middle" font-size="10" fill="#64748b">8s</text>
+<line x1="335.0" y1="75" x2="335.0" y2="510" stroke="#e2e8f0"/>
+<line x1="362.0" y1="75" x2="362.0" y2="510" stroke="#e2e8f0"/>
+<text x="362.0" y="70" text-anchor="middle" font-size="10" fill="#64748b">12s</text>
+<line x1="389.0" y1="75" x2="389.0" y2="510" stroke="#e2e8f0"/>
+<line x1="416.0" y1="75" x2="416.0" y2="510" stroke="#e2e8f0"/>
+<text x="416.0" y="70" text-anchor="middle" font-size="10" fill="#64748b">16s</text>
+<line x1="443.0" y1="75" x2="443.0" y2="510" stroke="#e2e8f0"/>
+<line x1="470.0" y1="75" x2="470.0" y2="510" stroke="#e2e8f0"/>
+<text x="470.0" y="70" text-anchor="middle" font-size="10" fill="#64748b">20s</text>
+<line x1="497.0" y1="75" x2="497.0" y2="510" stroke="#e2e8f0"/>
+<line x1="524.0" y1="75" x2="524.0" y2="510" stroke="#e2e8f0"/>
+<text x="524.0" y="70" text-anchor="middle" font-size="10" fill="#64748b">24s</text>
+<line x1="551.0" y1="75" x2="551.0" y2="510" stroke="#e2e8f0"/>
+<line x1="578.0" y1="75" x2="578.0" y2="510" stroke="#e2e8f0"/>
+<text x="578.0" y="70" text-anchor="middle" font-size="10" fill="#64748b">28s</text>
+<line x1="605.0" y1="75" x2="605.0" y2="510" stroke="#e2e8f0"/>
+<line x1="632.0" y1="75" x2="632.0" y2="510" stroke="#e2e8f0"/>
+<text x="632.0" y="70" text-anchor="middle" font-size="10" fill="#64748b">32s</text>
+<line x1="659.0" y1="75" x2="659.0" y2="510" stroke="#e2e8f0"/>
+<line x1="686.0" y1="75" x2="686.0" y2="510" stroke="#e2e8f0"/>
+<text x="686.0" y="70" text-anchor="middle" font-size="10" fill="#64748b">36s</text>
+<line x1="713.0" y1="75" x2="713.0" y2="510" stroke="#e2e8f0"/>
+<line x1="740.0" y1="75" x2="740.0" y2="510" stroke="#e2e8f0"/>
+<text x="740.0" y="70" text-anchor="middle" font-size="10" fill="#64748b">40s</text>
+<line x1="767.0" y1="75" x2="767.0" y2="510" stroke="#e2e8f0"/>
+<line x1="794.0" y1="75" x2="794.0" y2="510" stroke="#e2e8f0"/>
+<text x="794.0" y="70" text-anchor="middle" font-size="10" fill="#64748b">44s</text>
+<line x1="821.0" y1="75" x2="821.0" y2="510" stroke="#e2e8f0"/>
+<line x1="848.0" y1="75" x2="848.0" y2="510" stroke="#e2e8f0"/>
+<text x="848.0" y="70" text-anchor="middle" font-size="10" fill="#64748b">48s</text>
+<line x1="875.0" y1="75" x2="875.0" y2="510" stroke="#e2e8f0"/>
+<line x1="902.0" y1="75" x2="902.0" y2="510" stroke="#e2e8f0"/>
+<text x="902.0" y="70" text-anchor="middle" font-size="10" fill="#64748b">52s</text>
+<line x1="929.0" y1="75" x2="929.0" y2="510" stroke="#e2e8f0"/>
+<line x1="956.0" y1="75" x2="956.0" y2="510" stroke="#e2e8f0"/>
+<text x="956.0" y="70" text-anchor="middle" font-size="10" fill="#64748b">56s</text>
+<text x="20" y="106" font-size="12">Auto Start (pulse)</text>
+<polyline points="200.0,110 200.0,110 200.0,90 205.4,90 205.4,110 956.0,110" fill="none" stroke="#334155" stroke-width="2.2"/>
+<text x="20" y="148" font-size="12">ExtRequest</text>
+<polyline points="200.0,152 200.0,152 200.0,132 767.0,132 767.0,152 956.0,152" fill="none" stroke="#ea580c" stroke-width="2.2"/>
+<rect x="200.0" y="132" width="567.0" height="20" fill="#ea580c" opacity="0.12"/>
+<text x="20" y="190" font-size="12">AutoMode (Lamp_AutoRun)</text>
+<polyline points="200.0,194 200.0,194 200.0,174 848.0,174 848.0,194 956.0,194" fill="none" stroke="#0f766e" stroke-width="2.2"/>
+<rect x="200.0" y="174" width="648.0" height="20" fill="#0f766e" opacity="0.12"/>
+<text x="20" y="232" font-size="12">Blower01  Q0.0</text>
+<polyline points="200.0,236 200.0,236 200.0,216 915.5,216 915.5,236 956.0,236" fill="none" stroke="#1d4ed8" stroke-width="2.2"/>
+<rect x="200.0" y="216" width="715.5" height="20" fill="#1d4ed8" opacity="0.12"/>
+<text x="20" y="274" font-size="12">Screw01   Q0.1</text>
+<polyline points="200.0,278 294.5,278 294.5,258 807.5,258 807.5,278 956.0,278" fill="none" stroke="#6d28d9" stroke-width="2.2"/>
+<rect x="294.5" y="258" width="513.0" height="20" fill="#6d28d9" opacity="0.12"/>
+<text x="20" y="316" font-size="12">PatternActive</text>
+<polyline points="200.0,320 335.0,320 335.0,300 767.0,300 767.0,320 956.0,320" fill="none" stroke="#15803d" stroke-width="2.2"/>
+<rect x="335.0" y="300" width="432.0" height="20" fill="#15803d" opacity="0.12"/>
+<text x="20" y="358" font-size="12">Paddle01  Q0.2</text>
+<polyline points="200.0,362 335.0,362 335.0,342 443.0,342 443.0,362 740.0,362 740.0,342 767.0,342 767.0,362 956.0,362" fill="none" stroke="#16a34a" stroke-width="2.2"/>
+<rect x="335.0" y="342" width="108.0" height="20" fill="#16a34a" opacity="0.12"/>
+<rect x="740.0" y="342" width="27.0" height="20" fill="#16a34a" opacity="0.12"/>
+<text x="20" y="400" font-size="12">Paddle02  Q0.3</text>
+<polyline points="200.0,404 470.0,404 470.0,384 578.0,384 578.0,404 956.0,404" fill="none" stroke="#16a34a" stroke-width="2.2"/>
+<rect x="470.0" y="384" width="108.0" height="20" fill="#16a34a" opacity="0.12"/>
+<text x="20" y="442" font-size="12">Paddle03  Q0.4</text>
+<polyline points="200.0,446 605.0,446 605.0,426 713.0,426 713.0,446 956.0,446" fill="none" stroke="#16a34a" stroke-width="2.2"/>
+<rect x="605.0" y="426" width="108.0" height="20" fill="#16a34a" opacity="0.12"/>
+<text x="20" y="484" font-size="12">Auto Stop (pulse)</text>
+<polyline points="200.0,488 848.0,488 848.0,468 853.4,468 853.4,488 956.0,488" fill="none" stroke="#334155" stroke-width="2.2"/>
+<line x1="200.0" y1="252" x2="294.5" y2="252" stroke="#b91c1c" stroke-width="1.2" marker-start="url(#m)" marker-end="url(#m)"/>
+<text x="247.25" y="248" text-anchor="middle" font-size="10" fill="#b91c1c">Delay[0] 7 s</text>
+<line x1="294.5" y1="252" x2="335.0" y2="252" stroke="#b91c1c" stroke-width="1.2" marker-start="url(#m)" marker-end="url(#m)"/>
+<text x="314.75" y="248" text-anchor="middle" font-size="10" fill="#b91c1c">Delay[2] 3 s</text>
+<line x1="767.0" y1="252" x2="807.5" y2="252" stroke="#b91c1c" stroke-width="1.2" marker-start="url(#m)" marker-end="url(#m)"/>
+<text x="787.25" y="248" text-anchor="middle" font-size="10" fill="#b91c1c">Delay[3] 3 s</text>
+<line x1="848.0" y1="210" x2="915.5" y2="210" stroke="#b91c1c" stroke-width="1.2" marker-start="url(#m)" marker-end="url(#m)"/>
+<text x="881.75" y="206" text-anchor="middle" font-size="10" fill="#b91c1c">Delay[5] 5 s</text>
+<text x="389.0" y="314.0" text-anchor="middle" font-size="10" fill="#14532d">P1 8 s</text>
+<text x="456.5" y="314.0" text-anchor="middle" font-size="10" fill="#14532d">2</text>
+<text x="524.0" y="314.0" text-anchor="middle" font-size="10" fill="#14532d">P2 8 s</text>
+<text x="591.5" y="314.0" text-anchor="middle" font-size="10" fill="#14532d">2</text>
+<text x="659.0" y="314.0" text-anchor="middle" font-size="10" fill="#14532d">P3 8 s</text>
+<text x="726.5" y="314.0" text-anchor="middle" font-size="10" fill="#14532d">2</text>
+<text x="753.5" y="314.0" text-anchor="middle" font-size="10" fill="#14532d">P1</text>
+<text x="20" y="530" font-size="12">t=0  กด Auto Start ขณะ ExtRequest = 1 อยู่แล้ว → Blower วิ่งทันที (Request ค้างครบ 3 s ตั้งแต่ t=3 แต่ต้องรอ Blower ครบ 7 s)</text>
+<text x="20" y="550" font-size="12">t=7  Screw01 วิ่ง · t=10 Pattern เริ่ม step 1 (P1 8 s → พัก 2 s → P2 → พัก → P3 → พัก → วนซ้ำ)</text>
+<text x="20" y="570" font-size="12">t=42 ExtRequest หาย → Paddle หยุดทันที (Pattern reset ไป step 1) · Screw หยุดหลัง Delay[3] = 3 s (t=45) · Blower วิ่งต่อ</text>
+<text x="20" y="590" font-size="12">t=48 Auto Stop → AutoMode = 0, Blower หยุดหลัง Delay[5] = 5 s (t=53)   [ถ้า Screw trip จะใช้ Delay[4] แทน]</text>
+</svg>

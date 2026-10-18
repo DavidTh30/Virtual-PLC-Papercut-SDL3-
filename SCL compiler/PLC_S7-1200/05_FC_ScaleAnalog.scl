@@ -1,0 +1,33 @@
+// =============================================================================
+// Fluff Silo System - S7-1200
+// FC "FC_ScaleAnalog" : analog input (0..27648) -> engineering value
+//   e.g. silo level sensor 0..10 V on IW64 -> 0..100 %
+//   Out-of-range raw values are clamped; Fault = overflow / underflow
+//   (S7-1200 onboard AI: 32767 = overflow, wire break on 4..20 mA modules: -32768)
+// =============================================================================
+FUNCTION "FC_ScaleAnalog" : Real
+TITLE = 'Scale analog input'
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      Raw : Int;        // raw value from the input word
+      EngLow : Real;    // engineering value at 0
+      EngHigh : Real;   // engineering value at 27648
+   END_VAR
+
+   VAR_OUTPUT
+      Fault : Bool;     // raw value outside the measuring range
+   END_VAR
+
+   VAR_TEMP
+      norm : Real;
+   END_VAR
+
+
+BEGIN
+	#Fault := (#Raw > 32511) OR (#Raw < -4864);
+	#norm := NORM_X(MIN := 0, VALUE := #Raw, MAX := 27648);
+	#norm := LIMIT(MN := 0.0, IN := #norm, MX := 1.0);
+	#FC_ScaleAnalog := SCALE_X(MIN := #EngLow, VALUE := #norm, MAX := #EngHigh);
+
+END_FUNCTION

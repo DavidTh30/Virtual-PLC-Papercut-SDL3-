@@ -1,0 +1,98 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 600" width="1000" height="600" font-family="Tahoma, 'Leelawadee UI', sans-serif" font-size="12">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#334155"/></marker>
+  </defs>
+  <style>
+    .dec{fill:#fff;stroke:#334155;stroke-width:1.5}
+    .off{fill:#fee2e2;stroke:#b91c1c;stroke-width:1.5}
+    .on{fill:#dcfce7;stroke:#15803d;stroke-width:1.5}
+    .t{font-weight:bold}
+    .s{font-size:11px;fill:#475569}
+    .l{stroke:#334155;stroke-width:1.3;fill:none}
+  </style>
+  <rect width="1000" height="600" fill="#fff"/>
+  <text x="20" y="30" font-size="18" font-weight="bold">รูปที่ 4  FB_Motor — ลำดับความสำคัญ (Priority L6 → L1) และการตรวจจับ Fault</text>
+
+  <!-- priority chain -->
+  <g>
+    <rect x="30" y="55" width="200" height="34" rx="17" fill="#334155"/><text x="130" y="77" text-anchor="middle" fill="#fff" class="t">เริ่มประเมินทุก scan</text>
+    <path d="M130,89 L130,103" class="l" marker-end="url(#a)"/>
+  </g>
+  <!-- rows: y start 105, step 52 -->
+  <g id="rows">
+    <rect x="30" y="105" width="200" height="38" class="dec"/><text x="130" y="128" text-anchor="middle">#Faulted ?</text>
+    <rect x="300" y="105" width="210" height="38" class="off"/><text x="405" y="128" text-anchor="middle">Run=0, Level 6 (Fault)</text>
+    <path d="M230,124 L298,124" class="l" marker-end="url(#a)"/><text x="250" y="118" class="s">ใช่</text>
+    <path d="M130,143 L130,155" class="l" marker-end="url(#a)"/>
+
+    <rect x="30" y="157" width="200" height="38" class="dec"/><text x="130" y="180" text-anchor="middle">EStop ?</text>
+    <rect x="300" y="157" width="210" height="38" class="off"/><text x="405" y="180" text-anchor="middle">Run=0, Level 6 (E-Stop)</text>
+    <path d="M230,176 L298,176" class="l" marker-end="url(#a)"/><text x="250" y="170" class="s">ใช่</text>
+    <path d="M130,195 L130,207" class="l" marker-end="url(#a)"/>
+
+    <rect x="30" y="209" width="200" height="38" class="dec"/><text x="130" y="232" text-anchor="middle">#Disabled ?</text>
+    <rect x="300" y="209" width="210" height="38" class="off"/><text x="405" y="232" text-anchor="middle">Run=0, Level 5 (Disable)</text>
+    <path d="M230,228 L298,228" class="l" marker-end="url(#a)"/><text x="250" y="222" class="s">ใช่</text>
+    <path d="M130,247 L130,259" class="l" marker-end="url(#a)"/>
+
+    <rect x="30" y="261" width="200" height="38" class="dec"/><text x="130" y="284" text-anchor="middle">#ManStop ?</text>
+    <rect x="300" y="261" width="210" height="38" class="off"/><text x="405" y="284" text-anchor="middle">Run=0, Level 4 (Manual Stop)</text>
+    <path d="M230,280 L298,280" class="l" marker-end="url(#a)"/><text x="250" y="274" class="s">ใช่</text>
+    <path d="M130,299 L130,311" class="l" marker-end="url(#a)"/>
+
+    <rect x="30" y="313" width="200" height="38" class="dec" stroke-dasharray="4 3"/><text x="130" y="330" text-anchor="middle">SafeInterlock AND</text><text x="130" y="345" text-anchor="middle">Interlock ?</text>
+    <rect x="300" y="313" width="210" height="38" class="off"/><text x="405" y="336" text-anchor="middle">Run=0, Level 2 (Interlock)</text>
+    <path d="M230,332 L298,332" class="l" marker-end="url(#a)"/><text x="250" y="326" class="s">ใช่</text>
+    <path d="M130,351 L130,363" class="l" marker-end="url(#a)"/>
+
+    <rect x="30" y="365" width="200" height="38" class="dec"/><text x="130" y="388" text-anchor="middle">#ManStart ?</text>
+    <rect x="300" y="365" width="210" height="38" class="on"/><text x="405" y="388" text-anchor="middle">Run=1, Level 3 (Manual Start)</text>
+    <path d="M230,384 L298,384" class="l" marker-end="url(#a)"/><text x="250" y="378" class="s">ใช่</text>
+    <path d="M130,403 L130,415" class="l" marker-end="url(#a)"/>
+
+    <rect x="30" y="417" width="200" height="38" class="dec"/><text x="130" y="440" text-anchor="middle">AutoStop OR Interlock ?</text>
+    <rect x="300" y="417" width="210" height="38" class="off"/><text x="405" y="440" text-anchor="middle">Run=0, Level 2 (Auto Stop / IL)</text>
+    <path d="M230,436 L298,436" class="l" marker-end="url(#a)"/><text x="250" y="430" class="s">ใช่</text>
+    <path d="M130,455 L130,467" class="l" marker-end="url(#a)"/>
+
+    <rect x="30" y="469" width="200" height="38" class="dec"/><text x="130" y="492" text-anchor="middle">AutoStart ?</text>
+    <rect x="300" y="469" width="210" height="38" class="on"/><text x="405" y="492" text-anchor="middle">Run=1, Level 1 (Auto Start)</text>
+    <path d="M230,488 L298,488" class="l" marker-end="url(#a)"/><text x="250" y="482" class="s">ใช่</text>
+    <path d="M130,507 L130,519" class="l" marker-end="url(#a)"/>
+    <rect x="30" y="521" width="200" height="38" class="off"/><text x="130" y="544" text-anchor="middle">Run=0, Level 0 (Idle)</text>
+  </g>
+  <text x="30" y="580" class="s">กล่องเส้นประ = ทำงานเฉพาะเมื่อ SafeInterlock = TRUE (ไม่ใช่ค่าเริ่มต้น)</text>
+  <text x="300" y="530" class="s">Available = NOT (Faulted OR EStop OR Disabled OR ManStop)</text>
+  <text x="300" y="546" class="s">→ ใช้โดย FB_PaddlePattern เพื่อข้าม step ที่ไม่มี Paddle วิ่งได้</text>
+
+  <!-- fault supervision -->
+  <rect x="560" y="55" width="420" height="300" rx="8" fill="#fff7ed" stroke="#ea580c" stroke-width="1.5"/>
+  <text x="575" y="78" class="t" fill="#c2410c">การตรวจจับ Fault (latch จนกด Reset Fault)</text>
+  <rect x="575" y="92" width="390" height="58" rx="5" fill="#fff" stroke="#fdba74"/>
+  <text x="585" y="112" class="t">Code 1 — Overload</text>
+  <text x="585" y="130" class="s">OverloadOK = 0 (OL relay NC ตัด / drive not ready)</text>
+  <text x="585" y="144" class="s">ตรวจทันที ไม่มีหน่วงเวลา</text>
+  <rect x="575" y="158" width="390" height="58" rx="5" fill="#fff" stroke="#fdba74"/>
+  <text x="585" y="178" class="t">Code 2 — No feedback</text>
+  <text x="585" y="196" class="s">TON tmNoFb: Run(scan ก่อน) AND NOT Feedback ≥ FbTimeout (3 s)</text>
+  <text x="585" y="210" class="s">สั่งแล้วไม่ติด หรือ feedback หายระหว่างวิ่ง</text>
+  <rect x="575" y="224" width="390" height="58" rx="5" fill="#fff" stroke="#fdba74"/>
+  <text x="585" y="244" class="t">Code 3 — Feedback without command</text>
+  <text x="585" y="262" class="s">TON tmFbNoCmd: Feedback AND NOT Run ≥ FbTimeout (contactor ติด)</text>
+  <text x="585" y="276" class="s">Reset ไม่ได้จนกว่า feedback จะหาย</text>
+  <text x="575" y="305" class="s">เงื่อนไข Reset: CmdResetFault AND OverloadOK AND NOT tmFbNoCmd.Q</text>
+  <text x="575" y="322" class="s">Fault แรกที่เกิดจะถูกบันทึกใน FaultCode (ตัวต่อไปไม่ทับ)</text>
+  <text x="575" y="339" class="s">ResetFault = DevCmd[x*8+5] OR PB_Reset/Cmd.ResetEStop (rising edge)</text>
+
+  <!-- command latch -->
+  <rect x="560" y="370" width="420" height="200" rx="8" fill="#eff6ff" stroke="#1d4ed8" stroke-width="1.5"/>
+  <text x="575" y="393" class="t" fill="#1d4ed8">คำสั่งจาก HMI (pulse) → latch ภายใน FB</text>
+  <text x="575" y="418">CmdManStart  → ManStart=1, ManStop=0</text>
+  <text x="575" y="438">CmdManStop   → ManStop=1, ManStart=0</text>
+  <text x="575" y="458">CmdReturnAuto → ManStart=0, ManStop=0</text>
+  <text x="575" y="478">CmdDisable   → Disabled=1</text>
+  <text x="575" y="498">CmdEnable    → Disabled=0 (ประมวลผลหลัง Disable → Enable ชนะ)</text>
+  <text x="575" y="525" class="s">ทุก latch อยู่ใน iDB_FluffSilo (NON_RETAIN) → ไฟดับแล้วถูกล้าง</text>
+  <text x="575" y="542" class="s">StartCount (DInt) นับ rising edge ของ Feedback — หายเมื่อ restart</text>
+  <text x="575" y="559" class="s">Status (typeDevStatus) → DB_HMI.Dev[x] ทุก scan</text>
+</svg>
