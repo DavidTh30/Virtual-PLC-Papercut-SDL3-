@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 520" width="1000" height="520" font-family="Tahoma, 'Leelawadee UI', sans-serif" font-size="12">
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#334155"/></marker><marker id="r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#b91c1c"/></marker></defs>
+<rect width="1000" height="520" fill="#fff"/>
+<text x="20" y="30" font-size="17" font-weight="bold" fill="#0f172a">UI ที่ IDE ต้องเพิ่มสำหรับ Online / Download (wireframe)</text>
+<rect x="20" y="50" width="960" height="450" rx="6" fill="#ffffff" stroke="#64748b"/>
+<rect x="20" y="50" width="960" height="34" rx="6" fill="#e2e8f0" stroke="#64748b"/>
+<text x="35" y="72" font-size="12" text-anchor="start" fill="#0f172a" font-weight="bold">File  Edit  PLC  Build  Online▼  View  Help      [Connect] [Download] [RUN] [STOP] [Monitor]</text>
+<rect x="35" y="95" width="280" height="190" rx="8" fill="#ffedd5" stroke="#c2410c" stroke-width="1.6"/>
+<text x="45" y="115" text-anchor="start" font-size="13" font-weight="bold" fill="#0f172a">Online menu</text>
+<text x="45" y="132" text-anchor="start" font-size="11" fill="#475569">Connect / Disconnect (IP, password)</text>
+<text x="45" y="147" text-anchor="start" font-size="11" fill="#475569">Download (F10) · Upload</text>
+<text x="45" y="162" text-anchor="start" font-size="11" fill="#475569">Compare offline / online (hash)</text>
+<text x="45" y="177" text-anchor="start" font-size="11" fill="#475569">RUN / STOP / Cold restart</text>
+<text x="45" y="192" text-anchor="start" font-size="11" fill="#475569">Diagnostic buffer</text>
+<rect x="330" y="95" width="300" height="190" rx="8" fill="#dbeafe" stroke="#1d4ed8" stroke-width="1.6"/>
+<text x="340" y="115" text-anchor="start" font-size="13" font-weight="bold" fill="#0f172a">Editor online status</text>
+<text x="340" y="132" text-anchor="start" font-size="11" fill="#475569">ค่า variable ข้างบรรทัด (line table)</text>
+<text x="340" y="147" text-anchor="start" font-size="11" fill="#475569">สีเขียว/เทา ของเงื่อนไข IF</text>
+<text x="340" y="162" text-anchor="start" font-size="11" fill="#475569">Hover = ค่า + type</text>
+<text x="340" y="177" text-anchor="start" font-size="11" fill="#475569">Watch from cursor</text>
+<rect x="645" y="95" width="320" height="190" rx="8" fill="#ede9fe" stroke="#6d28d9" stroke-width="1.6"/>
+<text x="655" y="115" text-anchor="start" font-size="13" font-weight="bold" fill="#0f172a">Watch table tab</text>
+<text x="655" y="132" text-anchor="start" font-size="11" fill="#475569">เพิ่ม path จาก Find Declaration</text>
+<text x="655" y="147" text-anchor="start" font-size="11" fill="#475569">Monitor ทุก 200 ms</text>
+<text x="655" y="162" text-anchor="start" font-size="11" fill="#475569">Modify / Force</text>
+<text x="655" y="177" text-anchor="start" font-size="11" fill="#475569">บันทึก .watch</text>
+<rect x="35" y="300" width="930" height="180" rx="8" fill="#dcfce7" stroke="#15803d" stroke-width="1.6"/>
+<text x="45" y="320" text-anchor="start" font-size="13" font-weight="bold" fill="#0f172a">Download dialog</text>
+<text x="45" y="337" text-anchor="start" font-size="11" fill="#475569">Target: 192.168.0.10  CPU S7-1200 ✓ (ตรงกับโปรเจกต์)</text>
+<text x="45" y="352" text-anchor="start" font-size="11" fill="#475569">Blocks: 11 code, 2 DB   ขนาด 34 kB   hash 3F2A…</text>
+<text x="45" y="367" text-anchor="start" font-size="11" fill="#475569">ตัวเลือก: [x] STOP ก่อนโหลด  [x] เก็บค่า retain  [ ] Reset DB start values  [x] START หลังโหลด</text>
+<text x="45" y="382" text-anchor="start" font-size="11" fill="#475569">Progress ███████████░░░  72 %</text>
+<text x="45" y="397" text-anchor="start" font-size="11" fill="#475569">Log: validate OK · activate OK · RUN</text>
+</svg>

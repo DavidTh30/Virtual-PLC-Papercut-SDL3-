@@ -1,0 +1,50 @@
+<!doctype html><html lang='th'><head><meta charset='utf-8'><title>ภาพรวมโครงการ</title><style>
+@page { size: A4; margin: 14mm 12mm; }
+:root { --ink:#0f172a; --muted:#475569; --line:#cbd5e1; --accent:#1d4ed8; }
+body { font-family: Tahoma, 'Leelawadee UI', sans-serif; color: var(--ink); background:#fff; font-size: 10.3pt; line-height: 1.5; margin:0; }
+h1 { font-size: 17pt; color: var(--accent); border-bottom: 2px solid var(--accent); padding-bottom: 2mm; margin: 0 0 4mm; page-break-after: avoid; }
+h1.ch { page-break-before: always; }
+h1.ch.first { page-break-before: auto; }
+h2 { font-size: 12.3pt; margin: 5mm 0 2mm; page-break-after: avoid; }
+p { margin: 2mm 0 3mm; }
+table { border-collapse: collapse; width: 100%; margin: 2mm 0 4mm; font-size: 8.8pt; }
+tr { page-break-inside: avoid; }
+th { background: #e2e8f0; text-align: left; }
+th, td { border: 1px solid var(--line); padding: 1.1mm 1.6mm; vertical-align: top; }
+tbody tr:nth-child(even) td { background: #f8fafc; }
+figure { margin: 3mm 0 5mm; page-break-inside: avoid; text-align: center; }
+figure img { max-width: 100%; max-height: 200mm; border: 1px solid var(--line); }
+figcaption { font-size: 9pt; color: var(--muted); margin-top: 1mm; }
+pre { background: #0f172a; color: #e2e8f0; padding: 3mm; font-family: Consolas, monospace; font-size: 8.3pt; white-space: pre-wrap; page-break-inside: avoid; border-radius: 2mm; }
+.note { border-left: 4px solid var(--accent); background: #eff6ff; padding: 2mm 3mm; margin: 3mm 0; page-break-inside: avoid; }
+.note.warn { border-color: #b45309; background: #fffbeb; }
+.src { margin-top: 6mm; border-top: 1px solid var(--line); padding-top: 2mm; font-size: 9pt; color: var(--muted); }
+.cover { height: 250mm; display:flex; flex-direction:column; justify-content:center; padding: 0 10mm; border-left: 8px solid var(--accent); }
+.cover .t { font-size: 25pt; font-weight: bold; color: var(--accent); }
+.cover .s { font-size: 13pt; color: var(--muted); margin: 4mm 0 12mm; }
+.toc li { margin: 1mm 0; }
+</style></head><body><h1 class='ch first'>ภาพรวมโครงการ</h1>
+<figure><img src='../images/d01_system_overview.svg' alt=''><figcaption>รูป 1.1 ภาพรวม: SCL Studio → SCL Compiler → .svpl → Virtual PLC</figcaption></figure>
+<h2>เป้าหมาย</h2>
+<ul><li>แปลงโปรแกรม SCL ของ Siemens (S7-300 / S7-400 / S7-1200 / S7-1500) ในรูปแบบ &quot;External source&quot; ของ TIA Portal ให้เป็น bytecode</li><li>ให้มี IDE ภาษาไทย/อังกฤษสำหรับเขียน แก้ไข ตรวจ และ build โปรแกรม SCL โดยไม่ต้องใช้ TIA Portal</li><li>ผลลัพธ์เป็นไฟล์ image (.svpl) ที่ Virtual PLC (พัฒนาภายหลัง) โหลดและรันได้</li><li>โครงสร้างหน่วยความจำ DB แบบ standard access ตรงกับ S7 เพื่อให้ HMI เดิมอ่าน/เขียนด้วย address เดิมได้</li></ul>
+<h2>สิ่งที่ทำเสร็จแล้ว</h2>
+<table><thead><tr><th>ส่วน</th><th>สถานะ</th><th>หมายเหตุ</th></tr></thead><tbody><tr><td>Lexer / Parser SCL ครบทุก block</td><td>เสร็จ</td><td>TYPE, DATA_BLOCK, FUNCTION, FUNCTION_BLOCK, ORGANIZATION_BLOCK</td></tr><tr><td>Semantic + type checking ตาม CPU</td><td>เสร็จ</td><td>error พร้อม file(line,col), ไม่หยุดที่ error แรก</td></tr><tr><td>Memory layout แบบ S7 standard</td><td>เสร็จ</td><td>DB_HMI 82 byte ตรงกับ HMI map ทุก offset</td></tr><tr><td>Code generator → bytecode</td><td>เสร็จ</td><td>91 opcode, system FB 15 ชนิด</td></tr><tr><td>ไฟล์ image .svpl + listing + memory map</td><td>เสร็จ</td><td>reader/writer แยก unit ใช้กับ Virtual PLC ได้</td></tr><tr><td>Reference Virtual PLC (interpreter)</td><td>เสร็จ (ทดสอบ)</td><td>ใช้ทดสอบ compiler; เป็นต้นแบบของ Virtual PLC จริง</td></tr><tr><td>CLI sclc</td><td>เสร็จ</td><td>compile, import, dump, sim/test, find-decl</td></tr><tr><td>IDE SCL Studio</td><td>เสร็จ</td><td>editor, tag, interface grid, views, find declaration, highlight, elements panel, recent files</td></tr><tr><td>Virtual PLC + Download</td><td>ยังไม่ทำ</td><td>ออกแบบไว้ในหัวข้อ 07</td></tr></tbody></table>
+<h2>สถิติ</h2>
+<table><thead><tr><th>รายการ</th><th>ค่า</th></tr></thead><tbody><tr><td>ภาษา / เครื่องมือ</td><td>Free Pascal 3.2.2, Lazarus 4.x (LCL, SynEdit)</td></tr><tr><td>จำนวน unit</td><td>17 ไฟล์ (core 12, GUI 4, CLI 1) ประมาณ 15,400 บรรทัด</td></tr><tr><td>ไฟล์ executable</td><td>bin/sclc.exe (~1.9 MB), bin/SCLStudio.exe (~42 MB รวม debug info)</td></tr><tr><td>ชุดทดสอบ</td><td>FluffSilo 65 checks, FeatureTest 44 checks, ErrorTest 10 errors — ผ่านทั้งหมด</td></tr></tbody></table>
+<h2>โครงสร้างโฟลเดอร์</h2>
+<pre>SCLCompiler\
+  build.bat            build ทั้ง CLI และ GUI
+  run_tests.bat        compile ตัวอย่าง + รันชุดทดสอบ
+  README.md            คู่มือย่อ
+  bin\                 sclc.exe, SCLStudio.exe
+  core\                compiler + image format + reference VM (ไม่มี GUI)
+  cli\sclc.lpr         command line
+  gui\                 SCLStudio.lpi + sclide_*.pas
+  examples\FluffSilo   โปรเจกต์จริง S7-1200 + tests\sequence.txt
+  examples\FeatureTest ทดสอบ feature ภาษา (S7-1500)
+  examples\ErrorTest   ทดสอบข้อความ error
+  docs\SVPL_Spec.md    สเปก image (ฉบับย่อ)
+  docs\handbook\       เอกสารชุดนี้ (.txt .pdf images\)</pre>
+<h2>เริ่มใช้งานเร็ว</h2>
+<ol><li>build: รัน build.bat (ต้องมี Lazarus ที่ C:\lazarus)</li><li>เปิด bin\SCLStudio.exe → File &gt; Open project → examples\FluffSilo\FluffSilo.sclproj</li><li>กด Compile (F7) ดูผลใน Messages, Build (F9) ได้ output\FluffSilo.svpl</li><li>ทดสอบบน reference VM: sclc --sim output\FluffSilo.svpl --script tests\sequence.txt</li></ol>
+<div class='src'><b>แหล่งข้อมูลของหัวข้อนี้</b><ul><li>โค้ดในโฟลเดอร์ SCLCompiler (สถิติคำนวณจากไฟล์จริง)</li><li>ผลการรัน run_tests.bat</li></ul></div></body></html>

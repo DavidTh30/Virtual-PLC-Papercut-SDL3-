@@ -1,0 +1,37 @@
+<!doctype html><html lang='th'><head><meta charset='utf-8'><title>รูปแบบไฟล์ .svpl และ Memory model</title><style>
+@page { size: A4; margin: 14mm 12mm; }
+:root { --ink:#0f172a; --muted:#475569; --line:#cbd5e1; --accent:#1d4ed8; }
+body { font-family: Tahoma, 'Leelawadee UI', sans-serif; color: var(--ink); background:#fff; font-size: 10.3pt; line-height: 1.5; margin:0; }
+h1 { font-size: 17pt; color: var(--accent); border-bottom: 2px solid var(--accent); padding-bottom: 2mm; margin: 0 0 4mm; page-break-after: avoid; }
+h1.ch { page-break-before: always; }
+h1.ch.first { page-break-before: auto; }
+h2 { font-size: 12.3pt; margin: 5mm 0 2mm; page-break-after: avoid; }
+p { margin: 2mm 0 3mm; }
+table { border-collapse: collapse; width: 100%; margin: 2mm 0 4mm; font-size: 8.8pt; }
+tr { page-break-inside: avoid; }
+th { background: #e2e8f0; text-align: left; }
+th, td { border: 1px solid var(--line); padding: 1.1mm 1.6mm; vertical-align: top; }
+tbody tr:nth-child(even) td { background: #f8fafc; }
+figure { margin: 3mm 0 5mm; page-break-inside: avoid; text-align: center; }
+figure img { max-width: 100%; max-height: 200mm; border: 1px solid var(--line); }
+figcaption { font-size: 9pt; color: var(--muted); margin-top: 1mm; }
+pre { background: #0f172a; color: #e2e8f0; padding: 3mm; font-family: Consolas, monospace; font-size: 8.3pt; white-space: pre-wrap; page-break-inside: avoid; border-radius: 2mm; }
+.note { border-left: 4px solid var(--accent); background: #eff6ff; padding: 2mm 3mm; margin: 3mm 0; page-break-inside: avoid; }
+.note.warn { border-color: #b45309; background: #fffbeb; }
+.src { margin-top: 6mm; border-top: 1px solid var(--line); padding-top: 2mm; font-size: 9pt; color: var(--muted); }
+.cover { height: 250mm; display:flex; flex-direction:column; justify-content:center; padding: 0 10mm; border-left: 8px solid var(--accent); }
+.cover .t { font-size: 25pt; font-weight: bold; color: var(--accent); }
+.cover .s { font-size: 13pt; color: var(--muted); margin: 4mm 0 12mm; }
+.toc li { margin: 1mm 0; }
+</style></head><body><h1 class='ch first'>รูปแบบไฟล์ .svpl และ Memory model</h1>
+<figure><img src='../images/d04_svpl_layout.svg' alt=''><figcaption>รูป 5.1 โครงสร้างไฟล์ .svpl</figcaption></figure>
+<h2>Header และ directory</h2>
+<table><thead><tr><th>offset</th><th>ขนาด</th><th>ฟิลด์</th></tr></thead><tbody><tr><td>0</td><td>4</td><td>magic = &#x27;SVPL&#x27;</td></tr><tr><td>4</td><td>2</td><td>version = 1</td></tr><tr><td>6</td><td>1</td><td>cpu: 0 S7-300, 1 S7-400, 2 S7-1200, 3 S7-1500</td></tr><tr><td>7</td><td>1</td><td>reserved</td></tr><tr><td>8</td><td>4</td><td>section count</td></tr><tr><td>12</td><td>12×n</td><td>directory: id[4], u32 offset, u32 size</td></tr></tbody></table>
+<h2>Sections</h2>
+<table><thead><tr><th>id</th><th>เนื้อหา</th></tr></thead><tbody><tr><td>META</td><td>str projectName, u32 n, str × n (Compiler=, CPU=, Created=)</td></tr><tr><td>BLKS</td><td>u32 count; ต่อ block: u8 kind(1 OB/2 FC/3 FB), u8 flags, u16 number, str name, str sourceFile, u32 paramBytes, u32 tempBytes, u32 instanceBytes, u16 eventClass, u16 res, u32 interval, bytes code, u32 nLines + (u32 ofs, u32 line)×n, vars</td></tr><tr><td>DATA</td><td>u32 count; ต่อ DB: u16 number, u8 flags(1 opt,2 retain,4 instance), u8 res, str name, str instanceOf, bytes data, bytes retainMap, vars</td></tr><tr><td>TAGS</td><td>u32 count; str name, str type, u8 area, u8 vmType, u16 res, i64 bitOffset, str comment</td></tr><tr><td>CNST</td><td>bytes constant pool (String literal รูปแบบ S7)</td></tr><tr><td>STRS</td><td>string table UTF-8 ปิดท้ายด้วย 0 — str = u32 offset ในตารางนี้</td></tr></tbody></table>
+<p>vars: u32 count; ต่อรายการ str path, str type, u8 vmType (0 = aggregate), u8 section, u8 flags (1 retain, 2 byref, 4 hidden, 8 array, 16 struct), u8 res, i64 bitOffset, i64 sizeBits, str startValue, str comment</p>
+<figure><img src='../images/d05_memory_model.svg' alt=''><figcaption>รูป 5.2 Address model และ memory areas</figcaption></figure>
+<h2>VM type code (Load/Store)</h2>
+<table><thead><tr><th>code</th><th>ชนิด</th><th>ในหน่วยความจำ</th><th>บน stack</th></tr></thead><tbody><tr><td>1</td><td>Bool</td><td>1 bit</td><td>0/1</td></tr><tr><td>2–5</td><td>Byte Word DWord LWord</td><td>1/2/4/8 byte</td><td>unsigned</td></tr><tr><td>6–9</td><td>SInt Int DInt LInt</td><td>two complement</td><td>signed</td></tr><tr><td>10–13</td><td>USInt UInt UDInt ULInt</td><td></td><td>unsigned</td></tr><tr><td>14/15</td><td>Real / LReal</td><td>IEEE-754</td><td>Double</td></tr><tr><td>16/17</td><td>Time / LTime</td><td>DInt ms / LInt ns</td><td>Int64</td></tr><tr><td>18</td><td>S5Time</td><td>BCD + time base</td><td>ms</td></tr><tr><td>19–21</td><td>Date TOD LTOD</td><td>UInt / UDInt / ULInt</td><td>วัน / ms / ns</td></tr><tr><td>22</td><td>DT</td><td>BCD 8 byte</td><td>ms นับจาก 1990</td></tr><tr><td>23</td><td>LDT</td><td>LInt</td><td>ns นับจาก 1970</td></tr><tr><td>24/25</td><td>Char / WChar</td><td>1 / 2 byte</td><td>code</td></tr><tr><td>40</td><td>Ptr</td><td>8 byte raw address</td><td>address</td></tr></tbody></table>
+<div class='note info'>ข้อเสนอสำหรับ version 2: เพิ่ม layout hash ต่อ DB ใน section DATA เพื่อให้ Virtual PLC รู้ว่าจะคงค่า retain ข้าม download ได้หรือไม่ และเพิ่ม hash ของทั้งไฟล์ใน META เพื่อเทียบ online/offline</div>
+<div class='src'><b>แหล่งข้อมูลของหัวข้อนี้</b><ul><li>core/scl_vmformat.pas (SaveToStream/LoadFromStream), core/scl_vmmem.pas</li><li>docs/SVPL_Spec.md</li><li>รูปแบบ BCD ของ S5TIME / DATE_AND_TIME — ตรวจกับเอกสาร Siemens &quot;Data types&quot; ของ S7-300/400</li></ul></div></body></html>

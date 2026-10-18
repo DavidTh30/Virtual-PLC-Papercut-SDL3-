@@ -1,0 +1,33 @@
+<!doctype html><html lang='th'><head><meta charset='utf-8'><title>การทดสอบ</title><style>
+@page { size: A4; margin: 14mm 12mm; }
+:root { --ink:#0f172a; --muted:#475569; --line:#cbd5e1; --accent:#1d4ed8; }
+body { font-family: Tahoma, 'Leelawadee UI', sans-serif; color: var(--ink); background:#fff; font-size: 10.3pt; line-height: 1.5; margin:0; }
+h1 { font-size: 17pt; color: var(--accent); border-bottom: 2px solid var(--accent); padding-bottom: 2mm; margin: 0 0 4mm; page-break-after: avoid; }
+h1.ch { page-break-before: always; }
+h1.ch.first { page-break-before: auto; }
+h2 { font-size: 12.3pt; margin: 5mm 0 2mm; page-break-after: avoid; }
+p { margin: 2mm 0 3mm; }
+table { border-collapse: collapse; width: 100%; margin: 2mm 0 4mm; font-size: 8.8pt; }
+tr { page-break-inside: avoid; }
+th { background: #e2e8f0; text-align: left; }
+th, td { border: 1px solid var(--line); padding: 1.1mm 1.6mm; vertical-align: top; }
+tbody tr:nth-child(even) td { background: #f8fafc; }
+figure { margin: 3mm 0 5mm; page-break-inside: avoid; text-align: center; }
+figure img { max-width: 100%; max-height: 200mm; border: 1px solid var(--line); }
+figcaption { font-size: 9pt; color: var(--muted); margin-top: 1mm; }
+pre { background: #0f172a; color: #e2e8f0; padding: 3mm; font-family: Consolas, monospace; font-size: 8.3pt; white-space: pre-wrap; page-break-inside: avoid; border-radius: 2mm; }
+.note { border-left: 4px solid var(--accent); background: #eff6ff; padding: 2mm 3mm; margin: 3mm 0; page-break-inside: avoid; }
+.note.warn { border-color: #b45309; background: #fffbeb; }
+.src { margin-top: 6mm; border-top: 1px solid var(--line); padding-top: 2mm; font-size: 9pt; color: var(--muted); }
+.cover { height: 250mm; display:flex; flex-direction:column; justify-content:center; padding: 0 10mm; border-left: 8px solid var(--accent); }
+.cover .t { font-size: 25pt; font-weight: bold; color: var(--accent); }
+.cover .s { font-size: 13pt; color: var(--muted); margin: 4mm 0 12mm; }
+.toc li { margin: 1mm 0; }
+</style></head><body><h1 class='ch first'>การทดสอบ</h1>
+<table><thead><tr><th>ชุด</th><th>ไฟล์</th><th>ตรวจอะไร</th><th>ผล</th></tr></thead><tbody><tr><td>FluffSilo</td><td>examples/FluffSilo/tests/sequence.txt</td><td>checklist หน้างาน 12 ข้อ: E-Stop, Auto Start/Stop, delay, Pattern, fault, HMI command, analog, clamp</td><td>65/65</td></tr><tr><td>FeatureTest</td><td>examples/FeatureTest/tests/features.txt</td><td>CASE WHILE REPEAT FOR BY EXIT CONTINUE String UDT array 2D array FC output/InOut CTU TP IEC_TIMER MUX SHL ROL slice Time overflow</td><td>44/44</td></tr><tr><td>ErrorTest</td><td>examples/ErrorTest/errors.scl</td><td>narrowing, range, unknown, index, condition type, Time, unknown FC, missing ;, EXIT, SHL real</td><td>10/10</td></tr><tr><td>CPU rules</td><td>FeatureTest --cpu S7-300 / S7-1200</td><td>LReal/LTime/slice ถูกปฏิเสธตาม CPU</td><td>ผ่าน</td></tr><tr><td>Round trip</td><td>grid → source ทุก block แล้ว compile + test</td><td>declgen ไม่ทำให้ความหมายเปลี่ยน</td><td>65/65</td></tr><tr><td>GUI</td><td>ภาพหน้าจอจากการทดสอบด้วยเมาส์/คีย์บอร์ด</td><td>tree, editor, views, find decl, drag &amp; drop, recent</td><td>ผ่าน (manual)</td></tr></tbody></table>
+<h2>ภาษา script (sclc --sim image.svpl --script file.txt)</h2>
+<table><thead><tr><th>คำสั่ง</th><th>ความหมาย</th></tr></thead><tbody><tr><td>cycle-ms 10</td><td>เวลาจำลองต่อ cycle</td></tr><tr><td>set &lt;path&gt; &lt;value&gt;</td><td>เขียน tag หรือ &quot;DB&quot;.path</td></tr><tr><td>link &lt;input&gt; &lt;output&gt;</td><td>input = output ทุก cycle (จำลอง feedback)</td></tr><tr><td>run 7s | run 500ms | run 3 cycles</td><td>รัน</td></tr><tr><td>expect &lt;path&gt; &lt;value&gt;</td><td>PASS / FAIL</td></tr><tr><td>print &lt;path&gt;</td><td>แสดงค่า</td></tr><tr><td>echo text</td><td>ข้อความ</td></tr></tbody></table>
+<h2>วิธีเพิ่ม test</h2>
+<ol><li>สร้างโปรเจกต์ใน examples/&lt;ชื่อ&gt; (หรือใช้ sclc --import)</li><li>เขียน tests/&lt;ชื่อ&gt;.txt ด้วยคำสั่งข้างบน</li><li>เพิ่มใน run_tests.bat</li><li>ทุกครั้งที่แก้ codegen หรือ opcode ให้รัน run_tests.bat</li></ol>
+<div class='note info'>แนะนำเพิ่ม: เทียบผลกับ PLCSIM / PLC จริงด้วย script เดียวกัน (golden test) และ CI (GitHub Actions + Lazarus) เพื่อรันอัตโนมัติ</div>
+<div class='src'><b>แหล่งข้อมูลของหัวข้อนี้</b><ul><li>ไฟล์ทดสอบในโฟลเดอร์ examples</li><li>README ของ PLC_S7-1200 (checklist หน้างาน)</li></ul></div></body></html>

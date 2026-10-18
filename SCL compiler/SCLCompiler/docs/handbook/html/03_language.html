@@ -1,0 +1,37 @@
+<!doctype html><html lang='th'><head><meta charset='utf-8'><title>ภาษา SCL ที่รองรับ</title><style>
+@page { size: A4; margin: 14mm 12mm; }
+:root { --ink:#0f172a; --muted:#475569; --line:#cbd5e1; --accent:#1d4ed8; }
+body { font-family: Tahoma, 'Leelawadee UI', sans-serif; color: var(--ink); background:#fff; font-size: 10.3pt; line-height: 1.5; margin:0; }
+h1 { font-size: 17pt; color: var(--accent); border-bottom: 2px solid var(--accent); padding-bottom: 2mm; margin: 0 0 4mm; page-break-after: avoid; }
+h1.ch { page-break-before: always; }
+h1.ch.first { page-break-before: auto; }
+h2 { font-size: 12.3pt; margin: 5mm 0 2mm; page-break-after: avoid; }
+p { margin: 2mm 0 3mm; }
+table { border-collapse: collapse; width: 100%; margin: 2mm 0 4mm; font-size: 8.8pt; }
+tr { page-break-inside: avoid; }
+th { background: #e2e8f0; text-align: left; }
+th, td { border: 1px solid var(--line); padding: 1.1mm 1.6mm; vertical-align: top; }
+tbody tr:nth-child(even) td { background: #f8fafc; }
+figure { margin: 3mm 0 5mm; page-break-inside: avoid; text-align: center; }
+figure img { max-width: 100%; max-height: 200mm; border: 1px solid var(--line); }
+figcaption { font-size: 9pt; color: var(--muted); margin-top: 1mm; }
+pre { background: #0f172a; color: #e2e8f0; padding: 3mm; font-family: Consolas, monospace; font-size: 8.3pt; white-space: pre-wrap; page-break-inside: avoid; border-radius: 2mm; }
+.note { border-left: 4px solid var(--accent); background: #eff6ff; padding: 2mm 3mm; margin: 3mm 0; page-break-inside: avoid; }
+.note.warn { border-color: #b45309; background: #fffbeb; }
+.src { margin-top: 6mm; border-top: 1px solid var(--line); padding-top: 2mm; font-size: 9pt; color: var(--muted); }
+.cover { height: 250mm; display:flex; flex-direction:column; justify-content:center; padding: 0 10mm; border-left: 8px solid var(--accent); }
+.cover .t { font-size: 25pt; font-weight: bold; color: var(--accent); }
+.cover .s { font-size: 13pt; color: var(--muted); margin: 4mm 0 12mm; }
+.toc li { margin: 1mm 0; }
+</style></head><body><h1 class='ch first'>ภาษา SCL ที่รองรับ</h1>
+<h2>Block และส่วนประกอบ</h2>
+<table><thead><tr><th>หมวด</th><th>รองรับ</th></tr></thead><tbody><tr><td>Block</td><td>TYPE (UDT), DATA_BLOCK (STRUCT / VAR / instance ของ FB, UDT, system FB), FUNCTION, FUNCTION_BLOCK, ORGANIZATION_BLOCK</td></tr><tr><td>Header</td><td>TITLE, VERSION, AUTHOR, FAMILY, NAME, { S7_Optimized_Access := ... }, RETAIN / NON_RETAIN, KNOW_HOW_PROTECT (ข้าม)</td></tr><tr><td>Section</td><td>VAR_INPUT, VAR_OUTPUT, VAR_IN_OUT, VAR (RETAIN/NON_RETAIN), VAR_TEMP, VAR CONSTANT</td></tr><tr><td>Statement</td><td>:=, IF/ELSIF/ELSE, CASE (ค่า, รายการ, ช่วง a..b, ELSE), FOR..TO..BY, WHILE, REPEAT..UNTIL, EXIT, CONTINUE, RETURN, REGION</td></tr><tr><td>Operator</td><td>OR XOR AND &amp; = &lt;&gt; &lt; &lt;= &gt; &gt;= + - * / MOD ** NOT, slice .%X .%B .%W .%D</td></tr><tr><td>Call</td><td>FC (named/positional, =&gt; output, InOut), FB multi-instance #i(...), single instance &quot;iDB&quot;(), system FB, IEC_TIMER.TON(...)</td></tr><tr><td>Constant</td><td>16#FF 2#1010 8#17, INT#5, W#16#.., T#1s500ms, LT#, S5T#, D#, TOD#, DT#, LDT#, string literal + escape $, array init [1, 2, 3(0)]</td></tr><tr><td>Address</td><td>%I0.0 %IW64 %QX0.1 %MW10 %DB10.DBX0.0</td></tr></tbody></table>
+<h2>ชนิดข้อมูล</h2>
+<table><thead><tr><th>ชนิด</th><th>บิต</th><th>S7-300/400</th><th>S7-1200</th><th>S7-1500</th></tr></thead><tbody><tr><td>Bool, Byte, Word, DWord, Int, DInt, Real, Time, Date, TOD, Char, String</td><td>1–2048</td><td>✓</td><td>✓</td><td>✓</td></tr><tr><td>S5Time, DT (Date_And_Time)</td><td>16/64</td><td>✓</td><td>S5Time ✗ / DT ✓</td><td>✓</td></tr><tr><td>SInt, USInt, UInt, UDInt, LReal, WChar, WString, DTL</td><td>8–64</td><td>✗</td><td>✓</td><td>✓</td></tr><tr><td>LInt, ULInt, LWord, LTime, LTOD, LDT</td><td>64</td><td>✗</td><td>✗</td><td>✓</td></tr><tr><td>Array (หลายมิติ), Struct, UDT, FB instance</td><td>-</td><td>✓</td><td>✓</td><td>✓</td></tr></tbody></table>
+<h2>Function / instruction</h2>
+<table><thead><tr><th>หมวด</th><th>รายการ</th></tr></thead><tbody><tr><td>Conversion</td><td>X_TO_Y ทุกคู่ของตัวเลข/บิต/เวลา, TRUNC, ROUND, CEIL, FLOOR, NORM_X, SCALE_X</td></tr><tr><td>Math</td><td>ABS, SQR, SQRT, EXP, LN, LOG, SIN, COS, TAN, ASIN, ACOS, ATAN, FRAC</td></tr><tr><td>Select / compare</td><td>MIN, MAX, LIMIT, SEL, MUX</td></tr><tr><td>Bit</td><td>SHL, SHR, ROL, ROR, slice</td></tr><tr><td>String</td><td>LEN, CONCAT, LEFT, RIGHT, MID, FIND, เปรียบเทียบ, กำหนดค่า</td></tr><tr><td>System FB</td><td>TP, TON, TOF, TONR (+_TIME, _LTIME, IEC_TIMER), CTU, CTD, CTUD (+_INT, _DINT, _UDINT, IEC_COUNTER), R_TRIG, F_TRIG, RS, SR</td></tr></tbody></table>
+<h2>กฎที่ตรวจตาม CPU</h2>
+<ul><li>S7-300/400: ไม่มี optimized access (เตือนและใช้ standard), ไม่มี slice access, ไม่มีการแปลง bit string ⇄ integer แบบ implicit, OB ต้องระบุเลข</li><li>S7-1200: ไม่มีชนิด 64-bit integer/time (ยกเว้น LReal), ไม่มี S5Time, array index ต้องอยู่ใน -32768..32767</li><li>S7-1500: รองรับทุกชนิด รวม *_LTIME</li><li>Implicit conversion: อนุญาตเฉพาะขยายขนาด (Int→DInt→LInt, Int→Real, Real→LReal, Byte→Word...) ที่เหลือต้องใช้ X_TO_Y</li><li>ค่าคงที่ตรวจช่วง (เช่น Int := 70000 → error), index คงที่ตรวจ bounds ตอน compile, index แปรผันตรวจตอน runtime</li></ul>
+<h2>ยังไม่รองรับ</h2>
+<ul><li>ANY, POINTER, VARIANT, REF_TO, DB_ANY, Array[*]</li><li>AT overlay, GOTO / label</li><li>ฟังก์ชันแปลง String (INT_TO_STRING, STRING_TO_INT ...)</li><li>S5 timer / counter (T, Z area) ของ S7-300/400</li><li>System function ของ CPU (RD_SYS_T, PEEK/POKE, communication, ProDiag)</li><li>EN/ENO (ละไว้)</li><li>LAD/FBD/STL/GRAPH (รองรับเฉพาะ SCL)</li></ul>
+<div class='src'><b>แหล่งข้อมูลของหัวข้อนี้</b><ul><li>โค้ด scl_types (TypeSupportedOn), scl_compiler (ImplicitOK, InferBuiltin)</li><li>ไฟล์ทดสอบ examples/FeatureTest, examples/ErrorTest</li><li>ความรู้เรื่องชนิดข้อมูลและ instruction ของ S7 — ควรตรวจกับ TIA Portal Information System หัวข้อ &quot;Data types&quot; และ &quot;SCL instructions&quot;</li></ul></div></body></html>

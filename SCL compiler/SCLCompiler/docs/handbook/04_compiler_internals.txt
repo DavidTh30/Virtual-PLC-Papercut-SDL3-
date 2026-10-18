@@ -1,0 +1,114 @@
+﻿SCL Compiler + SCL Studio — คู่มือสำหรับพัฒนาต่อ
+18 ตุลาคม 2026
+
+##############################################################################################################
+รายละเอียดภายใน Compiler   [04_compiler_internals]
+##############################################################################################################
+
+
+Lexer (scl_lexer)
+--------------------
+
+  • ตัด token ทั้งไฟล์ล่วงหน้า (TokenizeAll) → parser มองไปข้างหน้าได้หลาย token
+  • ชื่อ: plain, #local, "global"; keyword เป็น ident แล้ว parser ตัดสินเอง (เพราะชื่ออย่าง IN, MIN, VALUE ใช้เป็น
+    parameter ได้)
+  • Typed constant: prefix + # → แปลงเป็นค่า (Time = ms, LTime = ns, Date = วันนับจาก 1990-01-01, DT = ms
+    นับจาก 1990)
+  • Address % อ่านรวมจุด เช่น %DB10.DBX0.0, slice .%X0 ใช้ token เดียวกัน
+  • Pragma {...} เก็บ text ไว้ parse เป็น key := value
+
+
+Parser (scl_parser)
+--------------------
+
+  • Recursive descent; precedence: OR < XOR < AND < = <> < < <= > >= < + - < * / MOD < ** < unary <
+    postfix
+  • REGION: ชื่อคือข้อความที่เหลือของบรรทัด
+  • CASE: แยก label กับ statement ด้วย lookahead (ค่า/ชื่อ ตามด้วย : , ..)
+  • Error recovery: ข้ามไปที่ ; หรือ END_xxx ของ block แล้วทำต่อ
+  • เก็บตำแหน่ง HeaderEndOffset / DeclEndOffset เพื่อให้ grid editor แทนที่ส่วน declaration ได้
+  • เก็บ raw text ของ type และ initial value (TypeText / InitText) เพื่อ round-trip
+
+
+Type system และ layout (scl_types)
+----------------------------------
+
+  • TSclType ต่อชนิด; elementary เป็น singleton, composite อยู่ใน type pool (ล้างทุกครั้งที่ compile)
+  • Layout แบบ S7 standard: Bool เรียง bit, Byte เริ่ม byte ถัดไป, ชนิดอื่น/Array/Struct/String เริ่ม byte คู่,
+    Struct ปัดเป็น byte คู่
+  • FB instance: [Input][Output][InOut=Ptr][Static]; FC param: [RET_VAL][Input][Output][InOut]; temp ต่อท้าย
+  • System FB: layout คงที่ (ดูหัวข้อ 06) เพื่อให้ VM รู้ offset
+
+
+Semantic analysis
+--------------------
+
+  • InferType(E) คำนวณชนิด + constant folding และ cache ใน node (RType, IsConst, CVal, RefKind, RefOfs,
+    ByRef)
+  • ชื่อ: local ก่อน (#) แล้ว tag, DB, block; builtin ตรวจเมื่อเรียกแบบ function และชื่อไม่ถูก local ที่เป็น instance บัง
+  • CommonType: ชนิดผลของ operator (literal ปรับตามอีกฝั่ง, signed/unsigned ผสม → signed ที่ใหญ่กว่า, int+real →
+    real)
+  • ImplicitOK: กฎ implicit conversion (ดูหัวข้อ 03)
+  • ตรวจ argument ของ FC/FB: ชื่อ parameter, ทิศทาง (:= / =>), InOut ต้องเป็นตัวแปร, FC ต้องกำหนด input ครบ
+
+
+Code generation
+--------------------
+
++-----------------------------+------------------------------------------------------------------------------+
+| รูปแบบ                       | bytecode ที่ได้                                                                 |
++=============================+==============================================================================+
+| #a := #b + 1  (Int)         | AddrLocal a · AddrLocal b · Load Int · PushI 1 · AddI · Wrap Int · Store Int |
++-----------------------------+------------------------------------------------------------------------------+
+| IF c THEN .. ELSE .. END_IF | eval c · Jz Lelse · ... · Jmp Lend · Lelse: ... · Lend:                      |
++-----------------------------+------------------------------------------------------------------------------+
+| CASE x OF 1: .. 4..9: ..    | เก็บ x ใน temp ซ่อน · เทียบทีละ label → Jnz body                                 |
++-----------------------------+------------------------------------------------------------------------------+
+| FOR i := a TO b BY s        | temp ซ่อนเก็บ b (และ s ถ้าไม่คงที่) · ตรวจ overflow ก่อนบวก                         |
++-----------------------------+------------------------------------------------------------------------------+
+| FC call                     | FrameAlloc · เขียน param ด้วย AddrNewFrame · Call · อ่าน output/RET_VAL ·       |
+|                             | FrameFree                                                                    |
++-----------------------------+------------------------------------------------------------------------------+
+| FB call                     | เขียน input ลง instance · push instance · CallFB · copy output                |
++-----------------------------+------------------------------------------------------------------------------+
+| slice w.%X3 := b            | AddrX w · Dup · Load · (value) · SetBit 3 · Store                            |
++-----------------------------+------------------------------------------------------------------------------+
+| String                      | ค่าคือ address; literal อยู่ใน constant pool; CONCAT ใช้ temp String[254]         |
++-----------------------------+------------------------------------------------------------------------------+
+
+  • ทุก block เริ่มด้วย Jmp ไป prologue (ตั้ง max length ของ String temp) แล้วกลับมา
+  • Line table: (code offset → บรรทัด) สำหรับ online monitor ในอนาคต
+  • Integer ทุกชนิดคำนวณเป็น Int64 แล้ว Wrap ตามชนิด (overflow แบบ S7), Real คำนวณ Double แล้ว F2F32
+
+
+DB image และ retain
+--------------------
+
+  • ApplyDefaults: ค่าเริ่มต้นจาก declaration (รวม instance ซ้อนและ system FB), ตั้ง max length ของ String ทุกตัว
+  • BEGIN ของ DB: path := ค่าคงที่ (StaticPath คำนวณ offset)
+  • Retain: DB standard ที่ไม่มี keyword = retain ทั้ง block (instance DB = non-retain) · optimized: ตาม VAR
+    RETAIN · retainMap 1 bit ต่อ byte
+
+
+เลข block และ OB
+--------------------
+
+  • ลำดับ: [BlockNumbers] ในโปรเจกต์ → ชื่อแบบ DB10/FC3 → ชื่อ OB มาตรฐาน → อัตโนมัติ (OB ≥ 123 สำหรับ 1200/1500)
+  • Event class: 1 cycle, 10 time-of-day, 20 delay, 30 cyclic (interval จาก [CyclicInterval] หรือค่ามาตรฐาน
+    OB30..38), 40 HW, 80.., 100 startup, 121/122 error
+
+
+Declaration round-trip (scl_declgen) และ Find Declaration (scl_navigate)
+------------------------------------------------------------------------
+
+  • LoadDeclRows: parse source → แถว (section, name, type text, init, retain, comment)
+  • ApplyDeclRows: สร้าง VAR sections / STRUCT ใหม่แล้วแทนที่ช่วง HeaderEnd..DeclEnd ของ block นั้น
+  • FindDeclarationAt: แยก path ใต้ cursor (#a.b[i].c) → local / DB member / tag / block → ไล่ member
+    ทีละชั้นด้วย TSclType → DeclPos
+
+
+แหล่งข้อมูลของหัวข้อนี้
+------------------------
+  - โค้ด core/*.pas
+  - กฎ layout standard access ของ S7 — ตรวจกับ TIA Portal Information System หัวข้อ "Memory areas / Data storage in standard access blocks"
+  - การตรวจ layout จริง: DB_HMI 82 byte เทียบกับ register map ของ FluffSilo HMI (จากโฟลเดอร์ PLC_S7-1200)

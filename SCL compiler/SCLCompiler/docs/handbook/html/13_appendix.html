@@ -1,0 +1,50 @@
+<!doctype html><html lang='th'><head><meta charset='utf-8'><title>ภาคผนวก</title><style>
+@page { size: A4; margin: 14mm 12mm; }
+:root { --ink:#0f172a; --muted:#475569; --line:#cbd5e1; --accent:#1d4ed8; }
+body { font-family: Tahoma, 'Leelawadee UI', sans-serif; color: var(--ink); background:#fff; font-size: 10.3pt; line-height: 1.5; margin:0; }
+h1 { font-size: 17pt; color: var(--accent); border-bottom: 2px solid var(--accent); padding-bottom: 2mm; margin: 0 0 4mm; page-break-after: avoid; }
+h1.ch { page-break-before: always; }
+h1.ch.first { page-break-before: auto; }
+h2 { font-size: 12.3pt; margin: 5mm 0 2mm; page-break-after: avoid; }
+p { margin: 2mm 0 3mm; }
+table { border-collapse: collapse; width: 100%; margin: 2mm 0 4mm; font-size: 8.8pt; }
+tr { page-break-inside: avoid; }
+th { background: #e2e8f0; text-align: left; }
+th, td { border: 1px solid var(--line); padding: 1.1mm 1.6mm; vertical-align: top; }
+tbody tr:nth-child(even) td { background: #f8fafc; }
+figure { margin: 3mm 0 5mm; page-break-inside: avoid; text-align: center; }
+figure img { max-width: 100%; max-height: 200mm; border: 1px solid var(--line); }
+figcaption { font-size: 9pt; color: var(--muted); margin-top: 1mm; }
+pre { background: #0f172a; color: #e2e8f0; padding: 3mm; font-family: Consolas, monospace; font-size: 8.3pt; white-space: pre-wrap; page-break-inside: avoid; border-radius: 2mm; }
+.note { border-left: 4px solid var(--accent); background: #eff6ff; padding: 2mm 3mm; margin: 3mm 0; page-break-inside: avoid; }
+.note.warn { border-color: #b45309; background: #fffbeb; }
+.src { margin-top: 6mm; border-top: 1px solid var(--line); padding-top: 2mm; font-size: 9pt; color: var(--muted); }
+.cover { height: 250mm; display:flex; flex-direction:column; justify-content:center; padding: 0 10mm; border-left: 8px solid var(--accent); }
+.cover .t { font-size: 25pt; font-weight: bold; color: var(--accent); }
+.cover .s { font-size: 13pt; color: var(--muted); margin: 4mm 0 12mm; }
+.toc li { margin: 1mm 0; }
+</style></head><body><h1 class='ch first'>ภาคผนวก</h1>
+<h2>Glossary</h2>
+<table><thead><tr><th>คำ</th><th>ความหมาย</th></tr></thead><tbody><tr><td>SCL</td><td>Structured Control Language — ภาษาแบบ ST (IEC 61131-3) ของ Siemens</td></tr><tr><td>OB / FB / FC / DB / UDT</td><td>Organization block / Function block (มี instance) / Function / Data block / PLC data type</td></tr><tr><td>Instance DB</td><td>DB ที่เก็บหน่วยความจำของ FB หนึ่งตัว</td></tr><tr><td>Multi-instance</td><td>FB ซ้อนอยู่ใน static ของ FB อื่น</td></tr><tr><td>Standard / optimized access</td><td>DB ที่มี offset ตายตัว (HMI ใช้ address ได้) / ไม่มี offset ภายนอก</td></tr><tr><td>Retain</td><td>ค่าที่คงอยู่หลังไฟดับ</td></tr><tr><td>Image (.svpl)</td><td>ไฟล์ผลลัพธ์ของ compiler ที่ Virtual PLC โหลด</td></tr><tr><td>Pending frame</td><td>frame ของ FC ที่ caller จองเพื่อใส่ parameter ก่อนเรียก</td></tr><tr><td>Download</td><td>ส่ง image จาก IDE ไปยัง Virtual PLC</td></tr><tr><td>PUT/GET</td><td>บริการอ่าน/เขียนหน่วยความจำของ S7 ที่ HMI ใช้</td></tr></tbody></table>
+<h2>รูปแบบไฟล์ .sclproj</h2>
+<pre>[Project]
+Name=FluffSilo
+CPU=S7-1200
+OutputDir=output
+[Sources]
+File1=02_UDT_typeDevStatus.scl
+[Tags]
+File1=01_PLC_Tags.csv
+[BlockNumbers]
+DB_HMI=10
+[CyclicInterval]
+Cyclic interrupt=100</pre>
+<h2>รูปแบบ tag CSV</h2>
+<pre>Name;Path;Data Type;Logical Address;Comment;Value
+EStop_OK;FluffSilo_IO;Bool;%I0.0;Safety relay OK;
+MAX_SPEED;Constants;Int;;user constant;1500</pre>
+<h2>คำสั่ง CLI</h2>
+<table><thead><tr><th>คำสั่ง</th><th>ผล</th></tr></thead><tbody><tr><td>sclc p.sclproj [-o x.svpl] [-l x.lst] [--check] [--cpu S7-1500]</td><td>compile</td></tr><tr><td>sclc --import &lt;folder&gt; --cpu S7-1200 -p p.sclproj</td><td>สร้างโปรเจกต์จากโฟลเดอร์</td></tr><tr><td>sclc --dump x.svpl</td><td>แสดงเนื้อหา image</td></tr><tr><td>sclc --sim x.svpl --script t.txt</td><td>รันทดสอบ</td></tr><tr><td>sclc p.sclproj --check --find-decl file:line:col</td><td>ทดสอบ Find Declaration</td></tr></tbody></table>
+<h2>คีย์ลัด SCL Studio</h2>
+<table><thead><tr><th>คีย์</th><th>คำสั่ง</th></tr></thead><tbody><tr><td>Ctrl+O / Ctrl+S</td><td>Open project / Save all</td></tr><tr><td>Ctrl+N</td><td>New block</td></tr><tr><td>Ctrl+T</td><td>Tags</td></tr><tr><td>F7 / F9</td><td>Compile / Build</td></tr><tr><td>F11 / F12</td><td>All variables / All elements</td></tr><tr><td>Alt+1 / Alt+2</td><td>Project tree / SCL elements panel</td></tr><tr><td>Alt+Up, Ctrl+Click</td><td>Find Declaration</td></tr><tr><td>Alt+Left</td><td>Go Back</td></tr><tr><td>Ctrl+F / F3</td><td>Find / Find next</td></tr><tr><td>Ctrl+W</td><td>Close tab</td></tr><tr><td>Enter / Ctrl+Enter (tree)</td><td>เปิด source / interface editor</td></tr></tbody></table>
+<div class='src'><b>แหล่งข้อมูลของหัวข้อนี้</b><ul><li>โค้ด scl_project.pas, sclc.lpr, sclide_main.pas</li></ul></div></body></html>

@@ -1,0 +1,37 @@
+<!doctype html><html lang='th'><head><meta charset='utf-8'><title>สถาปัตยกรรม Compiler</title><style>
+@page { size: A4; margin: 14mm 12mm; }
+:root { --ink:#0f172a; --muted:#475569; --line:#cbd5e1; --accent:#1d4ed8; }
+body { font-family: Tahoma, 'Leelawadee UI', sans-serif; color: var(--ink); background:#fff; font-size: 10.3pt; line-height: 1.5; margin:0; }
+h1 { font-size: 17pt; color: var(--accent); border-bottom: 2px solid var(--accent); padding-bottom: 2mm; margin: 0 0 4mm; page-break-after: avoid; }
+h1.ch { page-break-before: always; }
+h1.ch.first { page-break-before: auto; }
+h2 { font-size: 12.3pt; margin: 5mm 0 2mm; page-break-after: avoid; }
+p { margin: 2mm 0 3mm; }
+table { border-collapse: collapse; width: 100%; margin: 2mm 0 4mm; font-size: 8.8pt; }
+tr { page-break-inside: avoid; }
+th { background: #e2e8f0; text-align: left; }
+th, td { border: 1px solid var(--line); padding: 1.1mm 1.6mm; vertical-align: top; }
+tbody tr:nth-child(even) td { background: #f8fafc; }
+figure { margin: 3mm 0 5mm; page-break-inside: avoid; text-align: center; }
+figure img { max-width: 100%; max-height: 200mm; border: 1px solid var(--line); }
+figcaption { font-size: 9pt; color: var(--muted); margin-top: 1mm; }
+pre { background: #0f172a; color: #e2e8f0; padding: 3mm; font-family: Consolas, monospace; font-size: 8.3pt; white-space: pre-wrap; page-break-inside: avoid; border-radius: 2mm; }
+.note { border-left: 4px solid var(--accent); background: #eff6ff; padding: 2mm 3mm; margin: 3mm 0; page-break-inside: avoid; }
+.note.warn { border-color: #b45309; background: #fffbeb; }
+.src { margin-top: 6mm; border-top: 1px solid var(--line); padding-top: 2mm; font-size: 9pt; color: var(--muted); }
+.cover { height: 250mm; display:flex; flex-direction:column; justify-content:center; padding: 0 10mm; border-left: 8px solid var(--accent); }
+.cover .t { font-size: 25pt; font-weight: bold; color: var(--accent); }
+.cover .s { font-size: 13pt; color: var(--muted); margin: 4mm 0 12mm; }
+.toc li { margin: 1mm 0; }
+</style></head><body><h1 class='ch first'>สถาปัตยกรรม Compiler</h1>
+<figure><img src='../images/d02_compiler_pipeline.svg' alt=''><figcaption>รูป 2.1 ขั้นตอนการ compile (TSclCompiler.Compile)</figcaption></figure>
+<h2>หลักการออกแบบ</h2>
+<ul><li>แยก core (ไม่มี GUI) ออกจาก IDE — core ใช้ได้ทั้ง CLI, GUI และ test</li><li>Compile ทั้งโปรเจกต์ทุกครั้ง (เร็ว ~15–200 ms สำหรับ 14 block) จึงไม่มี incremental state ให้ผิดพลาด</li><li>ส่วนที่ Virtual PLC ต้องใช้ (scl_vmformat, scl_vmmem, scl_vm) ไม่ขึ้นกับ compiler</li><li>Diagnostics สะสมใน TDiagList: parser กู้คืนจาก error ที่ระดับ statement / block เพื่อรายงานหลาย error พร้อมกัน</li><li>Address ทุกตัวเป็นหน่วย bit ใน Int64 เดียว → Bool, array of Bool และ struct ใช้กลไกเดียวกัน</li><li>Code generation แบบ stack machine: ไม่มี register allocation, ง่ายต่อการทำ VM</li></ul>
+<h2>ลำดับขั้นตอน</h2>
+<table><thead><tr><th>ขั้น</th><th>method</th><th>รายละเอียด</th></tr></thead><tbody><tr><td>1</td><td>ParseSources</td><td>อ่านทุกไฟล์ใน [Sources] (หรือ buffer จาก editor ผ่าน OnGetSource) → TSourceUnitList</td></tr><tr><td>2</td><td>RegisterBlocks</td><td>สร้าง TBlockInfo ต่อ block, ตรวจชื่อซ้ำ, optimized access ตาม CPU</td></tr><tr><td>3</td><td>AssignNumbers</td><td>เลข block จาก [BlockNumbers], ชื่อแบบ DB10/FC5, ชื่อ OB มาตรฐาน (Main=1, Startup=100), อัตโนมัติ; event class ของ OB</td></tr><tr><td>4</td><td>RegisterTags</td><td>tag CSV → address (MakeAddr) + type, ตรวจขนาด address/type, user constant</td></tr><tr><td>5</td><td>ResolveBlock</td><td>สร้าง TSclType ของ UDT/DB/FB instance/FC param/temp, layout, local symbol table (recursive พร้อมตรวจ cycle)</td></tr><tr><td>6</td><td>BuildDBImage</td><td>start value จาก declaration + BEGIN, retain map</td></tr><tr><td>7</td><td>GenerateBlock</td><td>type check + emit bytecode ต่อ block, line table, prologue สำหรับ String temp</td></tr><tr><td>8</td><td>BuildImage</td><td>รวมเป็น TSvImage: block table, DB, tags, vars table, constant pool</td></tr><tr><td>9</td><td>SaveImage / ListingText</td><td>เขียน .svpl, .lst (disassembly), .map.txt</td></tr></tbody></table>
+<figure><img src='../images/d03_units.svg' alt=''><figcaption>รูป 2.2 Unit และ dependency</figcaption></figure>
+<h2>หน้าที่ของแต่ละ unit</h2>
+<table><thead><tr><th>Unit</th><th>บรรทัด</th><th>หน้าที่</th></tr></thead><tbody><tr><td>scl_base</td><td>156</td><td>TCpuFamily, TSrcPos, TDiag/TDiagList, ESclError</td></tr><tr><td>scl_types</td><td>785</td><td>TTypeKind, TSclType, TMember, layout S7, system FB types, TConstValue</td></tr><tr><td>scl_lexer</td><td>668</td><td>token, typed constant (T#, 16#, D#, TOD#...), address %, pragma {...}, comment</td></tr><tr><td>scl_ast</td><td>643</td><td>AST: declaration, expression, statement, TProgUnit</td></tr><tr><td>scl_parser</td><td>1,424</td><td>recursive descent parser + error recovery</td></tr><tr><td>scl_project</td><td>351</td><td>.sclproj (INI), tag CSV, block numbers</td></tr><tr><td>scl_compiler</td><td>4,396</td><td>semantic analysis, layout, DB image, code generation, image building, listing</td></tr><tr><td>scl_declgen</td><td>354</td><td>grid ⇄ source ของ interface, template block ใหม่</td></tr><tr><td>scl_navigate</td><td>345</td><td>Find Declaration</td></tr><tr><td>scl_vmformat</td><td>1,003</td><td>opcode, TCodeBuf, TSvImage (อ่าน/เขียน .svpl), disassembler</td></tr><tr><td>scl_vmmem</td><td>279</td><td>encode/decode ค่าใน memory (big endian, BCD, S5TIME, DT, String)</td></tr><tr><td>scl_vm</td><td>948</td><td>reference Virtual PLC interpreter</td></tr><tr><td>sclc.lpr</td><td>394</td><td>CLI</td></tr><tr><td>sclide_main</td><td>1,884</td><td>หน้าต่างหลัก, menu, tree, compile, find declaration, recent, panels</td></tr><tr><td>sclide_editors</td><td>1,007</td><td>แท็บ editor: source, tags, interface grid, grid view, text</td></tr><tr><td>sclide_elements</td><td>613</td><td>panel SCL elements + drag &amp; drop</td></tr><tr><td>sclide_newblock</td><td>185</td><td>dialog สร้าง block</td></tr></tbody></table>
+<h2>โครงสร้างข้อมูลหลัก</h2>
+<table><thead><tr><th>ชนิด</th><th>อยู่ที่</th><th>ความหมาย</th></tr></thead><tbody><tr><td>TProgUnit</td><td>scl_ast</td><td>block 1 ตัวจาก source: header, sections, body, ตำแหน่งใน text</td></tr><tr><td>TBlockInfo</td><td>scl_compiler</td><td>ข้อมูลหลัง resolve: เลข, DataType, ParamType, TempType, Locals, Image, CodeIndex, Calls</td></tr><tr><td>TSclType / TMember</td><td>scl_types</td><td>ชนิดข้อมูลและ member พร้อม OffsetBits, Section, ByRef, Init</td></tr><tr><td>TLocalSym</td><td>scl_compiler</td><td>ชื่อใน block → (instance / frame / constant, offset, ByRef, DeclPos)</td></tr><tr><td>TExpr.RType/RefKind/RefOfs</td><td>scl_ast</td><td>ผลการวิเคราะห์ชนิดและการเข้าถึง (cache ใน node)</td></tr><tr><td>TCodeBuf</td><td>scl_vmformat</td><td>buffer bytecode + label/fixup</td></tr><tr><td>TSvImage / TSvBlock / TSvDataBlock</td><td>scl_vmformat</td><td>image ใน memory ก่อนเขียนไฟล์ / หลังอ่านไฟล์</td></tr></tbody></table>
+<div class='src'><b>แหล่งข้อมูลของหัวข้อนี้</b><ul><li>โค้ด core/*.pas</li><li>หลักการ compiler ทั่วไป: Aho, Lam, Sethi, Ullman &quot;Compilers: Principles, Techniques, and Tools&quot;; Robert Nystrom &quot;Crafting Interpreters&quot; (stack VM, single-pass codegen)</li></ul></div></body></html>

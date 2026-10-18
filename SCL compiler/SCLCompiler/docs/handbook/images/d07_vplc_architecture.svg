@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 600" width="1000" height="600" font-family="Tahoma, 'Leelawadee UI', sans-serif" font-size="12">
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#334155"/></marker><marker id="r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#b91c1c"/></marker></defs>
+<rect width="1000" height="600" fill="#fff"/>
+<text x="20" y="30" font-size="17" font-weight="bold" fill="#0f172a">สถาปัตยกรรม Virtual PLC ที่แนะนำ (รองรับ Download)</text>
+<rect x="20" y="50" width="960" height="530" rx="6" fill="#f8fafc" stroke="#cbd5e1"/>
+<rect x="40" y="70" width="290" height="160" rx="8" fill="#ffedd5" stroke="#c2410c" stroke-width="1.6"/>
+<text x="185.0" y="90" text-anchor="middle" font-size="13" font-weight="bold" fill="#0f172a">Communication layer</text>
+<text x="185.0" y="107" text-anchor="middle" font-size="11" fill="#475569">TCP server (Load protocol) port 10102</text>
+<text x="185.0" y="122" text-anchor="middle" font-size="11" fill="#475569">S7 server (ISO-on-TCP 102, PUT/GET)</text>
+<text x="185.0" y="137" text-anchor="middle" font-size="11" fill="#475569">Monitor / Force / Watch</text>
+<text x="185.0" y="152" text-anchor="middle" font-size="11" fill="#475569">Authentication (password)</text>
+<text x="185.0" y="167" text-anchor="middle" font-size="11" fill="#475569">Session lock (1 engineering client)</text>
+<rect x="360" y="70" width="290" height="160" rx="8" fill="#fef9c3" stroke="#a16207" stroke-width="1.6"/>
+<text x="505.0" y="90" text-anchor="middle" font-size="13" font-weight="bold" fill="#0f172a">Program manager</text>
+<text x="505.0" y="107" text-anchor="middle" font-size="11" fill="#475569">Staging area (ไฟล์ที่กำลังโหลด)</text>
+<text x="505.0" y="122" text-anchor="middle" font-size="11" fill="#475569">Validator: magic, version, CPU,</text>
+<text x="505.0" y="137" text-anchor="middle" font-size="11" fill="#475569">CRC32 / SHA-256, ขนาด memory</text>
+<text x="505.0" y="152" text-anchor="middle" font-size="11" fill="#475569">Activate (atomic swap)</text>
+<text x="505.0" y="167" text-anchor="middle" font-size="11" fill="#475569">Persist: active.svpl บน disk</text>
+<rect x="680" y="70" width="280" height="160" rx="8" fill="#fee2e2" stroke="#b91c1c" stroke-width="1.6"/>
+<text x="820.0" y="90" text-anchor="middle" font-size="13" font-weight="bold" fill="#0f172a">Operating mode</text>
+<text x="820.0" y="107" text-anchor="middle" font-size="11" fill="#475569">STOP / STARTUP / RUN / ERROR</text>
+<text x="820.0" y="122" text-anchor="middle" font-size="11" fill="#475569">Mode switch (UI + remote)</text>
+<text x="820.0" y="137" text-anchor="middle" font-size="11" fill="#475569">Watchdog (cycle time max)</text>
+<text x="820.0" y="152" text-anchor="middle" font-size="11" fill="#475569">Diagnostic buffer (ring)</text>
+<rect x="40" y="260" width="290" height="150" rx="8" fill="#dbeafe" stroke="#1d4ed8" stroke-width="1.6"/>
+<text x="185.0" y="280" text-anchor="middle" font-size="13" font-weight="bold" fill="#0f172a">Scheduler</text>
+<text x="185.0" y="297" text-anchor="middle" font-size="11" fill="#475569">Startup: OB100 (cold / warm)</text>
+<text x="185.0" y="312" text-anchor="middle" font-size="11" fill="#475569">Cycle: read I → OB1/OB123+ → write Q</text>
+<text x="185.0" y="327" text-anchor="middle" font-size="11" fill="#475569">Cyclic interrupt OB30..38</text>
+<text x="185.0" y="342" text-anchor="middle" font-size="11" fill="#475569">Time measure min/avg/max</text>
+<rect x="360" y="260" width="290" height="150" rx="8" fill="#dbeafe" stroke="#1d4ed8" stroke-width="1.6"/>
+<text x="505.0" y="280" text-anchor="middle" font-size="13" font-weight="bold" fill="#0f172a">Interpreter</text>
+<text x="505.0" y="297" text-anchor="middle" font-size="11" fill="#475569">decode bytecode (scl_vm.pas)</text>
+<text x="505.0" y="312" text-anchor="middle" font-size="11" fill="#475569">value stack · L stack</text>
+<text x="505.0" y="327" text-anchor="middle" font-size="11" fill="#475569">system FB · builtins</text>
+<text x="505.0" y="342" text-anchor="middle" font-size="11" fill="#475569">runtime error → OB121 / STOP</text>
+<rect x="680" y="260" width="280" height="150" rx="8" fill="#dcfce7" stroke="#15803d" stroke-width="1.6"/>
+<text x="820.0" y="280" text-anchor="middle" font-size="13" font-weight="bold" fill="#0f172a">Memory</text>
+<text x="820.0" y="297" text-anchor="middle" font-size="11" fill="#475569">I / Q / M / L</text>
+<text x="820.0" y="312" text-anchor="middle" font-size="11" fill="#475569">DB array (เลข DB)</text>
+<text x="820.0" y="327" text-anchor="middle" font-size="11" fill="#475569">Retain store: บันทึกตาม retainMap</text>
+<text x="820.0" y="342" text-anchor="middle" font-size="11" fill="#475569">Constant pool</text>
+<rect x="40" y="440" width="290" height="120" rx="8" fill="#f1f5f9" stroke="#64748b" stroke-width="1.6"/>
+<text x="185.0" y="460" text-anchor="middle" font-size="13" font-weight="bold" fill="#0f172a">I/O layer</text>
+<text x="185.0" y="477" text-anchor="middle" font-size="11" fill="#475569">IoDriver interface</text>
+<text x="185.0" y="492" text-anchor="middle" font-size="11" fill="#475569">Simulation (UI) · Modbus TCP</text>
+<text x="185.0" y="507" text-anchor="middle" font-size="11" fill="#475569">OPC UA · GPIO / fieldbus</text>
+<rect x="360" y="440" width="290" height="120" rx="8" fill="#ede9fe" stroke="#6d28d9" stroke-width="1.6"/>
+<text x="505.0" y="460" text-anchor="middle" font-size="13" font-weight="bold" fill="#0f172a">Online services</text>
+<text x="505.0" y="477" text-anchor="middle" font-size="11" fill="#475569">Read/Write var by path (vars table)</text>
+<text x="505.0" y="492" text-anchor="middle" font-size="11" fill="#475569">Force table</text>
+<text x="505.0" y="507" text-anchor="middle" font-size="11" fill="#475569">Line table → online status</text>
+<rect x="680" y="440" width="280" height="120" rx="8" fill="#ede9fe" stroke="#6d28d9" stroke-width="1.6"/>
+<text x="820.0" y="460" text-anchor="middle" font-size="13" font-weight="bold" fill="#0f172a">Virtual PLC UI</text>
+<text x="820.0" y="477" text-anchor="middle" font-size="11" fill="#475569">Status · mode switch</text>
+<text x="820.0" y="492" text-anchor="middle" font-size="11" fill="#475569">I/O panel · watch · DB viewer</text>
+<text x="820.0" y="507" text-anchor="middle" font-size="11" fill="#475569">Diagnostics · settings</text>
+<line x1="330" y1="150" x2="358" y2="150" stroke="#334155" stroke-width="1.5" marker-end="url(#a)"/>
+<line x1="650" y1="150" x2="678" y2="150" stroke="#334155" stroke-width="1.5" marker-end="url(#a)"/>
+<line x1="505" y1="230" x2="505" y2="258" stroke="#334155" stroke-width="1.5" marker-end="url(#a)"/>
+<line x1="330" y1="335" x2="358" y2="335" stroke="#334155" stroke-width="1.5" marker-end="url(#a)"/>
+<line x1="650" y1="335" x2="678" y2="335" stroke="#334155" stroke-width="1.5" marker-end="url(#a)" marker-start="url(#a)"/>
+<line x1="185" y1="410" x2="185" y2="438" stroke="#334155" stroke-width="1.5" marker-end="url(#a)" marker-start="url(#a)"/>
+<line x1="505" y1="410" x2="505" y2="438" stroke="#334155" stroke-width="1.5" marker-end="url(#a)" marker-start="url(#a)"/>
+<line x1="820" y1="410" x2="820" y2="438" stroke="#334155" stroke-width="1.5" marker-end="url(#a)" marker-start="url(#a)"/>
+<line x1="185" y1="230" x2="185" y2="258" stroke="#334155" stroke-width="1.5" marker-end="url(#a)"/>
+</svg>

@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 560" width="1000" height="560" font-family="Tahoma, 'Leelawadee UI', sans-serif" font-size="12">
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#334155"/></marker><marker id="r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#b91c1c"/></marker></defs>
+<rect width="1000" height="560" fill="#fff"/>
+<text x="20" y="30" font-size="17" font-weight="bold" fill="#0f172a">โครงสร้าง unit (dependency)</text>
+<rect x="345" y="462" width="150" height="36" rx="8" fill="#dbeafe" stroke="#1d4ed8" stroke-width="1.6"/>
+<text x="420.0" y="482" text-anchor="middle" font-size="12" font-weight="bold" fill="#0f172a">scl_base</text>
+<rect x="345" y="382" width="150" height="36" rx="8" fill="#dbeafe" stroke="#1d4ed8" stroke-width="1.6"/>
+<text x="420.0" y="402" text-anchor="middle" font-size="12" font-weight="bold" fill="#0f172a">scl_types</text>
+<rect x="85" y="382" width="150" height="36" rx="8" fill="#dbeafe" stroke="#1d4ed8" stroke-width="1.6"/>
+<text x="160.0" y="402" text-anchor="middle" font-size="12" font-weight="bold" fill="#0f172a">scl_lexer</text>
+<rect x="605" y="382" width="150" height="36" rx="8" fill="#dbeafe" stroke="#1d4ed8" stroke-width="1.6"/>
+<text x="680.0" y="402" text-anchor="middle" font-size="12" font-weight="bold" fill="#0f172a">scl_ast</text>
+<rect x="85" y="292" width="150" height="36" rx="8" fill="#dbeafe" stroke="#1d4ed8" stroke-width="1.6"/>
+<text x="160.0" y="312" text-anchor="middle" font-size="12" font-weight="bold" fill="#0f172a">scl_parser</text>
+<rect x="605" y="292" width="150" height="36" rx="8" fill="#dbeafe" stroke="#1d4ed8" stroke-width="1.6"/>
+<text x="680.0" y="312" text-anchor="middle" font-size="12" font-weight="bold" fill="#0f172a">scl_project</text>
+<rect x="765" y="462" width="150" height="36" rx="8" fill="#dcfce7" stroke="#15803d" stroke-width="1.6"/>
+<text x="840.0" y="482" text-anchor="middle" font-size="12" font-weight="bold" fill="#0f172a">scl_vmformat</text>
+<rect x="765" y="382" width="150" height="36" rx="8" fill="#dcfce7" stroke="#15803d" stroke-width="1.6"/>
+<text x="840.0" y="402" text-anchor="middle" font-size="12" font-weight="bold" fill="#0f172a">scl_vmmem</text>
+<rect x="345" y="212" width="150" height="36" rx="8" fill="#dbeafe" stroke="#1d4ed8" stroke-width="1.6"/>
+<text x="420.0" y="232" text-anchor="middle" font-size="12" font-weight="bold" fill="#0f172a">scl_compiler</text>
+<rect x="85" y="132" width="150" height="36" rx="8" fill="#dbeafe" stroke="#1d4ed8" stroke-width="1.6"/>
+<text x="160.0" y="152" text-anchor="middle" font-size="12" font-weight="bold" fill="#0f172a">scl_declgen</text>
+<rect x="345" y="132" width="150" height="36" rx="8" fill="#dbeafe" stroke="#1d4ed8" stroke-width="1.6"/>
+<text x="420.0" y="152" text-anchor="middle" font-size="12" font-weight="bold" fill="#0f172a">scl_navigate</text>
+<rect x="765" y="212" width="150" height="36" rx="8" fill="#dcfce7" stroke="#15803d" stroke-width="1.6"/>
+<text x="840.0" y="232" text-anchor="middle" font-size="12" font-weight="bold" fill="#0f172a">scl_vm</text>
+<rect x="765" y="52" width="150" height="36" rx="8" fill="#f1f5f9" stroke="#64748b" stroke-width="1.6"/>
+<text x="840.0" y="72" text-anchor="middle" font-size="12" font-weight="bold" fill="#0f172a">sclc.lpr</text>
+<rect x="345" y="52" width="150" height="36" rx="8" fill="#ede9fe" stroke="#6d28d9" stroke-width="1.6"/>
+<text x="420.0" y="72" text-anchor="middle" font-size="12" font-weight="bold" fill="#0f172a">sclide_main</text>
+<rect x="85" y="52" width="150" height="36" rx="8" fill="#ede9fe" stroke="#6d28d9" stroke-width="1.6"/>
+<text x="160.0" y="72" text-anchor="middle" font-size="12" font-weight="bold" fill="#0f172a">sclide_editors</text>
+<rect x="565" y="52" width="150" height="36" rx="8" fill="#ede9fe" stroke="#6d28d9" stroke-width="1.6"/>
+<text x="640.0" y="72" text-anchor="middle" font-size="12" font-weight="bold" fill="#0f172a">sclide_elements</text>
+<rect x="585" y="132" width="150" height="36" rx="8" fill="#ede9fe" stroke="#6d28d9" stroke-width="1.6"/>
+<text x="660.0" y="152" text-anchor="middle" font-size="12" font-weight="bold" fill="#0f172a">sclide_newblock</text>
+<line x1="420" y1="418" x2="420" y2="462" stroke="#334155" stroke-width="1.5" marker-end="url(#a)"/>
+<line x1="160" y1="418" x2="420" y2="462" stroke="#334155" stroke-width="1.5" marker-end="url(#a)"/>
+<line x1="605" y1="400" x2="495" y2="400" stroke="#334155" stroke-width="1.5" marker-end="url(#a)"/>
+<line x1="160" y1="328" x2="160" y2="382" stroke="#334155" stroke-width="1.5" marker-end="url(#a)"/>
+<line x1="160" y1="328" x2="680" y2="382" stroke="#334155" stroke-width="1.5" marker-end="url(#a)"/>
+<line x1="680" y1="328" x2="420" y2="462" stroke="#334155" stroke-width="1.5" marker-end="url(#a)"/>
+<line x1="420" y1="248" x2="160" y2="292" stroke="#334155" stroke-width="1.5" marker-end="url(#a)"/>
+<line x1="420" y1="248" x2="680" y2="292" stroke="#334155" stroke-width="1.5" marker-end="url(#a)"/>
+<line x1="420" y1="248" x2="420" y2="382" stroke="#334155" stroke-width="1.5" marker-end="url(#a)"/>
+<line x1="420" y1="248" x2="840" y2="462" stroke="#334155" stroke-width="1.5" marker-end="url(#a)"/>
+<line x1="420" y1="248" x2="840" y2="382" stroke="#334155" stroke-width="1.5" marker-end="url(#a)"/>
+<line x1="840" y1="418" x2="840" y2="462" stroke="#334155" stroke-width="1.5" marker-end="url(#a)"/>
+<line x1="840" y1="248" x2="840" y2="382" stroke="#334155" stroke-width="1.5" marker-end="url(#a)"/>
+<line x1="160" y1="168" x2="160" y2="292" stroke="#334155" stroke-width="1.5" marker-end="url(#a)"/>
+<line x1="420" y1="168" x2="420" y2="212" stroke="#334155" stroke-width="1.5" marker-end="url(#a)"/>
+<line x1="840" y1="88" x2="840" y2="212" stroke="#334155" stroke-width="1.5" marker-end="url(#a)"/>
+<line x1="840" y1="88" x2="420" y2="132" stroke="#334155" stroke-width="1.5" marker-end="url(#a)"/>
+<line x1="420" y1="88" x2="420" y2="132" stroke="#334155" stroke-width="1.5" marker-end="url(#a)"/>
+<line x1="345" y1="70" x2="235" y2="70" stroke="#334155" stroke-width="1.5" marker-end="url(#a)"/>
+<line x1="495" y1="70" x2="565" y2="70" stroke="#334155" stroke-width="1.5" marker-end="url(#a)"/>
+<line x1="160" y1="88" x2="160" y2="132" stroke="#334155" stroke-width="1.5" marker-end="url(#a)"/>
+<line x1="420" y1="88" x2="660" y2="132" stroke="#334155" stroke-width="1.5" marker-end="url(#a)"/>
+<line x1="640" y1="88" x2="420" y2="212" stroke="#334155" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="20" y="540" font-size="12" text-anchor="start" fill="#475569">สีเขียว = ใช้ร่วมกับ Virtual PLC ได้ (ไม่มี dependency กับ compiler) · สีม่วง = GUI (LCL + SynEdit) · ลูกศร = uses</text>
+</svg>

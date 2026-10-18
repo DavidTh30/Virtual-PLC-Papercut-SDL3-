@@ -1,0 +1,34 @@
+<!doctype html><html lang='th'><head><meta charset='utf-8'><title>คำแนะนำและ Roadmap</title><style>
+@page { size: A4; margin: 14mm 12mm; }
+:root { --ink:#0f172a; --muted:#475569; --line:#cbd5e1; --accent:#1d4ed8; }
+body { font-family: Tahoma, 'Leelawadee UI', sans-serif; color: var(--ink); background:#fff; font-size: 10.3pt; line-height: 1.5; margin:0; }
+h1 { font-size: 17pt; color: var(--accent); border-bottom: 2px solid var(--accent); padding-bottom: 2mm; margin: 0 0 4mm; page-break-after: avoid; }
+h1.ch { page-break-before: always; }
+h1.ch.first { page-break-before: auto; }
+h2 { font-size: 12.3pt; margin: 5mm 0 2mm; page-break-after: avoid; }
+p { margin: 2mm 0 3mm; }
+table { border-collapse: collapse; width: 100%; margin: 2mm 0 4mm; font-size: 8.8pt; }
+tr { page-break-inside: avoid; }
+th { background: #e2e8f0; text-align: left; }
+th, td { border: 1px solid var(--line); padding: 1.1mm 1.6mm; vertical-align: top; }
+tbody tr:nth-child(even) td { background: #f8fafc; }
+figure { margin: 3mm 0 5mm; page-break-inside: avoid; text-align: center; }
+figure img { max-width: 100%; max-height: 200mm; border: 1px solid var(--line); }
+figcaption { font-size: 9pt; color: var(--muted); margin-top: 1mm; }
+pre { background: #0f172a; color: #e2e8f0; padding: 3mm; font-family: Consolas, monospace; font-size: 8.3pt; white-space: pre-wrap; page-break-inside: avoid; border-radius: 2mm; }
+.note { border-left: 4px solid var(--accent); background: #eff6ff; padding: 2mm 3mm; margin: 3mm 0; page-break-inside: avoid; }
+.note.warn { border-color: #b45309; background: #fffbeb; }
+.src { margin-top: 6mm; border-top: 1px solid var(--line); padding-top: 2mm; font-size: 9pt; color: var(--muted); }
+.cover { height: 250mm; display:flex; flex-direction:column; justify-content:center; padding: 0 10mm; border-left: 8px solid var(--accent); }
+.cover .t { font-size: 25pt; font-weight: bold; color: var(--accent); }
+.cover .s { font-size: 13pt; color: var(--muted); margin: 4mm 0 12mm; }
+.toc li { margin: 1mm 0; }
+</style></head><body><h1 class='ch first'>คำแนะนำและ Roadmap</h1>
+<figure><img src='../images/d12_roadmap.svg' alt=''><figcaption>รูป 11.1 Roadmap แนะนำ</figcaption></figure>
+<h2>คำแนะนำสำคัญ</h2>
+<ol><li>ตรวจกับของจริงก่อนขยาย: import FluffSilo เข้า TIA Portal เทียบ offset ของ DB และพฤติกรรม (PLCSIM) เพื่อยืนยันกฎ layout/conversion</li><li>สร้าง Virtual PLC จาก scl_vm.pas ก่อน (ทำงานถูกแล้วกับ 109 checks) แทนการเขียนใหม่</li><li>ทำ Download แบบ STOP-only ก่อน, run-time download ไว้ทีหลัง</li><li>เพิ่ม layout hash ต่อ DB และ hash ทั้ง image (SVPL v2) เพื่อ keep retain และ compare online/offline อย่างปลอดภัย</li><li>ล็อก format: ทุกการเปลี่ยน opcode/section ต้องเพิ่ม version และมี test</li><li>ความปลอดภัย: Virtual PLC ห้ามใช้แทน safety PLC / E-Stop ต้องเป็น hardware; เปิด password และจำกัด network ของ PUT/GET</li><li>ประสิทธิภาพ: ถ้า cycle ยาว ให้ทำ pre-decode bytecode เป็น array ของ record (ไม่ต้องอ่าน operand ทุกครั้ง) ก่อนคิด JIT</li><li>License: Lazarus LCL (modified LGPL), SynEdit (MPL/GPL dual), Snap7 (LGPL3) — ตรวจเงื่อนไขก่อนแจกจ่ายเชิงพาณิชย์</li></ol>
+<h2>ความเสี่ยง</h2>
+<table><thead><tr><th>ความเสี่ยง</th><th>ผลกระทบ</th><th>การลด</th></tr></thead><tbody><tr><td>พฤติกรรมต่างจาก S7 จริง (rounding, overflow, timer edge)</td><td>โปรแกรมทำงานต่างกัน</td><td>golden test กับ PLCSIM</td></tr><tr><td>Feature ภาษาที่ยังไม่รองรับ</td><td>import โปรแกรมเดิมไม่ได้</td><td>จัดลำดับตามโปรแกรมจริงที่ใช้</td></tr><tr><td>Download ทำ image เสีย</td><td>เครื่องหยุด</td><td>validator + atomic swap + เก็บ image เดิม</td></tr><tr><td>Retain หาย</td><td>ค่าตั้งหาย</td><td>retain.bin + CRC + layout hash</td></tr><tr><td>Network ไม่ปลอดภัย</td><td>มีคนแก้โปรแกรม</td><td>password, session lock, จำกัด IP</td></tr></tbody></table>
+<h2>Roadmap</h2>
+<table><thead><tr><th>Phase</th><th>งาน</th><th>ผลลัพธ์</th></tr></thead><tbody><tr><td>1</td><td>Virtual PLC core: host, mode, scheduler, retain, diag, UI พื้นฐาน, I/O simulation</td><td>รัน .svpl ได้เอง</td></tr><tr><td>2</td><td>Load protocol + validator + IDE Online menu + Download dialog</td><td>กด Download จาก SCL Studio ได้</td></tr><tr><td>3</td><td>Watch/force, online status ใน editor, S7 server (Snap7) ให้ HMI</td><td>debug online, ใช้ HMI เดิม</td></tr><tr><td>4</td><td>String conversion, VARIANT/Array[*], library, know-how protection</td><td>รองรับโปรแกรมได้กว้างขึ้น</td></tr><tr><td>5</td><td>I/O driver จริง, run-time download, redundancy, security</td><td>ใช้งานจริง</td></tr></tbody></table>
+<div class='src'><b>แหล่งข้อมูลของหัวข้อนี้</b><ul><li>ผลการทดสอบในหัวข้อ 09</li><li>ข้อจำกัดในหัวข้อ 03</li><li>license ของ Lazarus / SynEdit / Snap7 จากเว็บไซต์ของแต่ละโครงการ (ควรตรวจฉบับล่าสุด)</li></ul></div></body></html>

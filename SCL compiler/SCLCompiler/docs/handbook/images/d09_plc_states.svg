@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 420" width="1000" height="420" font-family="Tahoma, 'Leelawadee UI', sans-serif" font-size="12">
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#334155"/></marker><marker id="r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#b91c1c"/></marker></defs>
+<rect width="1000" height="420" fill="#fff"/>
+<text x="20" y="30" font-size="17" font-weight="bold" fill="#0f172a">Operating modes ของ Virtual PLC</text>
+<rect x="60" y="170" width="170" height="70" rx="8" fill="#fee2e2" stroke="#b91c1c" stroke-width="1.6"/>
+<text x="145.0" y="190" text-anchor="middle" font-size="13" font-weight="bold" fill="#0f172a">STOP</text>
+<text x="145.0" y="207" text-anchor="middle" font-size="11" fill="#475569">output = safe</text>
+<text x="145.0" y="222" text-anchor="middle" font-size="11" fill="#475569">Download ได้</text>
+<rect x="330" y="170" width="170" height="70" rx="8" fill="#fef9c3" stroke="#a16207" stroke-width="1.6"/>
+<text x="415.0" y="190" text-anchor="middle" font-size="13" font-weight="bold" fill="#0f172a">STARTUP</text>
+<text x="415.0" y="207" text-anchor="middle" font-size="11" fill="#475569">OB100</text>
+<text x="415.0" y="222" text-anchor="middle" font-size="11" fill="#475569">init DB / retain</text>
+<rect x="600" y="170" width="170" height="70" rx="8" fill="#dcfce7" stroke="#15803d" stroke-width="1.6"/>
+<text x="685.0" y="190" text-anchor="middle" font-size="13" font-weight="bold" fill="#0f172a">RUN</text>
+<text x="685.0" y="207" text-anchor="middle" font-size="11" fill="#475569">cycle OB1, OB30..</text>
+<text x="685.0" y="222" text-anchor="middle" font-size="11" fill="#475569">monitor / force</text>
+<rect x="600" y="300" width="170" height="70" rx="8" fill="#fee2e2" stroke="#b91c1c" stroke-width="1.6"/>
+<text x="685.0" y="320" text-anchor="middle" font-size="13" font-weight="bold" fill="#0f172a">ERROR / HALT</text>
+<text x="685.0" y="337" text-anchor="middle" font-size="11" fill="#475569">runtime error</text>
+<text x="685.0" y="352" text-anchor="middle" font-size="11" fill="#475569">watchdog timeout</text>
+<rect x="60" y="300" width="170" height="70" rx="8" fill="#f1f5f9" stroke="#64748b" stroke-width="1.6"/>
+<text x="145.0" y="320" text-anchor="middle" font-size="13" font-weight="bold" fill="#0f172a">NO PROGRAM</text>
+<text x="145.0" y="337" text-anchor="middle" font-size="11" fill="#475569">ยังไม่โหลด image</text>
+<line x1="230" y1="195" x2="328" y2="195" stroke="#334155" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="283.0" y="191.0" font-size="11" fill="#334155">START</text>
+<line x1="500" y1="195" x2="598" y2="195" stroke="#334155" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="515" y="188" font-size="11" fill="#334155">OB100 OK</text>
+<path d="M600,175 C450,90 300,90 230,175" fill="none" stroke="#334155" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="380" y="112" font-size="11" fill="#334155">STOP (UI / remote)</text>
+<line x1="685" y1="240" x2="685" y2="298" stroke="#334155" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="692" y="272" font-size="11" fill="#334155">runtime error (ไม่มี OB121)</text>
+<path d="M600,335 C400,380 300,350 230,230" fill="none" stroke="#334155" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="380" y="380" font-size="11" fill="#334155">ack → STOP</text>
+<line x1="145" y1="300" x2="145" y2="242" stroke="#334155" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="150" y="275" font-size="11" fill="#334155">Download + activate</text>
+<rect x="820" y="50" width="160" height="110" rx="8" fill="#f1f5f9" stroke="#64748b" stroke-width="1.6"/>
+<text x="900.0" y="70" text-anchor="middle" font-size="13" font-weight="bold" fill="#0f172a">Run-time download</text>
+<text x="900.0" y="87" text-anchor="middle" font-size="11" fill="#475569">(อนาคต) แทนที่ block</text>
+<text x="900.0" y="102" text-anchor="middle" font-size="11" fill="#475569">ระหว่าง RUN ที่</text>
+<text x="900.0" y="117" text-anchor="middle" font-size="11" fill="#475569">ขอบ cycle</text>
+<text x="900.0" y="132" text-anchor="middle" font-size="11" fill="#475569">ต้องเทียบ layout</text>
+</svg>

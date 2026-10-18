@@ -1,0 +1,97 @@
+<!doctype html><html lang='th'><head><meta charset='utf-8'><title>โครงสร้าง Virtual PLC เพื่อรองรับการ Download</title><style>
+@page { size: A4; margin: 14mm 12mm; }
+:root { --ink:#0f172a; --muted:#475569; --line:#cbd5e1; --accent:#1d4ed8; }
+body { font-family: Tahoma, 'Leelawadee UI', sans-serif; color: var(--ink); background:#fff; font-size: 10.3pt; line-height: 1.5; margin:0; }
+h1 { font-size: 17pt; color: var(--accent); border-bottom: 2px solid var(--accent); padding-bottom: 2mm; margin: 0 0 4mm; page-break-after: avoid; }
+h1.ch { page-break-before: always; }
+h1.ch.first { page-break-before: auto; }
+h2 { font-size: 12.3pt; margin: 5mm 0 2mm; page-break-after: avoid; }
+p { margin: 2mm 0 3mm; }
+table { border-collapse: collapse; width: 100%; margin: 2mm 0 4mm; font-size: 8.8pt; }
+tr { page-break-inside: avoid; }
+th { background: #e2e8f0; text-align: left; }
+th, td { border: 1px solid var(--line); padding: 1.1mm 1.6mm; vertical-align: top; }
+tbody tr:nth-child(even) td { background: #f8fafc; }
+figure { margin: 3mm 0 5mm; page-break-inside: avoid; text-align: center; }
+figure img { max-width: 100%; max-height: 200mm; border: 1px solid var(--line); }
+figcaption { font-size: 9pt; color: var(--muted); margin-top: 1mm; }
+pre { background: #0f172a; color: #e2e8f0; padding: 3mm; font-family: Consolas, monospace; font-size: 8.3pt; white-space: pre-wrap; page-break-inside: avoid; border-radius: 2mm; }
+.note { border-left: 4px solid var(--accent); background: #eff6ff; padding: 2mm 3mm; margin: 3mm 0; page-break-inside: avoid; }
+.note.warn { border-color: #b45309; background: #fffbeb; }
+.src { margin-top: 6mm; border-top: 1px solid var(--line); padding-top: 2mm; font-size: 9pt; color: var(--muted); }
+.cover { height: 250mm; display:flex; flex-direction:column; justify-content:center; padding: 0 10mm; border-left: 8px solid var(--accent); }
+.cover .t { font-size: 25pt; font-weight: bold; color: var(--accent); }
+.cover .s { font-size: 13pt; color: var(--muted); margin: 4mm 0 12mm; }
+.toc li { margin: 1mm 0; }
+</style></head><body><h1 class='ch first'>โครงสร้าง Virtual PLC เพื่อรองรับการ Download</h1>
+<div class='note warn'>หัวข้อนี้เป็นการออกแบบที่แนะนำ (ยังไม่ได้ implement) โดยใช้ core/scl_vm.pas ที่ทำงานได้แล้วเป็นแกนของ runtime</div>
+<figure><img src='../images/d07_vplc_architecture.svg' alt=''><figcaption>รูป 7.1 สถาปัตยกรรม Virtual PLC ที่แนะนำ</figcaption></figure>
+<h2>องค์ประกอบ</h2>
+<table><thead><tr><th>ส่วน</th><th>หน้าที่</th><th>แนวทาง implement (Lazarus)</th></tr></thead><tbody><tr><td>Communication layer</td><td>รับคำสั่ง Download / mode / monitor จาก IDE</td><td>fcl-net ssockets (TInetServer) หรือ Synapse, thread แยก</td></tr><tr><td>S7 server (ทางเลือก)</td><td>ให้ HMI เดิมอ่าน/เขียน DB ด้วย PUT/GET</td><td>Snap7 server (snap7.dll) register area DB/I/Q/M ชี้ไปที่ memory ของ VM</td></tr><tr><td>Program manager</td><td>staging → validate → activate, เก็บ active.svpl</td><td>TSvImage.LoadFromStream + validator</td></tr><tr><td>Operating mode</td><td>STOP / STARTUP / RUN / ERROR, watchdog</td><td>state machine เปลี่ยนที่ขอบ cycle เท่านั้น</td></tr><tr><td>Scheduler</td><td>OB100, OB1/OB123+, OB30..38, วัด cycle time</td><td>thread runtime วน loop + TEvent สำหรับ min cycle</td></tr><tr><td>Interpreter</td><td>รัน bytecode</td><td>ต่อยอด TVirtualPlc.Execute (เพิ่ม instruction budget สำหรับ watchdog)</td></tr><tr><td>Memory</td><td>I Q M DB L C + retain store</td><td>TBytes ต่อ area (ห้าม reallocate ระหว่าง RUN ถ้า Snap7 ชี้อยู่)</td></tr><tr><td>I/O layer</td><td>แลกค่า I/Q กับโลกภายนอก</td><td>interface IIoDriver: ReadInputs, WriteOutputs, Start/Stop</td></tr><tr><td>Online services</td><td>อ่าน/เขียน/force ตัวแปรตาม path</td><td>ใช้ vars table + MemRead/WriteBits</td></tr><tr><td>Diagnostic buffer</td><td>บันทึกเหตุการณ์ (ring 500 รายการ)</td><td>mode change, download, runtime error พร้อม block/line</td></tr></tbody></table>
+<figure><img src='../images/d09_plc_states.svg' alt=''><figcaption>รูป 7.2 Operating modes</figcaption></figure>
+<h2>Load protocol (ข้อเสนอ v1, TCP port 10102)</h2>
+<pre>Frame (little endian)
+ 0  u16  magic &#x27;SV&#x27;
+ 2  u8   protocol version = 1
+ 3  u8   command / response code (response = command | 0x80, error = 0x7F)
+ 4  u32  sequence number (response คืนค่าเดียวกัน)
+ 8  u32  payload length n
+12  n    payload
+12+n u32 CRC32 (byte 0 .. 12+n-1)</pre>
+<table><thead><tr><th>code</th><th>command</th><th>payload คำขอ</th><th>payload ตอบ</th></tr></thead><tbody><tr><td>01</td><td>HELLO</td><td>client name, protocol ver, password hash (SHA-256)</td><td>cpu, vplc version, memory limits, mode, image name, image SHA-256</td></tr><tr><td>02</td><td>GET_STATE</td><td>-</td><td>mode, cycle min/avg/max, last error</td></tr><tr><td>03</td><td>SET_MODE</td><td>0 STOP, 1 RUN warm, 2 RUN cold, 3 memory reset</td><td>mode ใหม่</td></tr><tr><td>10</td><td>DOWNLOAD_BEGIN</td><td>size u32, SHA-256, flags</td><td>max chunk size</td></tr><tr><td>11</td><td>DOWNLOAD_CHUNK</td><td>offset u32, data</td><td>received bytes</td></tr><tr><td>12</td><td>DOWNLOAD_END</td><td>-</td><td>VALID / รายการ error</td></tr><tr><td>13</td><td>ACTIVATE</td><td>flags: keep retain, reset DB start values, start after</td><td>ผล</td></tr><tr><td>14</td><td>DOWNLOAD_ABORT</td><td>-</td><td>-</td></tr><tr><td>18</td><td>UPLOAD</td><td>offset, length</td><td>ข้อมูล active.svpl</td></tr><tr><td>20/21</td><td>READ_VARS / WRITE_VARS</td><td>รายการ (address i64, vmType) / + value</td><td>values / status</td></tr><tr><td>22</td><td>FORCE</td><td>address, type, value / unforce</td><td>status</td></tr><tr><td>30</td><td>READ_DIAG</td><td>from index</td><td>รายการเหตุการณ์</td></tr></tbody></table>
+<table><thead><tr><th>error code</th><th>ความหมาย</th></tr></thead><tbody><tr><td>1</td><td>frame / CRC ผิด</td></tr><tr><td>2</td><td>ไม่ได้ authenticate / password ผิด</td></tr><tr><td>3</td><td>mode ไม่ถูก (ต้อง STOP)</td></tr><tr><td>4</td><td>magic ผิด</td></tr><tr><td>5</td><td>version ไม่รองรับ</td></tr><tr><td>6</td><td>CPU family ไม่ตรง</td></tr><tr><td>7</td><td>ใหญ่เกิน memory</td></tr><tr><td>8</td><td>hash ไม่ตรง</td></tr><tr><td>9</td><td>bytecode ไม่ถูกต้อง</td></tr><tr><td>10</td><td>มี session อื่นถืออยู่</td></tr><tr><td>11</td><td>timeout</td></tr></tbody></table>
+<figure><img src='../images/d08_download_sequence.svg' alt=''><figcaption>รูป 7.3 ลำดับการ Download</figcaption></figure>
+<h2>Validation ก่อน activate (ต้องทำครบ)</h2>
+<ol><li>magic, version, CPU family ตรงกับที่ Virtual PLC ตั้งไว้</li><li>SHA-256 ของไฟล์ตรงกับ DOWNLOAD_BEGIN</li><li>ทุก section อ่านได้ ไม่เกินขอบไฟล์, string offset ถูกต้อง</li><li>ทุก block: เดิน bytecode ตาม OpOperands — opcode รู้จัก, operand ไม่เกินขอบ, jump ตกที่ต้นคำสั่ง, Call ชี้ FC, CallFB ชี้ FB, SysFB id รู้จัก, vmType ถูกต้อง</li><li>DB number ไม่ซ้ำ, ขนาดอยู่ในขีดจำกัด, tag อยู่ในขนาด process image</li><li>มี OB event class 1 อย่างน้อย 1 ตัว (เตือนถ้าไม่มี)</li><li>คำนวณ stack depth สูงสุดคร่าว ๆ (ทางเลือก) เพื่อกัน stack overflow</li></ol>
+<h2>Activate และ retain</h2>
+<ul><li>Activate ทำได้เฉพาะ STOP; สลับ image แบบ atomic (เขียน active.svpl.new แล้ว rename)</li><li>Keep retain: DB ที่เลข/ชื่อ/ขนาด (และ layout hash ในอนาคต) ตรงกัน → copy byte ที่ retainMap = 1 จาก memory เดิม; ไม่ตรง → ใช้ start value และบันทึกใน diagnostic buffer</li><li>Reset DB start values: ใช้ค่าในไฟล์ทั้งหมด</li><li>Retain store: บันทึก retain.bin (+CRC) ตอน STOP, ปิดโปรแกรม และทุก N วินาที</li></ul>
+<h2>Runtime loop (pseudo code)</h2>
+<pre>procedure TRuntime.Execute;            // thread
+begin
+  while not Terminated do
+  begin
+    ApplyPendingModeChange;            // จาก comm thread ผ่าน queue
+    case Mode of
+      pmStartup: begin RunOBs(100); Mode := pmRun; end;
+      pmRun:
+        begin
+          T0 := Now;
+          Io.ReadInputs(Mem.I);
+          ApplyForces;
+          RunOBs(1);                     // OB1 แล้ว OB123+ เรียงเลข
+          RunCyclicOBsDue;               // OB30..38
+          ApplyForces;
+          Io.WriteOutputs(Mem.Q);
+          Stats.Add(Now - T0);
+          if Now - T0 &gt; Watchdog then GoError(&#x27;cycle time exceeded&#x27;);
+          WaitMinCycle(T0);
+        end;
+    else
+      Sleep(10);
+    end;
+  end;
+end;</pre>
+<h2>Threading และความปลอดภัย</h2>
+<ul><li>Runtime 1 thread, comm 1 thread ต่อ client; การเข้าถึง memory จาก comm (monitor/HMI) ทำที่ขอบ cycle หรือใช้ critical section สั้น ๆ</li><li>Watchdog: interpreter นับคำสั่ง ทุก 10,000 คำสั่งตรวจเวลา → ยกเลิก cycle และเข้า ERROR</li><li>Output safe state เมื่อเข้า STOP/ERROR (ค่าเริ่มต้น = 0)</li><li>Password + session lock สำหรับ download / write / force</li><li>Log ทุก download (เวลา, ผู้ใช้, hash) ใน diagnostic buffer</li></ul>
+<h2>Skeleton class (Free Pascal)</h2>
+<pre>type
+  TPlcMode = (pmNoProgram, pmStop, pmStartup, pmRun, pmError);
+  IIoDriver = interface
+    procedure ReadInputs(var I: TBytes);
+    procedure WriteOutputs(const Q: TBytes);
+  end;
+  TVirtualPlcHost = class
+    Image: TSvImage;          // active program (scl_vmformat)
+    Vm: TVirtualPlc;          // interpreter (scl_vm) - memory + execute
+    Mode: TPlcMode;
+    Diag: TDiagBuffer;
+    Io: IIoDriver;
+    function  BeginDownload(Size: Cardinal; const Hash: TSha256): Integer;
+    function  WriteChunk(Ofs: Cardinal; const Data: TBytes): Integer;
+    function  EndDownload(out Errors: TStringList): Boolean;   // validate
+    function  Activate(KeepRetain, ResetDB: Boolean): Boolean;
+    procedure SetMode(M: TPlcMode; Cold: Boolean);
+  end;</pre>
+<h2>การทดสอบ Virtual PLC</h2>
+<ul><li>ใช้ชุด script เดิม (tests/*.txt) รันกับ Virtual PLC จริงผ่าน protocol → ผลต้องเหมือน reference VM</li><li>Fuzz test validator ด้วยไฟล์ .svpl ที่ถูกตัด/แก้ byte สุ่ม (ต้องไม่ crash)</li><li>ทดสอบ download ระหว่าง RUN ต้องถูกปฏิเสธ, retain ต้องคงอยู่หลัง activate</li><li>วัด cycle time ของ FluffSilo (เป้าหมาย &lt; 1 ms บน PC)</li></ul>
+<div class='src'><b>แหล่งข้อมูลของหัวข้อนี้</b><ul><li>core/scl_vm.pas (reference implementation)</li><li>RFC 1006 (ISO transport service on top of TCP) และ ISO 8073 (COTP) — พื้นฐานของ S7 protocol port 102</li><li>Snap7 project (snap7.sourceforge.net) — S7 server/client open source, เอกสาร S7 protocol</li><li>Free Pascal FCL: fcl-net (ssockets), syncobjs; หรือ Synapse</li><li>แนวคิด operating mode / OB ของ S7 — ตรวจกับ S7-1200/S7-1500 System Manual หัวข้อ &quot;Operating modes&quot; และ &quot;Organization blocks&quot;</li><li>CRC32 (IEEE 802.3) และ SHA-256 (FIPS 180-4) สำหรับตรวจความถูกต้องของไฟล์</li></ul></div></body></html>

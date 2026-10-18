@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 540" width="1000" height="540" font-family="Tahoma, 'Leelawadee UI', sans-serif" font-size="12">
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#334155"/></marker><marker id="r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#b91c1c"/></marker></defs>
+<rect width="1000" height="540" fill="#fff"/>
+<text x="20" y="30" font-size="17" font-weight="bold" fill="#0f172a">โครงสร้างไฟล์ .svpl (little endian container)</text>
+<rect x="60" y="60" width="560" height="40" rx="8" fill="#fef9c3" stroke="#a16207" stroke-width="1.6"/>
+<text x="70" y="80" text-anchor="start" font-size="13" font-weight="bold" fill="#0f172a">Header 12 byte</text>
+<text x="70" y="97" text-anchor="start" font-size="11" fill="#475569">&#x27;SVPL&#x27; · u16 version · u8 cpu · u8 res · u32 sectionCount</text>
+<rect x="60" y="108" width="560" height="40" rx="8" fill="#fef9c3" stroke="#a16207" stroke-width="1.6"/>
+<text x="70" y="128" text-anchor="start" font-size="13" font-weight="bold" fill="#0f172a">Directory</text>
+<text x="70" y="145" text-anchor="start" font-size="11" fill="#475569">id[4] · u32 offset · u32 size  × sectionCount</text>
+<rect x="60" y="156" width="560" height="40" rx="8" fill="#f1f5f9" stroke="#64748b" stroke-width="1.6"/>
+<text x="70" y="176" text-anchor="start" font-size="13" font-weight="bold" fill="#0f172a">META</text>
+<text x="70" y="193" text-anchor="start" font-size="11" fill="#475569">projectName, Compiler=, CPU=, Created=</text>
+<rect x="60" y="204" width="560" height="56" rx="8" fill="#dbeafe" stroke="#1d4ed8" stroke-width="1.6"/>
+<text x="70" y="224" text-anchor="start" font-size="13" font-weight="bold" fill="#0f172a">BLKS  (code blocks)</text>
+<text x="70" y="241" text-anchor="start" font-size="11" fill="#475569">kind · flags · number · name · paramBytes · tempBytes · instanceBytes · eventClass · interval · code · lines · vars</text>
+<rect x="60" y="268" width="560" height="48" rx="8" fill="#dcfce7" stroke="#15803d" stroke-width="1.6"/>
+<text x="70" y="288" text-anchor="start" font-size="13" font-weight="bold" fill="#0f172a">DATA  (data blocks)</text>
+<text x="70" y="305" text-anchor="start" font-size="11" fill="#475569">number · flags · name · instanceOf · data (start image) · retainMap · vars</text>
+<rect x="60" y="324" width="560" height="40" rx="8" fill="#ede9fe" stroke="#6d28d9" stroke-width="1.6"/>
+<text x="70" y="344" text-anchor="start" font-size="13" font-weight="bold" fill="#0f172a">TAGS</text>
+<text x="70" y="361" text-anchor="start" font-size="11" fill="#475569">name · type · area · vmType · bitOffset · comment</text>
+<rect x="60" y="372" width="560" height="40" rx="8" fill="#ffedd5" stroke="#c2410c" stroke-width="1.6"/>
+<text x="70" y="392" text-anchor="start" font-size="13" font-weight="bold" fill="#0f172a">CNST</text>
+<text x="70" y="409" text-anchor="start" font-size="11" fill="#475569">constant pool (string literal) → area C</text>
+<rect x="60" y="420" width="560" height="40" rx="8" fill="#f1f5f9" stroke="#64748b" stroke-width="1.6"/>
+<text x="70" y="440" text-anchor="start" font-size="13" font-weight="bold" fill="#0f172a">STRS</text>
+<text x="70" y="457" text-anchor="start" font-size="11" fill="#475569">string table (UTF-8, 0-terminated)  ← ทุก str ชี้มาที่นี่</text>
+<rect x="660" y="60" width="310" height="200" rx="8" fill="#dbeafe" stroke="#1d4ed8" stroke-width="1.6"/>
+<text x="815.0" y="80" text-anchor="middle" font-size="13" font-weight="bold" fill="#0f172a">Block index</text>
+<text x="815.0" y="97" text-anchor="middle" font-size="11" fill="#475569">ลำดับใน BLKS = เลขที่ใช้ใน</text>
+<text x="815.0" y="112" text-anchor="middle" font-size="11" fill="#475569">opCall / opCallFB</text>
+<text x="815.0" y="127" text-anchor="middle" font-size="11" fill="#475569"></text>
+<text x="815.0" y="142" text-anchor="middle" font-size="11" fill="#475569">OB → FB → FC ตามลำดับ block</text>
+<text x="815.0" y="157" text-anchor="middle" font-size="11" fill="#475569">ใน compiler (ดู .lst)</text>
+<rect x="660" y="280" width="310" height="200" rx="8" fill="#dcfce7" stroke="#15803d" stroke-width="1.6"/>
+<text x="815.0" y="300" text-anchor="middle" font-size="13" font-weight="bold" fill="#0f172a">vars table (ต่อ block / DB)</text>
+<text x="815.0" y="317" text-anchor="middle" font-size="11" fill="#475569">path · type · vmType · section</text>
+<text x="815.0" y="332" text-anchor="middle" font-size="11" fill="#475569">flags (retain/byref/hidden)</text>
+<text x="815.0" y="347" text-anchor="middle" font-size="11" fill="#475569">bitOffset · sizeBits</text>
+<text x="815.0" y="362" text-anchor="middle" font-size="11" fill="#475569">startValue · comment</text>
+<text x="815.0" y="377" text-anchor="middle" font-size="11" fill="#475569">→ ใช้ทำ monitor, HMI, watch</text>
+</svg>

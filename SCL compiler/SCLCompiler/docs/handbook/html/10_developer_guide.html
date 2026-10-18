@@ -1,0 +1,43 @@
+<!doctype html><html lang='th'><head><meta charset='utf-8'><title>คู่มือพัฒนาต่อ</title><style>
+@page { size: A4; margin: 14mm 12mm; }
+:root { --ink:#0f172a; --muted:#475569; --line:#cbd5e1; --accent:#1d4ed8; }
+body { font-family: Tahoma, 'Leelawadee UI', sans-serif; color: var(--ink); background:#fff; font-size: 10.3pt; line-height: 1.5; margin:0; }
+h1 { font-size: 17pt; color: var(--accent); border-bottom: 2px solid var(--accent); padding-bottom: 2mm; margin: 0 0 4mm; page-break-after: avoid; }
+h1.ch { page-break-before: always; }
+h1.ch.first { page-break-before: auto; }
+h2 { font-size: 12.3pt; margin: 5mm 0 2mm; page-break-after: avoid; }
+p { margin: 2mm 0 3mm; }
+table { border-collapse: collapse; width: 100%; margin: 2mm 0 4mm; font-size: 8.8pt; }
+tr { page-break-inside: avoid; }
+th { background: #e2e8f0; text-align: left; }
+th, td { border: 1px solid var(--line); padding: 1.1mm 1.6mm; vertical-align: top; }
+tbody tr:nth-child(even) td { background: #f8fafc; }
+figure { margin: 3mm 0 5mm; page-break-inside: avoid; text-align: center; }
+figure img { max-width: 100%; max-height: 200mm; border: 1px solid var(--line); }
+figcaption { font-size: 9pt; color: var(--muted); margin-top: 1mm; }
+pre { background: #0f172a; color: #e2e8f0; padding: 3mm; font-family: Consolas, monospace; font-size: 8.3pt; white-space: pre-wrap; page-break-inside: avoid; border-radius: 2mm; }
+.note { border-left: 4px solid var(--accent); background: #eff6ff; padding: 2mm 3mm; margin: 3mm 0; page-break-inside: avoid; }
+.note.warn { border-color: #b45309; background: #fffbeb; }
+.src { margin-top: 6mm; border-top: 1px solid var(--line); padding-top: 2mm; font-size: 9pt; color: var(--muted); }
+.cover { height: 250mm; display:flex; flex-direction:column; justify-content:center; padding: 0 10mm; border-left: 8px solid var(--accent); }
+.cover .t { font-size: 25pt; font-weight: bold; color: var(--accent); }
+.cover .s { font-size: 13pt; color: var(--muted); margin: 4mm 0 12mm; }
+.toc li { margin: 1mm 0; }
+</style></head><body><h1 class='ch first'>คู่มือพัฒนาต่อ</h1>
+<h2>Build</h2>
+<pre>build.bat                       :: CLI + GUI
+fpc -Mobjfpc -Sh -gl -Fucore -FUlib\cli -obin\sclc.exe cli\sclc.lpr
+lazbuild gui\SCLStudio.lpi       :: GUI (package LCL + SynEdit)</pre>
+<h2>เพิ่ม builtin function ใหม่</h2>
+<ol><li>เพิ่มชื่อใน IsBuiltinName (scl_compiler)</li><li>กำหนดชนิด argument/ผลลัพธ์ใน InferBuiltin</li><li>สร้าง bytecode ใน EmitBuiltin (ใช้ opcode เดิม หรือเพิ่ม BI_xxx ใน opBuiltin)</li><li>ถ้าเพิ่ม BI_xxx: implement ใน scl_vm.pas และบันทึกใน SVPL_Spec</li><li>เพิ่ม element ใน sclide_elements (BuildStatic) และ test ใน FeatureTest</li></ol>
+<h2>เพิ่ม opcode</h2>
+<ol><li>เพิ่มท้าย TOpcode (อย่าแทรกกลาง — เลข opcode เปลี่ยน)</li><li>กำหนด operand ใน OpOperands</li><li>implement ใน TVirtualPlc.Execute</li><li>ปรับ SVPL_VERSION ถ้าไม่เข้ากันย้อนหลัง</li><li>อัปเดต docs/SVPL_Spec.md และหัวข้อ 06</li></ol>
+<h2>เพิ่มชนิดข้อมูล / system FB</h2>
+<ul><li>ชนิด: TTypeKind (เลขต่อจากเดิม = VM type code), ElementaryBits, TypeSupportedOn, Load/Store ใน scl_vmmem</li><li>System FB: ตาราง SysFBs + MakeSysFBType (layout), SysFBId, implement ใน TVirtualPlc.SysFB, เพิ่ม element ใน panel</li></ul>
+<h2>เพิ่ม panel / แท็บใน GUI</h2>
+<ul><li>แท็บ editor ใหม่: สืบทอด TEditorTab (sclide_editors) ตั้ง Kind/Key/BaseCaption</li><li>GUI สร้างด้วยโค้ด (ไม่มี .lfm) — form ใช้ CreateNew</li><li>ผูกกับ compile: เรียกใน RunCompile หลัง RebuildTree</li></ul>
+<h2>Coding convention</h2>
+<ul><li>{$mode objfpc}{$H+}, ชื่อ field ขึ้นต้น F, type ขึ้นต้น T, ห้ามใช้ with ซ้อน</li><li>core ห้าม uses LCL</li><li>ข้อความ error เป็นภาษาอังกฤษสั้น มีชื่อ/ค่า</li><li>ทุก unit core มี header comment บรรทัดแรก</li></ul>
+<h2>ข้อควรระวัง (เจอจริงระหว่างพัฒนา)</h2>
+<table><thead><tr><th>ปัญหา</th><th>วิธีแก้</th></tr></thead><tbody><tr><td>ใน function ที่ไม่มี parameter ชื่อ function = ตัวแปร Result (ParseUnary; ไม่ recurse)</td><td>เรียกตัวเองด้วย ParseUnary()</td></tr><tr><td>ชื่อ local/parameter ชนกับ property ของ LCL (Text, Left, Top, Key)</td><td>ใช้ AText, PLeft, OldTop, AKey</td></tr><tr><td>SynEdit ใช้ Ctrl+0..9 (bookmark) และกิน Alt+key</td><td>shortcut ระดับ app ผ่าน Application.AddOnKeyDownBeforeHandler</td></tr><tr><td>SynEdit word break ไม่มี # → #Name เป็นคำเดียว</td><td>เพิ่ม &#x27;#&#x27;, &#x27;%&#x27;, &#x27;&quot;&#x27; ใน WordBreakChars ของ highlighter</td></tr><tr><td>สร้าง form โดยไม่มี .lfm</td><td>constructor Create override → inherited CreateNew</td></tr><tr><td>for..in กับ array literal ใช้ไม่ได้ใน FPC 3.2</td><td>ใส่ใน array variable ก่อน</td></tr><tr><td>ทดสอบ GUI ด้วย SendKeys: Alt+1 ส่งเป็น VK_NUMPAD1</td><td>รองรับทั้ง VK_1 และ VK_NUMPAD1</td></tr></tbody></table>
+<div class='src'><b>แหล่งข้อมูลของหัวข้อนี้</b><ul><li>Free Pascal Reference Guide และ Lazarus wiki (SynEdit, LCL, lazbuild)</li><li>ประสบการณ์แก้ปัญหาระหว่างพัฒนาโปรเจกต์นี้</li></ul></div></body></html>

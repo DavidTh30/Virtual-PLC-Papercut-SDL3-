@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 560" width="1000" height="560" font-family="Tahoma, 'Leelawadee UI', sans-serif" font-size="12">
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#334155"/></marker><marker id="r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#b91c1c"/></marker></defs>
+<rect width="1000" height="560" fill="#fff"/>
+<text x="20" y="30" font-size="17" font-weight="bold" fill="#0f172a">Compiler pipeline (TSclCompiler.Compile)</text>
+<rect x="60" y="60" width="300" height="46" rx="8" fill="#ede9fe" stroke="#6d28d9" stroke-width="1.6"/>
+<text x="210.0" y="80" text-anchor="middle" font-size="13" font-weight="bold" fill="#0f172a">1 ParseSources</text>
+<text x="210.0" y="97" text-anchor="middle" font-size="11" fill="#475569">scl_lexer → scl_parser → AST (TProgUnit)</text>
+<line x1="210" y1="106" x2="210" y2="114" stroke="#334155" stroke-width="1.5" marker-end="url(#a)"/>
+<rect x="60" y="114" width="300" height="46" rx="8" fill="#dbeafe" stroke="#1d4ed8" stroke-width="1.6"/>
+<text x="210.0" y="134" text-anchor="middle" font-size="13" font-weight="bold" fill="#0f172a">2 RegisterBlocks</text>
+<text x="210.0" y="151" text-anchor="middle" font-size="11" fill="#475569">ชื่อซ้ำ, optimized access ตาม CPU</text>
+<line x1="210" y1="160" x2="210" y2="168" stroke="#334155" stroke-width="1.5" marker-end="url(#a)"/>
+<rect x="60" y="168" width="300" height="46" rx="8" fill="#dbeafe" stroke="#1d4ed8" stroke-width="1.6"/>
+<text x="210.0" y="188" text-anchor="middle" font-size="13" font-weight="bold" fill="#0f172a">3 AssignNumbers</text>
+<text x="210.0" y="205" text-anchor="middle" font-size="11" fill="#475569">เลขจากชื่อ / [BlockNumbers] / อัตโนมัติ, OB event class</text>
+<line x1="210" y1="214" x2="210" y2="222" stroke="#334155" stroke-width="1.5" marker-end="url(#a)"/>
+<rect x="60" y="222" width="300" height="46" rx="8" fill="#dbeafe" stroke="#1d4ed8" stroke-width="1.6"/>
+<text x="210.0" y="242" text-anchor="middle" font-size="13" font-weight="bold" fill="#0f172a">4 RegisterTags</text>
+<text x="210.0" y="259" text-anchor="middle" font-size="11" fill="#475569">tag CSV → address + type, user constant</text>
+<line x1="210" y1="268" x2="210" y2="276" stroke="#334155" stroke-width="1.5" marker-end="url(#a)"/>
+<rect x="60" y="276" width="300" height="46" rx="8" fill="#dbeafe" stroke="#1d4ed8" stroke-width="1.6"/>
+<text x="210.0" y="296" text-anchor="middle" font-size="13" font-weight="bold" fill="#0f172a">5 ResolveBlock</text>
+<text x="210.0" y="313" text-anchor="middle" font-size="11" fill="#475569">UDT/FB/FC/OB/DB → TSclType + layout (bit offset)</text>
+<line x1="210" y1="322" x2="210" y2="330" stroke="#334155" stroke-width="1.5" marker-end="url(#a)"/>
+<rect x="60" y="330" width="300" height="46" rx="8" fill="#dcfce7" stroke="#15803d" stroke-width="1.6"/>
+<text x="210.0" y="350" text-anchor="middle" font-size="13" font-weight="bold" fill="#0f172a">6 BuildDBImage</text>
+<text x="210.0" y="367" text-anchor="middle" font-size="11" fill="#475569">start value + BEGIN + retain map</text>
+<line x1="210" y1="376" x2="210" y2="384" stroke="#334155" stroke-width="1.5" marker-end="url(#a)"/>
+<rect x="60" y="384" width="300" height="46" rx="8" fill="#ffedd5" stroke="#c2410c" stroke-width="1.6"/>
+<text x="210.0" y="404" text-anchor="middle" font-size="13" font-weight="bold" fill="#0f172a">7 GenerateBlock</text>
+<text x="210.0" y="421" text-anchor="middle" font-size="11" fill="#475569">type check + emit bytecode (TCodeBuf)</text>
+<line x1="210" y1="430" x2="210" y2="438" stroke="#334155" stroke-width="1.5" marker-end="url(#a)"/>
+<rect x="60" y="438" width="300" height="46" rx="8" fill="#dcfce7" stroke="#15803d" stroke-width="1.6"/>
+<text x="210.0" y="458" text-anchor="middle" font-size="13" font-weight="bold" fill="#0f172a">8 BuildImage</text>
+<text x="210.0" y="475" text-anchor="middle" font-size="11" fill="#475569">TSvImage: blocks, DBs, tags, vars, const pool</text>
+<line x1="210" y1="484" x2="210" y2="492" stroke="#334155" stroke-width="1.5" marker-end="url(#a)"/>
+<rect x="60" y="492" width="300" height="46" rx="8" fill="#fef9c3" stroke="#a16207" stroke-width="1.6"/>
+<text x="210.0" y="512" text-anchor="middle" font-size="13" font-weight="bold" fill="#0f172a">9 SaveImage / Listing</text>
+<text x="210.0" y="529" text-anchor="middle" font-size="11" fill="#475569">.svpl · .lst · .map.txt</text>
+<rect x="420" y="60" width="250" height="90" rx="8" fill="#fef9c3" stroke="#a16207" stroke-width="1.6"/>
+<text x="545.0" y="80" text-anchor="middle" font-size="13" font-weight="bold" fill="#0f172a">Inputs</text>
+<text x="545.0" y="97" text-anchor="middle" font-size="11" fill="#475569">FluffSilo.sclproj (INI)</text>
+<text x="545.0" y="112" text-anchor="middle" font-size="11" fill="#475569">*.scl (TIA external source)</text>
+<text x="545.0" y="127" text-anchor="middle" font-size="11" fill="#475569">01_PLC_Tags.csv</text>
+<line x1="420" y1="105" x2="362" y2="83" stroke="#334155" stroke-width="1.5" marker-end="url(#a)"/>
+<rect x="420" y="180" width="250" height="120" rx="8" fill="#fee2e2" stroke="#b91c1c" stroke-width="1.6"/>
+<text x="545.0" y="200" text-anchor="middle" font-size="13" font-weight="bold" fill="#0f172a">Diagnostics (TDiagList)</text>
+<text x="545.0" y="217" text-anchor="middle" font-size="11" fill="#475569">Error / Warning / Hint</text>
+<text x="545.0" y="232" text-anchor="middle" font-size="11" fill="#475569">file(line,col) message</text>
+<text x="545.0" y="247" text-anchor="middle" font-size="11" fill="#475569">ทุกขั้นตอนบันทึกต่อได้</text>
+<text x="545.0" y="262" text-anchor="middle" font-size="11" fill="#475569">(ไม่หยุดที่ error แรก)</text>
+<line x1="362" y1="250" x2="418" y2="240" stroke="#334155" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#a)"/>
+<rect x="420" y="330" width="250" height="110" rx="8" fill="#ede9fe" stroke="#6d28d9" stroke-width="1.6"/>
+<text x="545.0" y="350" text-anchor="middle" font-size="13" font-weight="bold" fill="#0f172a">Type system (scl_types)</text>
+<text x="545.0" y="367" text-anchor="middle" font-size="11" fill="#475569">Elementary · Array · Struct</text>
+<text x="545.0" y="382" text-anchor="middle" font-size="11" fill="#475569">UDT · FB instance · System FB</text>
+<text x="545.0" y="397" text-anchor="middle" font-size="11" fill="#475569">S7 standard layout rules</text>
+<line x1="418" y1="380" x2="362" y2="300" stroke="#334155" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#a)"/>
+<rect x="720" y="60" width="250" height="110" rx="8" fill="#ffedd5" stroke="#c2410c" stroke-width="1.6"/>
+<text x="845.0" y="80" text-anchor="middle" font-size="13" font-weight="bold" fill="#0f172a">Code generation</text>
+<text x="845.0" y="97" text-anchor="middle" font-size="11" fill="#475569">InferType(E) → type + const fold</text>
+<text x="845.0" y="112" text-anchor="middle" font-size="11" fill="#475569">EmitValue / EmitAddr</text>
+<text x="845.0" y="127" text-anchor="middle" font-size="11" fill="#475569">EmitCall: FC / FB / SysFB / builtin</text>
+<text x="845.0" y="142" text-anchor="middle" font-size="11" fill="#475569">statements: IF CASE FOR ...</text>
+<line x1="718" y1="115" x2="362" y2="400" stroke="#334155" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#a)"/>
+<rect x="720" y="200" width="250" height="90" rx="8" fill="#f1f5f9" stroke="#64748b" stroke-width="1.6"/>
+<text x="845.0" y="220" text-anchor="middle" font-size="13" font-weight="bold" fill="#0f172a">Consumers</text>
+<text x="845.0" y="237" text-anchor="middle" font-size="11" fill="#475569">SCL Studio (tree, views, nav)</text>
+<text x="845.0" y="252" text-anchor="middle" font-size="11" fill="#475569">sclc CLI · tests</text>
+<rect x="720" y="320" width="250" height="120" rx="8" fill="#dcfce7" stroke="#15803d" stroke-width="1.6"/>
+<text x="845.0" y="340" text-anchor="middle" font-size="13" font-weight="bold" fill="#0f172a">Output files</text>
+<text x="845.0" y="357" text-anchor="middle" font-size="11" fill="#475569">.svpl → Virtual PLC</text>
+<text x="845.0" y="372" text-anchor="middle" font-size="11" fill="#475569">.lst → disassembly + map</text>
+<text x="845.0" y="387" text-anchor="middle" font-size="11" fill="#475569">.map.txt → memory map</text>
+<text x="845.0" y="402" text-anchor="middle" font-size="11" fill="#475569">vars tables → monitor/HMI</text>
+<line x1="362" y1="535" x2="718" y2="400" stroke="#334155" stroke-width="1.5" marker-end="url(#a)"/>
+</svg>

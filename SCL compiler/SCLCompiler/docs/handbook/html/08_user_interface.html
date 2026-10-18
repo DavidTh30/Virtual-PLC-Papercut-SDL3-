@@ -1,0 +1,42 @@
+<!doctype html><html lang='th'><head><meta charset='utf-8'><title>User Interface</title><style>
+@page { size: A4; margin: 14mm 12mm; }
+:root { --ink:#0f172a; --muted:#475569; --line:#cbd5e1; --accent:#1d4ed8; }
+body { font-family: Tahoma, 'Leelawadee UI', sans-serif; color: var(--ink); background:#fff; font-size: 10.3pt; line-height: 1.5; margin:0; }
+h1 { font-size: 17pt; color: var(--accent); border-bottom: 2px solid var(--accent); padding-bottom: 2mm; margin: 0 0 4mm; page-break-after: avoid; }
+h1.ch { page-break-before: always; }
+h1.ch.first { page-break-before: auto; }
+h2 { font-size: 12.3pt; margin: 5mm 0 2mm; page-break-after: avoid; }
+p { margin: 2mm 0 3mm; }
+table { border-collapse: collapse; width: 100%; margin: 2mm 0 4mm; font-size: 8.8pt; }
+tr { page-break-inside: avoid; }
+th { background: #e2e8f0; text-align: left; }
+th, td { border: 1px solid var(--line); padding: 1.1mm 1.6mm; vertical-align: top; }
+tbody tr:nth-child(even) td { background: #f8fafc; }
+figure { margin: 3mm 0 5mm; page-break-inside: avoid; text-align: center; }
+figure img { max-width: 100%; max-height: 200mm; border: 1px solid var(--line); }
+figcaption { font-size: 9pt; color: var(--muted); margin-top: 1mm; }
+pre { background: #0f172a; color: #e2e8f0; padding: 3mm; font-family: Consolas, monospace; font-size: 8.3pt; white-space: pre-wrap; page-break-inside: avoid; border-radius: 2mm; }
+.note { border-left: 4px solid var(--accent); background: #eff6ff; padding: 2mm 3mm; margin: 3mm 0; page-break-inside: avoid; }
+.note.warn { border-color: #b45309; background: #fffbeb; }
+.src { margin-top: 6mm; border-top: 1px solid var(--line); padding-top: 2mm; font-size: 9pt; color: var(--muted); }
+.cover { height: 250mm; display:flex; flex-direction:column; justify-content:center; padding: 0 10mm; border-left: 8px solid var(--accent); }
+.cover .t { font-size: 25pt; font-weight: bold; color: var(--accent); }
+.cover .s { font-size: 13pt; color: var(--muted); margin: 4mm 0 12mm; }
+.toc li { margin: 1mm 0; }
+</style></head><body><h1 class='ch first'>User Interface</h1>
+<h2>UI ปัจจุบันของ SCL Studio</h2>
+<figure><img src='../images/ui_auto_highlight.png' alt=''><figcaption>รูป 8.1 SCL editor + Auto Highlight (DB_HMI ถูกระบายทุกตำแหน่ง), Project tree ซ้าย, SCL elements ขวา</figcaption></figure>
+<figure><img src='../images/ui_find_declaration.png' alt=''><figcaption>รูป 8.2 Find Declaration ข้ามไฟล์: ไฟล์ปลายทางถูกเลือกใน Project tree</figcaption></figure>
+<figure><img src='../images/ui_drag_drop_elements.png' alt=''><figcaption>รูป 8.3 ลาก &quot;IF ... THEN&quot; จาก SCL elements มาวางใน editor</figcaption></figure>
+<figure><img src='../images/ui_interface_editor.png' alt=''><figcaption>รูป 8.4 Interface editor (grid ⇄ source) ของ FB_Motor</figcaption></figure>
+<figure><img src='../images/ui_tags.png' alt=''><figcaption>รูป 8.5 PLC tags / Symbols</figcaption></figure>
+<figure><img src='../images/ui_all_variables.png' alt=''><figcaption>รูป 8.6 All variables (F11)</figcaption></figure>
+<figure><img src='../images/ui_all_elements.png' alt=''><figcaption>รูป 8.7 All elements (F12)</figcaption></figure>
+<table><thead><tr><th>ส่วน UI</th><th>ความสามารถ</th></tr></thead><tbody><tr><td>Toolbar</td><td>New project, Open, Save all, New block, Tags, Compile, Build, Variables, All elements, Project tree, SCL elements, CPU</td></tr><tr><td>Project tree (Alt+1)</td><td>PLC tags, UDT, Program blocks (OB/FB/FC/DB พร้อมเลข), Source files; context menu: open, interface, set number, remove</td></tr><tr><td>SCL editor</td><td>syntax highlight, auto highlight ชื่อ, Find Declaration (คลิกขวา / Alt+Up / Ctrl+Click), Go Back (Alt+Left), Find, Undo/Redo</td></tr><tr><td>SCL elements (Alt+2)</td><td>20 หมวด พับ/ขยาย ค้นหา ลากวาง / ดับเบิลคลิก, หมวด Project อัปเดตตาม compile</td></tr><tr><td>Messages</td><td>error/warning ดับเบิลคลิกไปบรรทัด</td></tr><tr><td>Views</td><td>All variables, All elements, Listing, Tags, Interface grid</td></tr><tr><td>File</td><td>Recent projects / Recent files, import tags, add source</td></tr></tbody></table>
+<h2>UI พื้นฐานที่ IDE ต้องเพิ่มเพื่อทำงานกับ Virtual PLC</h2>
+<figure><img src='../images/d11_ide_online.svg' alt=''><figcaption>รูป 8.8 IDE: Online menu, watch table, download dialog (wireframe)</figcaption></figure>
+<table><thead><tr><th>ลำดับความสำคัญ</th><th>UI</th><th>รายละเอียด</th></tr></thead><tbody><tr><td>สูง</td><td>Online menu + toolbar</td><td>Connect/Disconnect, Download (F10), RUN, STOP, สถานะการเชื่อมต่อใน status bar</td></tr><tr><td>สูง</td><td>Connection settings</td><td>IP, port, password, timeout; จำค่าไว้ในโปรเจกต์</td></tr><tr><td>สูง</td><td>Download dialog</td><td>เทียบ CPU/hash, ตัวเลือก STOP ก่อนโหลด / keep retain / reset DB / START หลังโหลด, progress, log</td></tr><tr><td>สูง</td><td>Diagnostic buffer viewer</td><td>แสดงเหตุการณ์จาก Virtual PLC, ดับเบิลคลิกไป block/line</td></tr><tr><td>กลาง</td><td>Watch / force table</td><td>เพิ่ม path จาก All variables / Find Declaration, monitor ทุก 200 ms, modify, force</td></tr><tr><td>กลาง</td><td>Online status ใน editor</td><td>แสดงค่าตัวแปรข้างบรรทัดตาม line table, สีของเงื่อนไข</td></tr><tr><td>กลาง</td><td>Compare offline/online</td><td>hash ทั้งไฟล์และต่อ block</td></tr><tr><td>ต่ำ</td><td>Upload</td><td>ดึง image จาก Virtual PLC (ดูได้แต่ไม่มี source)</td></tr></tbody></table>
+<h2>UI พื้นฐานของ Virtual PLC</h2>
+<figure><img src='../images/d10_vplc_ui.svg' alt=''><figcaption>รูป 8.9 Virtual PLC UI (wireframe)</figcaption></figure>
+<table><thead><tr><th>ส่วน</th><th>ต้องมี</th></tr></thead><tbody><tr><td>Status</td><td>RUN / STOP / ERROR LED, cycle time min/avg/max, ชื่อ image, hash, เวลาที่โหลด, จำนวน connection</td></tr><tr><td>Mode</td><td>ปุ่ม RUN / STOP / MRES, cold / warm restart, auto start เมื่อเปิดโปรแกรม</td></tr><tr><td>I/O panel</td><td>checkbox ของ input (จาก TAGS), lamp ของ output, slider ของ analog — ใช้ทดสอบเมื่อไม่มี hardware</td></tr><tr><td>Watch / force</td><td>ตารางตัวแปรตาม path พร้อมค่า และ force</td></tr><tr><td>DB viewer</td><td>ดู DB เป็นตาราง (จาก vars) และ hex</td></tr><tr><td>Diagnostic buffer</td><td>ประวัติเหตุการณ์ export ได้</td></tr><tr><td>Settings</td><td>port, password, cycle/watchdog, retain path, I/O driver, S7 server on/off</td></tr></tbody></table>
+<div class='src'><b>แหล่งข้อมูลของหัวข้อนี้</b><ul><li>ภาพหน้าจอจากการรัน bin/SCLStudio.exe จริง</li><li>wireframe ออกแบบใหม่ในเอกสารนี้</li><li>แนวคิด UI ของ TIA Portal (Online &amp; diagnostics, Watch table, Force table) และ PLCSIM เป็นแรงบันดาลใจ — ไม่ได้คัดลอกหน้าจอ</li></ul></div></body></html>

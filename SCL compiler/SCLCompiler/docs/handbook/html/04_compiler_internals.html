@@ -1,0 +1,44 @@
+<!doctype html><html lang='th'><head><meta charset='utf-8'><title>รายละเอียดภายใน Compiler</title><style>
+@page { size: A4; margin: 14mm 12mm; }
+:root { --ink:#0f172a; --muted:#475569; --line:#cbd5e1; --accent:#1d4ed8; }
+body { font-family: Tahoma, 'Leelawadee UI', sans-serif; color: var(--ink); background:#fff; font-size: 10.3pt; line-height: 1.5; margin:0; }
+h1 { font-size: 17pt; color: var(--accent); border-bottom: 2px solid var(--accent); padding-bottom: 2mm; margin: 0 0 4mm; page-break-after: avoid; }
+h1.ch { page-break-before: always; }
+h1.ch.first { page-break-before: auto; }
+h2 { font-size: 12.3pt; margin: 5mm 0 2mm; page-break-after: avoid; }
+p { margin: 2mm 0 3mm; }
+table { border-collapse: collapse; width: 100%; margin: 2mm 0 4mm; font-size: 8.8pt; }
+tr { page-break-inside: avoid; }
+th { background: #e2e8f0; text-align: left; }
+th, td { border: 1px solid var(--line); padding: 1.1mm 1.6mm; vertical-align: top; }
+tbody tr:nth-child(even) td { background: #f8fafc; }
+figure { margin: 3mm 0 5mm; page-break-inside: avoid; text-align: center; }
+figure img { max-width: 100%; max-height: 200mm; border: 1px solid var(--line); }
+figcaption { font-size: 9pt; color: var(--muted); margin-top: 1mm; }
+pre { background: #0f172a; color: #e2e8f0; padding: 3mm; font-family: Consolas, monospace; font-size: 8.3pt; white-space: pre-wrap; page-break-inside: avoid; border-radius: 2mm; }
+.note { border-left: 4px solid var(--accent); background: #eff6ff; padding: 2mm 3mm; margin: 3mm 0; page-break-inside: avoid; }
+.note.warn { border-color: #b45309; background: #fffbeb; }
+.src { margin-top: 6mm; border-top: 1px solid var(--line); padding-top: 2mm; font-size: 9pt; color: var(--muted); }
+.cover { height: 250mm; display:flex; flex-direction:column; justify-content:center; padding: 0 10mm; border-left: 8px solid var(--accent); }
+.cover .t { font-size: 25pt; font-weight: bold; color: var(--accent); }
+.cover .s { font-size: 13pt; color: var(--muted); margin: 4mm 0 12mm; }
+.toc li { margin: 1mm 0; }
+</style></head><body><h1 class='ch first'>รายละเอียดภายใน Compiler</h1>
+<h2>Lexer (scl_lexer)</h2>
+<ul><li>ตัด token ทั้งไฟล์ล่วงหน้า (TokenizeAll) → parser มองไปข้างหน้าได้หลาย token</li><li>ชื่อ: plain, #local, &quot;global&quot;; keyword เป็น ident แล้ว parser ตัดสินเอง (เพราะชื่ออย่าง IN, MIN, VALUE ใช้เป็น parameter ได้)</li><li>Typed constant: prefix + # → แปลงเป็นค่า (Time = ms, LTime = ns, Date = วันนับจาก 1990-01-01, DT = ms นับจาก 1990)</li><li>Address % อ่านรวมจุด เช่น %DB10.DBX0.0, slice .%X0 ใช้ token เดียวกัน</li><li>Pragma {...} เก็บ text ไว้ parse เป็น key := value</li></ul>
+<h2>Parser (scl_parser)</h2>
+<ul><li>Recursive descent; precedence: OR &lt; XOR &lt; AND &lt; = &lt;&gt; &lt; &lt; &lt;= &gt; &gt;= &lt; + - &lt; * / MOD &lt; ** &lt; unary &lt; postfix</li><li>REGION: ชื่อคือข้อความที่เหลือของบรรทัด</li><li>CASE: แยก label กับ statement ด้วย lookahead (ค่า/ชื่อ ตามด้วย : , ..)</li><li>Error recovery: ข้ามไปที่ ; หรือ END_xxx ของ block แล้วทำต่อ</li><li>เก็บตำแหน่ง HeaderEndOffset / DeclEndOffset เพื่อให้ grid editor แทนที่ส่วน declaration ได้</li><li>เก็บ raw text ของ type และ initial value (TypeText / InitText) เพื่อ round-trip</li></ul>
+<h2>Type system และ layout (scl_types)</h2>
+<ul><li>TSclType ต่อชนิด; elementary เป็น singleton, composite อยู่ใน type pool (ล้างทุกครั้งที่ compile)</li><li>Layout แบบ S7 standard: Bool เรียง bit, Byte เริ่ม byte ถัดไป, ชนิดอื่น/Array/Struct/String เริ่ม byte คู่, Struct ปัดเป็น byte คู่</li><li>FB instance: [Input][Output][InOut=Ptr][Static]; FC param: [RET_VAL][Input][Output][InOut]; temp ต่อท้าย</li><li>System FB: layout คงที่ (ดูหัวข้อ 06) เพื่อให้ VM รู้ offset</li></ul>
+<h2>Semantic analysis</h2>
+<ul><li>InferType(E) คำนวณชนิด + constant folding และ cache ใน node (RType, IsConst, CVal, RefKind, RefOfs, ByRef)</li><li>ชื่อ: local ก่อน (#) แล้ว tag, DB, block; builtin ตรวจเมื่อเรียกแบบ function และชื่อไม่ถูก local ที่เป็น instance บัง</li><li>CommonType: ชนิดผลของ operator (literal ปรับตามอีกฝั่ง, signed/unsigned ผสม → signed ที่ใหญ่กว่า, int+real → real)</li><li>ImplicitOK: กฎ implicit conversion (ดูหัวข้อ 03)</li><li>ตรวจ argument ของ FC/FB: ชื่อ parameter, ทิศทาง (:= / =&gt;), InOut ต้องเป็นตัวแปร, FC ต้องกำหนด input ครบ</li></ul>
+<h2>Code generation</h2>
+<table><thead><tr><th>รูปแบบ</th><th>bytecode ที่ได้</th></tr></thead><tbody><tr><td>#a := #b + 1  (Int)</td><td>AddrLocal a · AddrLocal b · Load Int · PushI 1 · AddI · Wrap Int · Store Int</td></tr><tr><td>IF c THEN .. ELSE .. END_IF</td><td>eval c · Jz Lelse · ... · Jmp Lend · Lelse: ... · Lend:</td></tr><tr><td>CASE x OF 1: .. 4..9: ..</td><td>เก็บ x ใน temp ซ่อน · เทียบทีละ label → Jnz body</td></tr><tr><td>FOR i := a TO b BY s</td><td>temp ซ่อนเก็บ b (และ s ถ้าไม่คงที่) · ตรวจ overflow ก่อนบวก</td></tr><tr><td>FC call</td><td>FrameAlloc · เขียน param ด้วย AddrNewFrame · Call · อ่าน output/RET_VAL · FrameFree</td></tr><tr><td>FB call</td><td>เขียน input ลง instance · push instance · CallFB · copy output</td></tr><tr><td>slice w.%X3 := b</td><td>AddrX w · Dup · Load · (value) · SetBit 3 · Store</td></tr><tr><td>String</td><td>ค่าคือ address; literal อยู่ใน constant pool; CONCAT ใช้ temp String[254]</td></tr></tbody></table>
+<ul><li>ทุก block เริ่มด้วย Jmp ไป prologue (ตั้ง max length ของ String temp) แล้วกลับมา</li><li>Line table: (code offset → บรรทัด) สำหรับ online monitor ในอนาคต</li><li>Integer ทุกชนิดคำนวณเป็น Int64 แล้ว Wrap ตามชนิด (overflow แบบ S7), Real คำนวณ Double แล้ว F2F32</li></ul>
+<h2>DB image และ retain</h2>
+<ul><li>ApplyDefaults: ค่าเริ่มต้นจาก declaration (รวม instance ซ้อนและ system FB), ตั้ง max length ของ String ทุกตัว</li><li>BEGIN ของ DB: path := ค่าคงที่ (StaticPath คำนวณ offset)</li><li>Retain: DB standard ที่ไม่มี keyword = retain ทั้ง block (instance DB = non-retain) · optimized: ตาม VAR RETAIN · retainMap 1 bit ต่อ byte</li></ul>
+<h2>เลข block และ OB</h2>
+<ul><li>ลำดับ: [BlockNumbers] ในโปรเจกต์ → ชื่อแบบ DB10/FC3 → ชื่อ OB มาตรฐาน → อัตโนมัติ (OB ≥ 123 สำหรับ 1200/1500)</li><li>Event class: 1 cycle, 10 time-of-day, 20 delay, 30 cyclic (interval จาก [CyclicInterval] หรือค่ามาตรฐาน OB30..38), 40 HW, 80.., 100 startup, 121/122 error</li></ul>
+<h2>Declaration round-trip (scl_declgen) และ Find Declaration (scl_navigate)</h2>
+<ul><li>LoadDeclRows: parse source → แถว (section, name, type text, init, retain, comment)</li><li>ApplyDeclRows: สร้าง VAR sections / STRUCT ใหม่แล้วแทนที่ช่วง HeaderEnd..DeclEnd ของ block นั้น</li><li>FindDeclarationAt: แยก path ใต้ cursor (#a.b[i].c) → local / DB member / tag / block → ไล่ member ทีละชั้นด้วย TSclType → DeclPos</li></ul>
+<div class='src'><b>แหล่งข้อมูลของหัวข้อนี้</b><ul><li>โค้ด core/*.pas</li><li>กฎ layout standard access ของ S7 — ตรวจกับ TIA Portal Information System หัวข้อ &quot;Memory areas / Data storage in standard access blocks&quot;</li><li>การตรวจ layout จริง: DB_HMI 82 byte เทียบกับ register map ของ FluffSilo HMI (จากโฟลเดอร์ PLC_S7-1200)</li></ul></div></body></html>

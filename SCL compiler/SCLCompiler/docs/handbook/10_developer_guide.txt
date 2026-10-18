@@ -1,0 +1,90 @@
+﻿SCL Compiler + SCL Studio — คู่มือสำหรับพัฒนาต่อ
+18 ตุลาคม 2026
+
+##############################################################################################################
+คู่มือพัฒนาต่อ   [10_developer_guide]
+##############################################################################################################
+
+
+Build
+--------------------
+
+    build.bat                       :: CLI + GUI
+    fpc -Mobjfpc -Sh -gl -Fucore -FUlib\cli -obin\sclc.exe cli\sclc.lpr
+    lazbuild gui\SCLStudio.lpi       :: GUI (package LCL + SynEdit)
+
+
+เพิ่ม builtin function ใหม่
+------------------------
+
+  1. เพิ่มชื่อใน IsBuiltinName (scl_compiler)
+  2. กำหนดชนิด argument/ผลลัพธ์ใน InferBuiltin
+  3. สร้าง bytecode ใน EmitBuiltin (ใช้ opcode เดิม หรือเพิ่ม BI_xxx ใน opBuiltin)
+  4. ถ้าเพิ่ม BI_xxx: implement ใน scl_vm.pas และบันทึกใน SVPL_Spec
+  5. เพิ่ม element ใน sclide_elements (BuildStatic) และ test ใน FeatureTest
+
+
+เพิ่ม opcode
+--------------------
+
+  1. เพิ่มท้าย TOpcode (อย่าแทรกกลาง — เลข opcode เปลี่ยน)
+  2. กำหนด operand ใน OpOperands
+  3. implement ใน TVirtualPlc.Execute
+  4. ปรับ SVPL_VERSION ถ้าไม่เข้ากันย้อนหลัง
+  5. อัปเดต docs/SVPL_Spec.md และหัวข้อ 06
+
+
+เพิ่มชนิดข้อมูล / system FB
+----------------------
+
+  • ชนิด: TTypeKind (เลขต่อจากเดิม = VM type code), ElementaryBits, TypeSupportedOn, Load/Store ใน scl_vmmem
+  • System FB: ตาราง SysFBs + MakeSysFBType (layout), SysFBId, implement ใน TVirtualPlc.SysFB, เพิ่ม element
+    ใน panel
+
+
+เพิ่ม panel / แท็บใน GUI
+---------------------
+
+  • แท็บ editor ใหม่: สืบทอด TEditorTab (sclide_editors) ตั้ง Kind/Key/BaseCaption
+  • GUI สร้างด้วยโค้ด (ไม่มี .lfm) — form ใช้ CreateNew
+  • ผูกกับ compile: เรียกใน RunCompile หลัง RebuildTree
+
+
+Coding convention
+--------------------
+
+  • {$mode objfpc}{$H+}, ชื่อ field ขึ้นต้น F, type ขึ้นต้น T, ห้ามใช้ with ซ้อน
+  • core ห้าม uses LCL
+  • ข้อความ error เป็นภาษาอังกฤษสั้น มีชื่อ/ค่า
+  • ทุก unit core มี header comment บรรทัดแรก
+
+
+ข้อควรระวัง (เจอจริงระหว่างพัฒนา)
+----------------------------
+
++-----------------------------------------------------+------------------------------------------------------+
+| ปัญหา                                                | วิธีแก้                                                 |
++=====================================================+======================================================+
+| ใน function ที่ไม่มี parameter ชื่อ function = ตัวแปร      | เรียกตัวเองด้วย ParseUnary()                            |
+| Result (ParseUnary; ไม่ recurse)                     |                                                      |
++-----------------------------------------------------+------------------------------------------------------+
+| ชื่อ local/parameter ชนกับ property ของ LCL (Text,     | ใช้ AText, PLeft, OldTop, AKey                        |
+| Left, Top, Key)                                     |                                                      |
++-----------------------------------------------------+------------------------------------------------------+
+| SynEdit ใช้ Ctrl+0..9 (bookmark) และกิน Alt+key       | shortcut ระดับ app ผ่าน                                |
+|                                                     | Application.AddOnKeyDownBeforeHandler                |
++-----------------------------------------------------+------------------------------------------------------+
+| SynEdit word break ไม่มี # → #Name เป็นคำเดียว          | เพิ่ม '#', '%', '"' ใน WordBreakChars ของ highlighter  |
++-----------------------------------------------------+------------------------------------------------------+
+| สร้าง form โดยไม่มี .lfm                               | constructor Create override → inherited CreateNew    |
++-----------------------------------------------------+------------------------------------------------------+
+| for..in กับ array literal ใช้ไม่ได้ใน FPC 3.2           | ใส่ใน array variable ก่อน                              |
++-----------------------------------------------------+------------------------------------------------------+
+| ทดสอบ GUI ด้วย SendKeys: Alt+1 ส่งเป็น VK_NUMPAD1      | รองรับทั้ง VK_1 และ VK_NUMPAD1                          |
++-----------------------------------------------------+------------------------------------------------------+
+
+
+แหล่งข้อมูลของหัวข้อนี้
+------------------------
+  - Free Pascal Reference Guide และ Lazarus wiki (SynEdit, LCL, lazbuild)
+  - ประสบการณ์แก้ปัญหาระหว่างพัฒนาโปรเจกต์นี้

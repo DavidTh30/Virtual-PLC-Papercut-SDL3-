@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 640" width="1000" height="640" font-family="Tahoma, 'Leelawadee UI', sans-serif" font-size="12">
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#334155"/></marker><marker id="r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#b91c1c"/></marker></defs>
+<rect width="1000" height="640" fill="#fff"/>
+<text x="20" y="30" font-size="17" font-weight="bold" fill="#0f172a">Download sequence (SCL Studio ⇄ Virtual PLC)</text>
+<rect x="60" y="50" width="220" height="36" rx="8" fill="#ede9fe" stroke="#6d28d9" stroke-width="1.6"/>
+<text x="170.0" y="70" text-anchor="middle" font-size="13" font-weight="bold" fill="#0f172a">SCL Studio</text>
+<line x1="170" y1="86" x2="170" y2="620" stroke="#94a3b8" stroke-dasharray="4 4"/>
+<rect x="410" y="50" width="220" height="36" rx="8" fill="#ffedd5" stroke="#c2410c" stroke-width="1.6"/>
+<text x="520.0" y="70" text-anchor="middle" font-size="13" font-weight="bold" fill="#0f172a">Virtual PLC: comm</text>
+<line x1="520" y1="86" x2="520" y2="620" stroke="#94a3b8" stroke-dasharray="4 4"/>
+<rect x="720" y="50" width="220" height="36" rx="8" fill="#dbeafe" stroke="#1d4ed8" stroke-width="1.6"/>
+<text x="830.0" y="70" text-anchor="middle" font-size="13" font-weight="bold" fill="#0f172a">Program manager / runtime</text>
+<line x1="830" y1="86" x2="830" y2="620" stroke="#94a3b8" stroke-dasharray="4 4"/>
+<line x1="170" y1="115" x2="520" y2="115" stroke="#334155" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="178" y="110" font-size="11" fill="#334155">CONNECT + HELLO (version, password)</text>
+<line x1="520" y1="146" x2="170" y2="146" stroke="#334155" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="178" y="141" font-size="11" fill="#334155">HELLO_OK (CPU, FW, memory, mode, imageHash)</text>
+<line x1="170" y1="177" x2="520" y2="177" stroke="#334155" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="178" y="172" font-size="11" fill="#334155">GET_INFO / compare hash (ต้องโหลดไหม)</text>
+<line x1="170" y1="208" x2="520" y2="208" stroke="#334155" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="178" y="203" font-size="11" fill="#334155">STOP (ถ้า RUN และผู้ใช้ยืนยัน)</text>
+<line x1="520" y1="239" x2="830" y2="239" stroke="#334155" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="528" y="234" font-size="11" fill="#334155">set mode STOP · output → safe state</text>
+<line x1="170" y1="270" x2="520" y2="270" stroke="#334155" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="178" y="265" font-size="11" fill="#334155">DOWNLOAD_BEGIN (size, sha256, cpu, version)</text>
+<line x1="520" y1="301" x2="830" y2="301" stroke="#334155" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="528" y="296" font-size="11" fill="#334155">เตรียม staging · ตรวจ CPU / ขนาด</text>
+<line x1="170" y1="332" x2="520" y2="332" stroke="#334155" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="178" y="327" font-size="11" fill="#334155">DOWNLOAD_CHUNK × n (offset, data, crc32)</text>
+<line x1="170" y1="363" x2="520" y2="363" stroke="#334155" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="178" y="358" font-size="11" fill="#334155">DOWNLOAD_END</text>
+<line x1="520" y1="394" x2="830" y2="394" stroke="#334155" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="528" y="389" font-size="11" fill="#334155">validate: magic, sections, hash, opcode</text>
+<line x1="830" y1="425" x2="520" y2="425" stroke="#334155" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="528" y="420" font-size="11" fill="#334155">VALID / ERROR (เหตุผล)</text>
+<line x1="170" y1="456" x2="520" y2="456" stroke="#334155" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="178" y="451" font-size="11" fill="#334155">ACTIVATE (keep retain? / reset DB)</text>
+<line x1="520" y1="487" x2="830" y2="487" stroke="#334155" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="528" y="482" font-size="11" fill="#334155">atomic swap → active.svpl · retain merge</text>
+<line x1="170" y1="518" x2="520" y2="518" stroke="#334155" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="178" y="513" font-size="11" fill="#334155">START (warm / cold)</text>
+<line x1="520" y1="549" x2="830" y2="549" stroke="#334155" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="528" y="544" font-size="11" fill="#334155">STARTUP: OB100 → RUN</text>
+<line x1="520" y1="580" x2="170" y2="580" stroke="#334155" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="178" y="575" font-size="11" fill="#334155">STATUS (RUN, cycle time) · log ใน diagnostic buffer</text>
+</svg>

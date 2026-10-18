@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 520" width="1000" height="520" font-family="Tahoma, 'Leelawadee UI', sans-serif" font-size="12">
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#334155"/></marker><marker id="r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#b91c1c"/></marker></defs>
+<rect width="1000" height="520" fill="#fff"/>
+<text x="20" y="30" font-size="17" font-weight="bold" fill="#0f172a">Address model และ memory areas ของ Virtual PLC</text>
+<rect x="60" y="70" width="880" height="50" rx="6" fill="#f8fafc" stroke="#cbd5e1"/>
+<rect x="60" y="70" width="60" height="50" rx="0" fill="#f1f5f9" stroke="#64748b" stroke-width="1.6"/>
+<text x="90.0" y="90" text-anchor="middle" font-size="13" font-weight="bold" fill="#0f172a">bit63</text>
+<rect x="120" y="70" width="160" height="50" rx="0" fill="#ffedd5" stroke="#c2410c" stroke-width="1.6"/>
+<text x="200.0" y="90" text-anchor="middle" font-size="13" font-weight="bold" fill="#0f172a">area (56..62)</text>
+<rect x="280" y="70" width="260" height="50" rx="0" fill="#dbeafe" stroke="#1d4ed8" stroke-width="1.6"/>
+<text x="410.0" y="90" text-anchor="middle" font-size="13" font-weight="bold" fill="#0f172a">DB number (40..55)</text>
+<rect x="540" y="70" width="400" height="50" rx="0" fill="#dcfce7" stroke="#15803d" stroke-width="1.6"/>
+<text x="740.0" y="90" text-anchor="middle" font-size="13" font-weight="bold" fill="#0f172a">bit offset (0..39)</text>
+<text x="60" y="145" font-size="12" text-anchor="start" fill="#0f172a">ทุก address เป็น Int64 เดียว · offset เป็นหน่วย bit · ข้อมูลใน memory เป็น big endian เหมือน S7</text>
+<rect x="60" y="170" width="120" height="34" rx="8" fill="#fef9c3" stroke="#a16207" stroke-width="1.6"/>
+<text x="120.0" y="190" text-anchor="middle" font-size="13" font-weight="bold" fill="#0f172a">1  I</text>
+<text x="195" y="192" font-size="12" text-anchor="start" fill="#475569">process image input</text>
+<rect x="60" y="212" width="120" height="34" rx="8" fill="#fef9c3" stroke="#a16207" stroke-width="1.6"/>
+<text x="120.0" y="232" text-anchor="middle" font-size="13" font-weight="bold" fill="#0f172a">2  Q</text>
+<text x="195" y="234" font-size="12" text-anchor="start" fill="#475569">process image output</text>
+<rect x="60" y="254" width="120" height="34" rx="8" fill="#fef9c3" stroke="#a16207" stroke-width="1.6"/>
+<text x="120.0" y="274" text-anchor="middle" font-size="13" font-weight="bold" fill="#0f172a">3  M</text>
+<text x="195" y="276" font-size="12" text-anchor="start" fill="#475569">bit memory</text>
+<rect x="60" y="296" width="120" height="34" rx="8" fill="#fef9c3" stroke="#a16207" stroke-width="1.6"/>
+<text x="120.0" y="316" text-anchor="middle" font-size="13" font-weight="bold" fill="#0f172a">4  DB</text>
+<text x="195" y="318" font-size="12" text-anchor="start" fill="#475569">data blocks (array ตามเลข DB)</text>
+<rect x="60" y="338" width="120" height="34" rx="8" fill="#fef9c3" stroke="#a16207" stroke-width="1.6"/>
+<text x="120.0" y="358" text-anchor="middle" font-size="13" font-weight="bold" fill="#0f172a">5  L</text>
+<text x="195" y="360" font-size="12" text-anchor="start" fill="#475569">local stack (frame)</text>
+<rect x="60" y="380" width="120" height="34" rx="8" fill="#fef9c3" stroke="#a16207" stroke-width="1.6"/>
+<text x="120.0" y="400" text-anchor="middle" font-size="13" font-weight="bold" fill="#0f172a">6  C</text>
+<text x="195" y="402" font-size="12" text-anchor="start" fill="#475569">constant pool (read only)</text>
+<rect x="60" y="422" width="120" height="34" rx="8" fill="#fef9c3" stroke="#a16207" stroke-width="1.6"/>
+<text x="120.0" y="442" text-anchor="middle" font-size="13" font-weight="bold" fill="#0f172a">7/8 PI/PQ</text>
+<text x="195" y="444" font-size="12" text-anchor="start" fill="#475569">peripheral I/O</text>
+<rect x="560" y="170" width="380" height="300" rx="8" fill="#ede9fe" stroke="#6d28d9" stroke-width="1.6"/>
+<text x="750.0" y="190" text-anchor="middle" font-size="13" font-weight="bold" fill="#0f172a">Value stack (8 byte / slot)</text>
+<text x="750.0" y="207" text-anchor="middle" font-size="11" fill="#475569">Int64: Bool, Byte..LWord, SInt..ULInt,</text>
+<text x="750.0" y="222" text-anchor="middle" font-size="11" fill="#475569">Time (ms), LTime (ns), Date, TOD, DT ...</text>
+<text x="750.0" y="237" text-anchor="middle" font-size="11" fill="#475569">Double: Real, LReal</text>
+<text x="750.0" y="252" text-anchor="middle" font-size="11" fill="#475569">Address: Int64 (string / array / struct)</text>
+<text x="750.0" y="267" text-anchor="middle" font-size="11" fill="#475569"></text>
+<text x="750.0" y="282" text-anchor="middle" font-size="11" fill="#475569">Load/Store แปลงตาม VM type code 1..25,</text>
+<text x="750.0" y="297" text-anchor="middle" font-size="11" fill="#475569">40 = Ptr (InOut / by-ref parameter)</text>
+<text x="750.0" y="312" text-anchor="middle" font-size="11" fill="#475569"></text>
+<text x="750.0" y="327" text-anchor="middle" font-size="11" fill="#475569">Real คำนวณเป็น Double แล้ว F2F32</text>
+</svg>

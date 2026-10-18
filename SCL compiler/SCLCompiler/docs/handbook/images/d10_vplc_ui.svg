@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 600" width="1000" height="600" font-family="Tahoma, 'Leelawadee UI', sans-serif" font-size="12">
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#334155"/></marker><marker id="r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#b91c1c"/></marker></defs>
+<rect width="1000" height="600" fill="#fff"/>
+<text x="20" y="30" font-size="17" font-weight="bold" fill="#0f172a">UI พื้นฐานของ Virtual PLC (wireframe)</text>
+<rect x="20" y="50" width="960" height="530" rx="6" fill="#ffffff" stroke="#64748b"/>
+<rect x="20" y="50" width="960" height="34" rx="6" fill="#e2e8f0" stroke="#64748b"/>
+<text x="35" y="72" font-size="12" text-anchor="start" fill="#0f172a" font-weight="bold">Virtual PLC — FluffSilo [S7-1200]       File   PLC   View   Help</text>
+<rect x="35" y="95" width="300" height="150" rx="8" fill="#dcfce7" stroke="#15803d" stroke-width="1.6"/>
+<text x="45" y="115" text-anchor="start" font-size="13" font-weight="bold" fill="#0f172a">Status</text>
+<text x="45" y="132" text-anchor="start" font-size="11" fill="#475569">●RUN  ○STOP  ○ERROR</text>
+<text x="45" y="147" text-anchor="start" font-size="11" fill="#475569">Cycle: 0.12 ms (min 0.08 / max 0.9)</text>
+<text x="45" y="162" text-anchor="start" font-size="11" fill="#475569">Image: FluffSilo.svpl  hash 3F2A…</text>
+<text x="45" y="177" text-anchor="start" font-size="11" fill="#475569">Loaded: 2026-10-18 19:10</text>
+<text x="45" y="192" text-anchor="start" font-size="11" fill="#475569">Connections: SCL Studio, HMI</text>
+<rect x="35" y="255" width="300" height="90" rx="8" fill="#fef9c3" stroke="#a16207" stroke-width="1.6"/>
+<text x="45" y="275" text-anchor="start" font-size="13" font-weight="bold" fill="#0f172a">Mode</text>
+<text x="45" y="292" text-anchor="start" font-size="11" fill="#475569">[ RUN ]   [ STOP ]   [ MRES ]</text>
+<text x="45" y="307" text-anchor="start" font-size="11" fill="#475569">Cold / Warm restart</text>
+<rect x="35" y="355" width="300" height="210" rx="8" fill="#f1f5f9" stroke="#64748b" stroke-width="1.6"/>
+<text x="45" y="375" text-anchor="start" font-size="13" font-weight="bold" fill="#0f172a">Settings</text>
+<text x="45" y="392" text-anchor="start" font-size="11" fill="#475569">IP / Port (Load 10102, S7 102)</text>
+<text x="45" y="407" text-anchor="start" font-size="11" fill="#475569">Password</text>
+<text x="45" y="422" text-anchor="start" font-size="11" fill="#475569">Cycle time / watchdog</text>
+<text x="45" y="437" text-anchor="start" font-size="11" fill="#475569">Retain file path</text>
+<text x="45" y="452" text-anchor="start" font-size="11" fill="#475569">I/O driver: Simulation ▼</text>
+<text x="45" y="467" text-anchor="start" font-size="11" fill="#475569">Auto start after power up</text>
+<rect x="350" y="95" width="300" height="250" rx="8" fill="#dbeafe" stroke="#1d4ed8" stroke-width="1.6"/>
+<text x="360" y="115" text-anchor="start" font-size="13" font-weight="bold" fill="#0f172a">I/O panel (simulation)</text>
+<text x="360" y="132" text-anchor="start" font-size="11" fill="#475569">I0.0 EStop_OK        [■]</text>
+<text x="360" y="147" text-anchor="start" font-size="11" fill="#475569">I0.1 PB_AutoStart    [ ]</text>
+<text x="360" y="162" text-anchor="start" font-size="11" fill="#475569">I0.4 ExtRequest_In   [■]</text>
+<text x="360" y="177" text-anchor="start" font-size="11" fill="#475569">...</text>
+<text x="360" y="192" text-anchor="start" font-size="11" fill="#475569">Q0.0 Blower01_Run    ●</text>
+<text x="360" y="207" text-anchor="start" font-size="11" fill="#475569">Q0.1 Screw01_Run     ○</text>
+<text x="360" y="222" text-anchor="start" font-size="11" fill="#475569">IW64 Silo_Level_AI  [====|----] 13824</text>
+<rect x="665" y="95" width="300" height="250" rx="8" fill="#ede9fe" stroke="#6d28d9" stroke-width="1.6"/>
+<text x="675" y="115" text-anchor="start" font-size="13" font-weight="bold" fill="#0f172a">Watch / force table</text>
+<text x="675" y="132" text-anchor="start" font-size="11" fill="#475569">Path                 Value   Force</text>
+<text x="675" y="147" text-anchor="start" font-size="11" fill="#475569">&quot;DB_HMI&quot;.Sys.AutoMode  TRUE</text>
+<text x="675" y="162" text-anchor="start" font-size="11" fill="#475569">&quot;DB_HMI&quot;.Proc.CurrentStep 3</text>
+<text x="675" y="177" text-anchor="start" font-size="11" fill="#475569">&quot;iDB_FluffSilo&quot;.Seq.AutoMode</text>
+<text x="675" y="192" text-anchor="start" font-size="11" fill="#475569">เพิ่มจาก vars table (auto-complete)</text>
+<rect x="350" y="355" width="300" height="210" rx="8" fill="#ffedd5" stroke="#c2410c" stroke-width="1.6"/>
+<text x="360" y="375" text-anchor="start" font-size="13" font-weight="bold" fill="#0f172a">DB viewer</text>
+<text x="360" y="392" text-anchor="start" font-size="11" fill="#475569">DB10 &quot;DB_HMI&quot; (82 byte)</text>
+<text x="360" y="407" text-anchor="start" font-size="11" fill="#475569">offset  name          value</text>
+<text x="360" y="422" text-anchor="start" font-size="11" fill="#475569">20      Delay[0]      70</text>
+<text x="360" y="437" text-anchor="start" font-size="11" fill="#475569">22      Delay[1]      30</text>
+<text x="360" y="452" text-anchor="start" font-size="11" fill="#475569">แสดงแบบ table + hex</text>
+<rect x="665" y="355" width="300" height="210" rx="8" fill="#fee2e2" stroke="#b91c1c" stroke-width="1.6"/>
+<text x="675" y="375" text-anchor="start" font-size="13" font-weight="bold" fill="#0f172a">Diagnostic buffer</text>
+<text x="675" y="392" text-anchor="start" font-size="11" fill="#475569">19:10:02 STOP → RUN (warm)</text>
+<text x="675" y="407" text-anchor="start" font-size="11" fill="#475569">19:09:58 Download OK 34 kB</text>
+<text x="675" y="422" text-anchor="start" font-size="11" fill="#475569">19:05:11 Index out of range</text>
+<text x="675" y="437" text-anchor="start" font-size="11" fill="#475569">          FB_PaddlePattern line 124</text>
+<text x="675" y="452" text-anchor="start" font-size="11" fill="#475569">Export log</text>
+</svg>
