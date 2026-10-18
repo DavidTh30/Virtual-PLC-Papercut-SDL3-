@@ -1,0 +1,164 @@
+// =============================================================================
+// Fluff Silo System - S7-1200
+// FB "FB_Motor" : one device (Blower01, Screw01, Paddle01..03)
+//
+// 9 properties with priority levels (Concept.txt) - higher level wins:
+//   L6 Fault, E-Stop  >  L5 Disable  >  L4 Manual Stop  >  L3 Manual Start
+//   >  L2 Auto Stop, Interlock  >  L1 Auto Start
+//
+// Fault sources (latched, reset with CmdResetFault when the cause is gone):
+//   1 = overload / drive not ready (OverloadOK = FALSE)
+//   2 = no running feedback within FbTimeout after the run command (or feedback lost)
+//   3 = running feedback without run command for FbTimeout (welded contactor)
+//
+// SafeInterlock = FALSE : Manual Start (L3) overrides Interlock (L2) exactly as in Concept.txt
+// SafeInterlock = TRUE  : Interlock also blocks Manual Start (recommended for a real plant,
+//                         e.g. Screw01 cannot run into a stopped Blower01)
+// =============================================================================
+FUNCTION_BLOCK "FB_Motor"
+TITLE = 'Motor with priority levels L1..L6'
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      AutoStart : Bool;      // L1 run request from the sequencer / Paddle Patterns
+      AutoStop : Bool;       // L2
+      Interlock : Bool;      // L2 upstream device not running
+      EStop : Bool;          // L6 E-Stop active
+      CmdManStart : Bool;    // L3 HMI Manual Start (pulse)
+      CmdManStop : Bool;     // L4 HMI Manual Stop (pulse)
+      CmdReturnAuto : Bool;  // HMI release Manual Start / Manual Stop (pulse)
+      CmdEnable : Bool;      // L5 HMI Enable (pulse)
+      CmdDisable : Bool;     // L5 HMI Disable (pulse)
+      CmdResetFault : Bool;  // HMI Reset Fault / panel reset (pulse)
+      Feedback : Bool;       // running feedback (contactor auxiliary / drive running)
+      OverloadOK : Bool;     // thermal overload relay NC / drive ready: TRUE = healthy
+      FbTimeout : Time := T#3S;   // feedback supervision time
+      SafeInterlock : Bool;  // TRUE = Interlock also blocks Manual Start
+   END_VAR
+
+   VAR_OUTPUT
+      Run : Bool;                  // run command -> contactor / drive
+      Available : Bool;            // may run (no Fault, E-Stop, Disable, Manual Stop)
+      Status : "typeDevStatus";    // 10 property bits for the HMI
+      CtrlLevel : Int;             // level that decides the output (0..6)
+      FaultCode : Int;             // 0 = none, 1 = overload, 2 = no feedback, 3 = feedback without command
+      StartCount : DInt;           // number of starts (feedback rising edges)
+   END_VAR
+
+   VAR
+      ManStart : Bool;       // Manual Start latched
+      ManStop : Bool;        // Manual Stop latched
+      Disabled : Bool;       // Disable latched
+      Faulted : Bool;        // Fault latched
+      tmNoFb : TON_TIME;     // run command without feedback
+      tmFbNoCmd : TON_TIME;  // feedback without run command
+      rtFb : R_TRIG;
+   END_VAR
+
+   VAR_TEMP
+      doRun : Bool;
+      lvl : Int;
+   END_VAR
+
+
+BEGIN
+	REGION Operator commands (latched)
+	    IF #CmdManStart THEN
+	        #ManStart := TRUE;
+	        #ManStop := FALSE;
+	    END_IF;
+	    IF #CmdManStop THEN
+	        #ManStop := TRUE;
+	        #ManStart := FALSE;
+	    END_IF;
+	    IF #CmdReturnAuto THEN
+	        #ManStart := FALSE;
+	        #ManStop := FALSE;
+	    END_IF;
+	    IF #CmdDisable THEN
+	        #Disabled := TRUE;
+	    END_IF;
+	    IF #CmdEnable THEN
+	        #Disabled := FALSE;
+	    END_IF;
+	END_REGION
+
+	REGION Fault supervision
+	    IF NOT #OverloadOK AND NOT #Faulted THEN
+	        #Faulted := TRUE;
+	        #FaultCode := 1;
+	    END_IF;
+
+	    // #Run is the command of the previous scan
+	    #tmNoFb(IN := #Run AND NOT #Feedback, PT := #FbTimeout);
+	    IF #tmNoFb.Q AND NOT #Faulted THEN
+	        #Faulted := TRUE;
+	        #FaultCode := 2;
+	    END_IF;
+
+	    #tmFbNoCmd(IN := #Feedback AND NOT #Run, PT := #FbTimeout);
+	    IF #tmFbNoCmd.Q AND NOT #Faulted THEN
+	        #Faulted := TRUE;
+	        #FaultCode := 3;
+	    END_IF;
+
+	    IF #CmdResetFault AND #OverloadOK AND NOT #tmFbNoCmd.Q THEN
+	        #Faulted := FALSE;
+	        #FaultCode := 0;
+	    END_IF;
+	END_REGION
+
+	REGION Priority levels (highest level wins)
+	    IF #Faulted THEN
+	        #doRun := FALSE;
+	        #lvl := 6;
+	    ELSIF #EStop THEN
+	        #doRun := FALSE;
+	        #lvl := 6;
+	    ELSIF #Disabled THEN
+	        #doRun := FALSE;
+	        #lvl := 5;
+	    ELSIF #ManStop THEN
+	        #doRun := FALSE;
+	        #lvl := 4;
+	    ELSIF #SafeInterlock AND #Interlock THEN
+	        #doRun := FALSE;
+	        #lvl := 2;
+	    ELSIF #ManStart THEN
+	        #doRun := TRUE;
+	        #lvl := 3;
+	    ELSIF #AutoStop OR #Interlock THEN
+	        #doRun := FALSE;
+	        #lvl := 2;
+	    ELSIF #AutoStart THEN
+	        #doRun := TRUE;
+	        #lvl := 1;
+	    ELSE
+	        #doRun := FALSE;
+	        #lvl := 0;
+	    END_IF;
+
+	    #Run := #doRun;
+	    #CtrlLevel := #lvl;
+	    #Available := NOT (#Faulted OR #EStop OR #Disabled OR #ManStop);
+	END_REGION
+
+	REGION Statistics and HMI status
+	    #rtFb(CLK := #Feedback);
+	    IF #rtFb.Q THEN
+	        #StartCount := #StartCount + 1;
+	    END_IF;
+
+	    #Status.AutoStart := #AutoStart;
+	    #Status.AutoStop := #AutoStop;
+	    #Status.Interlock := #Interlock;
+	    #Status.ManualStart := #ManStart;
+	    #Status.ManualStop := #ManStop;
+	    #Status.Enable := NOT #Disabled;
+	    #Status.Disable := #Disabled;
+	    #Status.Fault := #Faulted;
+	    #Status.EStop := #EStop;
+	    #Status.Running := #Feedback;
+	END_REGION
+
+END_FUNCTION_BLOCK

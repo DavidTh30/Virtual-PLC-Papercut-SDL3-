@@ -1,0 +1,24 @@
+// =============================================================================
+// Fluff Silo System - S7-1200
+// UDT "typeDevStatus" : the 10 properties of one device as seen by the HMI
+// Layout (non-optimized DB): 10 Bool = 2 bytes
+//   x.0 AutoStart  x.1 AutoStop  x.2 Interlock  x.3 ManualStart  x.4 ManualStop
+//   x.5 Enable     x.6 Disable   x.7 Fault      (x+1).0 EStop    (x+1).1 Running
+// Must match the FluffSilo HMI register map - do not reorder.
+// =============================================================================
+TYPE "typeDevStatus"
+VERSION : 0.1
+   STRUCT
+      AutoStart : Bool;     // L1  auto run request (sequencer / Paddle Patterns)
+      AutoStop : Bool;      // L2  auto stop
+      Interlock : Bool;     // L2  upstream device not running
+      ManualStart : Bool;   // L3  manual start latched
+      ManualStop : Bool;    // L4  manual stop latched
+      Enable : Bool;        // L5  device enabled
+      Disable : Bool;       // L5  device disabled
+      Fault : Bool;         // L6  fault latched (overload / feedback)
+      EStop : Bool;         // L6  E-Stop active
+      Running : Bool;       // feedback: device really running
+   END_STRUCT;
+
+END_TYPE

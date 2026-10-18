@@ -1,0 +1,249 @@
+// =============================================================================
+// Fluff Silo System - S7-1200
+// FB "FB_FluffSilo" : top level, called once per scan from OB1 with "iDB_FluffSilo"
+//
+//   I/O (PLC tags)  ->  E-Stop latch, External Request, parameters
+//                   ->  FB_Sequencer -> FB_PaddlePattern -> 5 x FB_Motor  ->  outputs
+//                   ->  DB_HMI status for FluffSilo HMI
+//
+// Configuration: static variables marked [CFG] - change their start values in
+// "iDB_FluffSilo" (or online). See README section "Options".
+// =============================================================================
+FUNCTION_BLOCK "FB_FluffSilo"
+TITLE = 'Fluff Silo System'
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR
+      FbTimeout : Time := T#3S;              // [CFG] running feedback supervision
+      SafeInterlock : Bool := FALSE;         // [CFG] TRUE: Interlock also blocks Manual Start
+      RestartAfterBlowerTrip : Bool := TRUE; // [CFG] FALSE: a Blower01 trip ends Auto mode
+      FillOnLevel : Real := 25.0;            // [CFG] % - Fill_Request ON below this level
+      FillOffLevel : Real := 90.0;           // [CFG] % - Fill_Request OFF at this level
+      EStopLatch : Bool;                     // E-Stop latched (until reset)
+      FillReq : Bool;
+      LevelPct : Real;                       // silo level 0..100 %
+      LevelSensorFault : Bool;
+      AnyFault : Bool;
+      rtReset : R_TRIG;
+      Seq : "FB_Sequencer";
+      Pattern : "FB_PaddlePattern";
+      Blower01 : "FB_Motor";
+      Screw01 : "FB_Motor";
+      Paddle01 : "FB_Motor";
+      Paddle02 : "FB_Motor";
+      Paddle03 : "FB_Motor";
+   END_VAR
+
+   VAR_TEMP
+      resetPulse : Bool;
+      extReq : Bool;
+      cmdStart : Bool;
+      cmdStop : Bool;
+      avail : Array[0..2] of Bool;
+      tBlowerToScrew : Time;
+      tReqHold : Time;
+      tScrewToPaddle : Time;
+      tReqOffScrewStop : Time;
+      tScrewTripBlower : Time;
+      tAutoStopBlower : Time;
+      i : Int;
+   END_VAR
+
+
+BEGIN
+	REGION E-Stop and reset
+	    // Hardware E-Stop (safety relay, NC) or HMI E-Stop -> latched until Reset
+	    // NOTE: the safety relay must switch off the contactors by hardware.
+	    //       The PLC only follows it (category / PL according to the risk assessment).
+	    #rtReset(CLK := "PB_Reset" OR "DB_HMI".Cmd.ResetEStop);
+	    #resetPulse := #rtReset.Q;
+	    IF NOT "EStop_OK" OR "DB_HMI".Cmd.EStop THEN
+	        #EStopLatch := TRUE;
+	    END_IF;
+	    IF #resetPulse AND "EStop_OK" AND NOT "DB_HMI".Cmd.EStop THEN
+	        #EStopLatch := FALSE;
+	    END_IF;
+	END_REGION
+
+	REGION External Request and parameters
+	    // External Request = hardware input from the consumer OR the HMI button
+	    #extReq := "ExtRequest_In" OR "DB_HMI".Cmd.ExtRequest;
+
+	    "FC_ValidateParams"();
+	    #tBlowerToScrew := "FC_TenthsToTime"(Tenths := "DB_HMI".Delay[0]);
+	    #tReqHold := "FC_TenthsToTime"(Tenths := "DB_HMI".Delay[1]);
+	    #tScrewToPaddle := "FC_TenthsToTime"(Tenths := "DB_HMI".Delay[2]);
+	    #tReqOffScrewStop := "FC_TenthsToTime"(Tenths := "DB_HMI".Delay[3]);
+	    #tScrewTripBlower := "FC_TenthsToTime"(Tenths := "DB_HMI".Delay[4]);
+	    #tAutoStopBlower := "FC_TenthsToTime"(Tenths := "DB_HMI".Delay[5]);
+	END_REGION
+
+	REGION Auto sequence
+	    // panel Auto Stop push button is NC: wire break = stop, start refused while pressed
+	    #cmdStop := "DB_HMI".Cmd.AutoStop OR NOT "PB_AutoStop";
+	    #cmdStart := ("DB_HMI".Cmd.AutoStart OR "PB_AutoStart") AND NOT #cmdStop;
+
+	    #Seq(CmdAutoStart := #cmdStart,
+	         CmdAutoStop := #cmdStop,
+	         EStopActive := #EStopLatch,
+	         ExtRequest := #extReq,
+	         BlowerRunning := "Blower01_FB",
+	         ScrewRunning := "Screw01_FB",
+	         TBlowerToScrew := #tBlowerToScrew,
+	         TReqHold := #tReqHold,
+	         TScrewToPaddle := #tScrewToPaddle,
+	         TReqOffScrewStop := #tReqOffScrewStop,
+	         TScrewTripBlower := #tScrewTripBlower,
+	         TAutoStopBlower := #tAutoStopBlower,
+	         RestartAfterBlowerTrip := #RestartAfterBlowerTrip);
+	END_REGION
+
+	REGION Paddle Patterns
+	    // availability of the paddles from the previous scan
+	    #avail[0] := #Paddle01.Available;
+	    #avail[1] := #Paddle02.Available;
+	    #avail[2] := #Paddle03.Available;
+
+	    #Pattern(Enable := #Seq.PatternCmd,
+	             Available := #avail,
+	             StepCount := "DB_HMI".Pattern.StepCount,
+	             Mask := "DB_HMI".Pattern.Mask,
+	             StepTime := "DB_HMI".Pattern.StepTime);
+	END_REGION
+
+	REGION Devices
+	    // DevCmd index = device * 8 + command
+	    // command: 0 ManualStart, 1 ManualStop, 2 ReturnAuto, 3 Enable, 4 Disable, 5 ResetFault
+	    #Blower01(AutoStart := #Seq.BlowerAutoStart,
+	              AutoStop := #Seq.BlowerAutoStop,
+	              Interlock := FALSE,
+	              EStop := #EStopLatch,
+	              CmdManStart := "DB_HMI".DevCmd[0],
+	              CmdManStop := "DB_HMI".DevCmd[1],
+	              CmdReturnAuto := "DB_HMI".DevCmd[2],
+	              CmdEnable := "DB_HMI".DevCmd[3],
+	              CmdDisable := "DB_HMI".DevCmd[4],
+	              CmdResetFault := "DB_HMI".DevCmd[5] OR #resetPulse,
+	              Feedback := "Blower01_FB",
+	              OverloadOK := "Blower01_OL",
+	              FbTimeout := #FbTimeout,
+	              SafeInterlock := #SafeInterlock);
+
+	    #Screw01(AutoStart := #Seq.ScrewAutoStart,
+	             AutoStop := #Seq.ScrewAutoStop,
+	             Interlock := #Seq.ScrewInterlock,
+	             EStop := #EStopLatch,
+	             CmdManStart := "DB_HMI".DevCmd[8],
+	             CmdManStop := "DB_HMI".DevCmd[9],
+	             CmdReturnAuto := "DB_HMI".DevCmd[10],
+	             CmdEnable := "DB_HMI".DevCmd[11],
+	             CmdDisable := "DB_HMI".DevCmd[12],
+	             CmdResetFault := "DB_HMI".DevCmd[13] OR #resetPulse,
+	             Feedback := "Screw01_FB",
+	             OverloadOK := "Screw01_OL",
+	             FbTimeout := #FbTimeout,
+	             SafeInterlock := #SafeInterlock);
+
+	    #Paddle01(AutoStart := #Pattern.PaddleCmd[0],
+	              AutoStop := #Seq.PaddleAutoStop,
+	              Interlock := #Seq.PaddleInterlock,
+	              EStop := #EStopLatch,
+	              CmdManStart := "DB_HMI".DevCmd[16],
+	              CmdManStop := "DB_HMI".DevCmd[17],
+	              CmdReturnAuto := "DB_HMI".DevCmd[18],
+	              CmdEnable := "DB_HMI".DevCmd[19],
+	              CmdDisable := "DB_HMI".DevCmd[20],
+	              CmdResetFault := "DB_HMI".DevCmd[21] OR #resetPulse,
+	              Feedback := "Paddle01_FB",
+	              OverloadOK := "Paddle01_OL",
+	              FbTimeout := #FbTimeout,
+	              SafeInterlock := #SafeInterlock);
+
+	    #Paddle02(AutoStart := #Pattern.PaddleCmd[1],
+	              AutoStop := #Seq.PaddleAutoStop,
+	              Interlock := #Seq.PaddleInterlock,
+	              EStop := #EStopLatch,
+	              CmdManStart := "DB_HMI".DevCmd[24],
+	              CmdManStop := "DB_HMI".DevCmd[25],
+	              CmdReturnAuto := "DB_HMI".DevCmd[26],
+	              CmdEnable := "DB_HMI".DevCmd[27],
+	              CmdDisable := "DB_HMI".DevCmd[28],
+	              CmdResetFault := "DB_HMI".DevCmd[29] OR #resetPulse,
+	              Feedback := "Paddle02_FB",
+	              OverloadOK := "Paddle02_OL",
+	              FbTimeout := #FbTimeout,
+	              SafeInterlock := #SafeInterlock);
+
+	    #Paddle03(AutoStart := #Pattern.PaddleCmd[2],
+	              AutoStop := #Seq.PaddleAutoStop,
+	              Interlock := #Seq.PaddleInterlock,
+	              EStop := #EStopLatch,
+	              CmdManStart := "DB_HMI".DevCmd[32],
+	              CmdManStop := "DB_HMI".DevCmd[33],
+	              CmdReturnAuto := "DB_HMI".DevCmd[34],
+	              CmdEnable := "DB_HMI".DevCmd[35],
+	              CmdDisable := "DB_HMI".DevCmd[36],
+	              CmdResetFault := "DB_HMI".DevCmd[37] OR #resetPulse,
+	              Feedback := "Paddle03_FB",
+	              OverloadOK := "Paddle03_OL",
+	              FbTimeout := #FbTimeout,
+	              SafeInterlock := #SafeInterlock);
+	END_REGION
+
+	REGION Outputs
+	    "Blower01_Run" := #Blower01.Run;
+	    "Screw01_Run" := #Screw01.Run;
+	    "Paddle01_Run" := #Paddle01.Run;
+	    "Paddle02_Run" := #Paddle02.Run;
+	    "Paddle03_Run" := #Paddle03.Run;
+
+	    #AnyFault := #Blower01.Status.Fault OR #Screw01.Status.Fault OR #Paddle01.Status.Fault
+	                 OR #Paddle02.Status.Fault OR #Paddle03.Status.Fault;
+	    "Lamp_AutoRun" := #Seq.AutoMode;
+	    "Lamp_Fault" := #AnyFault OR #LevelSensorFault;
+	    "Lamp_EStop" := #EStopLatch;
+	END_REGION
+
+	REGION Silo level and fill request
+	    #LevelPct := "FC_ScaleAnalog"(Raw := "Silo_Level_AI", EngLow := 0.0, EngHigh := 100.0,
+	                                  Fault => #LevelSensorFault);
+	    // request raw material for the silo (hysteresis), never on a broken sensor
+	    IF #LevelSensorFault THEN
+	        #FillReq := FALSE;
+	    ELSIF #LevelPct < #FillOnLevel THEN
+	        #FillReq := TRUE;
+	    ELSIF #LevelPct >= #FillOffLevel THEN
+	        #FillReq := FALSE;
+	    END_IF;
+	    "Fill_Request" := #FillReq;
+	END_REGION
+
+	REGION Status to HMI
+	    "DB_HMI".Dev[0] := #Blower01.Status;
+	    "DB_HMI".Dev[1] := #Screw01.Status;
+	    "DB_HMI".Dev[2] := #Paddle01.Status;
+	    "DB_HMI".Dev[3] := #Paddle02.Status;
+	    "DB_HMI".Dev[4] := #Paddle03.Status;
+
+	    "DB_HMI".Sys.AutoMode := #Seq.AutoMode;
+	    "DB_HMI".Sys.ExtRequest := #extReq;
+	    "DB_HMI".Sys.PatternActive := #Pattern.Active;
+	    "DB_HMI".Sys.EStop := #EStopLatch;
+
+	    "DB_HMI".Proc.CurrentStep := #Pattern.CurrentStep;
+	    "DB_HMI".Proc.StepElapsed := #Pattern.ElapsedTenths;
+	    "DB_HMI".Proc.SiloLevel := REAL_TO_INT(#LevelPct * 10.0);
+	END_REGION
+
+	REGION Acknowledge HMI pulse commands
+	    // every command acts once; Cmd.ExtRequest is a maintained signal and stays
+	    "DB_HMI".Cmd.AutoStart := FALSE;
+	    "DB_HMI".Cmd.AutoStop := FALSE;
+	    "DB_HMI".Cmd.EStop := FALSE;
+	    "DB_HMI".Cmd.ResetEStop := FALSE;
+	    FOR #i := 0 TO 39 DO
+	        "DB_HMI".DevCmd[#i] := FALSE;
+	    END_FOR;
+	END_REGION
+
+END_FUNCTION_BLOCK

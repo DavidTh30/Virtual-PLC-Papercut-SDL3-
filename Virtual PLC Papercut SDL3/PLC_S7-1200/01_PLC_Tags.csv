@@ -1,0 +1,26 @@
+﻿Name;Path;Data Type;Logical Address;Comment
+EStop_OK;FluffSilo_IO;Bool;%I0.0;Safety relay: E-Stop chain healthy (1 = OK, NC chain)
+PB_AutoStart;FluffSilo_IO;Bool;%I0.1;Panel push button Auto Start (NO)
+PB_AutoStop;FluffSilo_IO;Bool;%I0.2;Panel push button Auto Stop (NC, 0 = stop)
+PB_Reset;FluffSilo_IO;Bool;%I0.3;Panel push button Reset E-Stop / faults (NO)
+ExtRequest_In;FluffSilo_IO;Bool;%I0.4;External Request from consumer (1 = material requested)
+Blower01_FB;FluffSilo_IO;Bool;%I0.5;Blower01 running feedback (contactor aux NO)
+Blower01_OL;FluffSilo_IO;Bool;%I0.6;Blower01 overload relay OK (NC, 0 = tripped)
+Screw01_FB;FluffSilo_IO;Bool;%I0.7;Screw01 running feedback (contactor aux NO)
+Screw01_OL;FluffSilo_IO;Bool;%I1.0;Screw01 overload relay OK (NC, 0 = tripped)
+Paddle01_FB;FluffSilo_IO;Bool;%I1.1;Paddle01 running feedback (contactor aux NO)
+Paddle01_OL;FluffSilo_IO;Bool;%I1.2;Paddle01 overload relay OK (NC, 0 = tripped)
+Paddle02_FB;FluffSilo_IO;Bool;%I1.3;Paddle02 running feedback (contactor aux NO)
+Paddle02_OL;FluffSilo_IO;Bool;%I1.4;Paddle02 overload relay OK (NC, 0 = tripped)
+Paddle03_FB;FluffSilo_IO;Bool;%I1.5;Paddle03 running feedback (contactor aux NO)
+Paddle03_OL;FluffSilo_IO;Bool;%I8.0;Paddle03 overload relay OK (NC, 0 = tripped) - SM 1221 DI8
+Blower01_Run;FluffSilo_IO;Bool;%Q0.0;Blower01 contactor K1
+Screw01_Run;FluffSilo_IO;Bool;%Q0.1;Screw01 contactor K2
+Paddle01_Run;FluffSilo_IO;Bool;%Q0.2;Paddle01 contactor K3
+Paddle02_Run;FluffSilo_IO;Bool;%Q0.3;Paddle02 contactor K4
+Paddle03_Run;FluffSilo_IO;Bool;%Q0.4;Paddle03 contactor K5
+Lamp_AutoRun;FluffSilo_IO;Bool;%Q0.5;Pilot lamp Auto Start mode (green)
+Lamp_Fault;FluffSilo_IO;Bool;%Q0.6;Pilot lamp fault (red)
+Lamp_EStop;FluffSilo_IO;Bool;%Q0.7;Pilot lamp E-Stop active (yellow)
+Fill_Request;FluffSilo_IO;Bool;%Q1.0;Request raw material for the silo (level < 25 %, off at 90 %)
+Silo_Level_AI;FluffSilo_IO;Int;%IW64;Silo level sensor 0..10 V = 0..100 % (CPU AI0)

@@ -1,0 +1,136 @@
+// =============================================================================
+// Fluff Silo System - S7-1200
+// FB "FB_PaddlePattern" : Paddle Patterns (SystemAnalysis.md ch. 7)
+//
+// Table of up to 10 steps: Mask (bit0 = Paddle01, bit1 = Paddle02, bit2 = Paddle03,
+// 0 = pause) and StepTime (0.1 s). The table runs in a loop while Enable = TRUE.
+//   - start: first step that is not blocked
+//   - step time elapsed: next step that is not blocked
+//   - current step blocked (its paddles stopped: fault / E-Stop / disable / manual stop):
+//     jump to the next step with a paddle that can run, so the next paddle continues
+//   - Enable = FALSE: all paddles off at once, next start begins at step 1 again
+// =============================================================================
+FUNCTION_BLOCK "FB_PaddlePattern"
+TITLE = 'Paddle Patterns'
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      Enable : Bool;                    // PatternCmd from the sequencer
+      Available : Array[0..2] of Bool;  // Paddle01..03 may run
+      StepCount : Int;                  // 0..10
+      Mask : Array[0..9] of Int;        // paddles per step
+      StepTime : Array[0..9] of Int;    // 0.1 s, minimum 0.5 s
+   END_VAR
+
+   VAR_OUTPUT
+      PaddleCmd : Array[0..2] of Bool;  // Auto Start request for Paddle01..03
+      Active : Bool;                    // Paddle Patterns running
+      CurrentStep : Int;                // 1..10, 0 = not running
+      ElapsedTenths : Int;              // time in the current step, 0.1 s
+   END_VAR
+
+   VAR
+      Step : Int;          // current step, 0-based
+      Restart : Bool;      // restart the step timer in this scan
+      tmStep : TON_TIME;
+   END_VAR
+
+   VAR_TEMP
+      n : Int;
+      k : Int;
+      s : Int;
+      pass : Int;
+      nextStep : Int;
+      search : Bool;
+      skipPauses : Bool;
+      starting : Bool;
+      w : Word;
+      stepT : Time;
+   END_VAR
+
+
+BEGIN
+	#n := LIMIT(MN := 0, IN := #StepCount, MX := 10);
+
+	REGION Disabled
+	    IF NOT #Enable OR #n = 0 THEN
+	        #Active := FALSE;
+	        #Step := 0;
+	        #Restart := TRUE;
+	        #tmStep(IN := FALSE, PT := T#0S);
+	        #PaddleCmd[0] := FALSE;
+	        #PaddleCmd[1] := FALSE;
+	        #PaddleCmd[2] := FALSE;
+	        #CurrentStep := 0;
+	        #ElapsedTenths := 0;
+	        RETURN;
+	    END_IF;
+	END_REGION
+
+	REGION Decide whether to change step
+	    IF (#Step < 0) OR (#Step >= #n) THEN   // table shortened by the HMI
+	        #Step := 0;
+	        #Restart := TRUE;
+	    END_IF;
+
+	    #search := FALSE;
+	    #skipPauses := FALSE;
+	    #starting := FALSE;
+	    IF NOT #Active THEN
+	        #Active := TRUE;
+	        #starting := TRUE;
+	        #search := TRUE;
+	        #Step := #n - 1;   // so that the search begins with step 1
+	    ELSIF #tmStep.Q THEN
+	        #search := TRUE;   // step time elapsed
+	    ELSIF "FC_StepBlocked"(Mask := #Mask[#Step], Available := #Available) THEN
+	        #search := TRUE;   // paddle in this step stopped -> next paddle continues
+	        #skipPauses := TRUE;
+	    END_IF;
+	END_REGION
+
+	REGION Find next step
+	    IF #search THEN
+	        #nextStep := -1;
+	        // pass 0: only steps with a paddle (when skipping pauses), pass 1: any step
+	        FOR #pass := 0 TO 1 DO
+	            IF (#pass = 0) AND NOT #skipPauses THEN
+	                CONTINUE;
+	            END_IF;
+	            FOR #k := 1 TO #n DO
+	                #s := (#Step + #k) MOD #n;
+	                IF NOT "FC_StepBlocked"(Mask := #Mask[#s], Available := #Available)
+	                    AND ((#pass = 1) OR (#Mask[#s] <> 0)) THEN
+	                    #nextStep := #s;
+	                    EXIT;
+	                END_IF;
+	            END_FOR;
+	            IF #nextStep >= 0 THEN
+	                EXIT;
+	            END_IF;
+	        END_FOR;
+
+	        IF #starting AND (#nextStep < 0) THEN
+	            #nextStep := 0;
+	        END_IF;
+	        IF (#nextStep >= 0) AND ((#nextStep <> #Step) OR NOT #skipPauses) THEN
+	            #Step := #nextStep;
+	            #Restart := TRUE;
+	        END_IF;
+	    END_IF;
+	END_REGION
+
+	REGION Step timer and outputs
+	    #stepT := "FC_TenthsToTime"(Tenths := MAX(IN1 := #StepTime[#Step], IN2 := 5));
+	    #tmStep(IN := NOT #Restart, PT := #stepT);
+	    #Restart := FALSE;
+
+	    #w := INT_TO_WORD(#Mask[#Step]);
+	    #PaddleCmd[0] := #w.%X0;
+	    #PaddleCmd[1] := #w.%X1;
+	    #PaddleCmd[2] := #w.%X2;
+	    #CurrentStep := #Step + 1;
+	    #ElapsedTenths := DINT_TO_INT(TIME_TO_DINT(#tmStep.ET) / 100);
+	END_REGION
+
+END_FUNCTION_BLOCK

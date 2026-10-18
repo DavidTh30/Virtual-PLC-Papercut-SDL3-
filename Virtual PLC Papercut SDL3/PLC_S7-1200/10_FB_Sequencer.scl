@@ -1,0 +1,170 @@
+// =============================================================================
+// Fluff Silo System - S7-1200
+// FB "FB_Sequencer" : Auto Start / Auto Stop sequence (Concept.txt, SystemAnalysis.md ch. 6)
+//
+// Auto Start:
+//   Blower01 runs. When Blower01 has run TBlowerToScrew (7 s) AND External Request
+//   is held > TReqHold (3 s) -> Screw01 runs. Screw01 has run TScrewToPaddle (3 s)
+//   -> Paddle Patterns start.
+//   Request lost -> Paddle Patterns stop now, Screw01 stops after TReqOffScrewStop (3 s).
+//   Blower01 stopped -> Screw01 and Paddle Patterns stop now.
+//   Screw01 stopped (fault, disable, manual stop ...) -> Paddle Patterns stop now,
+//     Auto mode ends, Blower01 stops after TScrewTripBlower (5 s).
+// Auto Stop:
+//   Paddle Patterns and Screw01 stop now, Blower01 stops after TAutoStopBlower (5 s).
+//   External Request in Auto Stop: no action.
+// E-Stop: everything stops at once, Auto Start is refused while E-Stop is latched.
+//
+// RestartAfterBlowerTrip = TRUE  : like the simulator - Blower01 restarts by itself when
+//                                  its fault is reset while Auto mode is still on
+// RestartAfterBlowerTrip = FALSE : a Blower01 trip also ends Auto mode (operator must
+//                                  press Auto Start again; same policy as a Screw01 trip)
+// =============================================================================
+FUNCTION_BLOCK "FB_Sequencer"
+TITLE = 'Auto sequence'
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      CmdAutoStart : Bool;          // Auto Start (edge evaluated)
+      CmdAutoStop : Bool;           // Auto Stop (level)
+      EStopActive : Bool;           // E-Stop latched
+      ExtRequest : Bool;            // External Request
+      BlowerRunning : Bool;         // Blower01 running feedback
+      ScrewRunning : Bool;          // Screw01 running feedback
+      TBlowerToScrew : Time := T#7S;
+      TReqHold : Time := T#3S;
+      TScrewToPaddle : Time := T#3S;
+      TReqOffScrewStop : Time := T#3S;
+      TScrewTripBlower : Time := T#5S;
+      TAutoStopBlower : Time := T#5S;
+      RestartAfterBlowerTrip : Bool := TRUE;
+   END_VAR
+
+   VAR_OUTPUT
+      AutoMode : Bool;              // Auto Start mode active
+      BlowerAutoStart : Bool;       // Blower01 property Auto Start  (L1)
+      BlowerAutoStop : Bool;        // Blower01 property Auto Stop   (L2)
+      ScrewAutoStart : Bool;        // Screw01  property Auto Start  (L1)
+      ScrewAutoStop : Bool;         // Screw01  property Auto Stop   (L2)
+      ScrewInterlock : Bool;        // Screw01  property Interlock   (L2) = Blower01 not running
+      PaddleAutoStop : Bool;        // Paddle0x property Auto Stop   (L2)
+      PaddleInterlock : Bool;       // Paddle0x property Interlock   (L2) = Screw01 not running
+      PatternCmd : Bool;            // enable Paddle Patterns
+      BlowerStopPending : Bool;     // Blower01 stop delay running
+      BlowerStopRemaining : Time;   // remaining time of the Blower01 stop delay
+   END_VAR
+
+   VAR
+      BlowerCmd : Bool;
+      ScrewCmd : Bool;
+      PrevBlowerRun : Bool;
+      PrevScrewRun : Bool;
+      StopDelay : Time;
+      rtStart : R_TRIG;
+      tmReqOn : TON_TIME;         // External Request held
+      tmReqOff : TON_TIME;        // External Request lost
+      tmBlowerReady : TON_TIME;   // Blower01 running long enough
+      tmScrewReady : TON_TIME;    // Screw01 running long enough
+      tmBlowerStop : TON_TIME;    // Blower01 stop delay
+   END_VAR
+
+
+BEGIN
+	REGION Mode (Auto Start / Auto Stop / E-Stop)
+	    #rtStart(CLK := #CmdAutoStart);
+	    IF #EStopActive THEN
+	        #AutoMode := FALSE;
+	        #BlowerCmd := FALSE;
+	        #ScrewCmd := FALSE;
+	        #BlowerStopPending := FALSE;
+	    ELSE
+	        IF #rtStart.Q AND NOT #CmdAutoStop THEN
+	            #AutoMode := TRUE;
+	            #BlowerStopPending := FALSE;
+	        END_IF;
+	        IF #CmdAutoStop AND #AutoMode THEN
+	            #AutoMode := FALSE;
+	            #ScrewCmd := FALSE;
+	            IF #BlowerCmd THEN
+	                #BlowerStopPending := TRUE;
+	                #StopDelay := #TAutoStopBlower;
+	            END_IF;
+	        END_IF;
+	    END_IF;
+	END_REGION
+
+	REGION Trips (device stopped while Auto wanted it running)
+	    // Screw01 stopped -> Paddle Patterns stop now, Blower01 stops after the delay
+	    IF #AutoMode AND #ScrewCmd AND #PrevScrewRun AND NOT #ScrewRunning THEN
+	        #AutoMode := FALSE;
+	        #ScrewCmd := FALSE;
+	        #BlowerStopPending := TRUE;
+	        #StopDelay := #TScrewTripBlower;
+	    END_IF;
+	    // Blower01 stopped -> optional end of Auto mode
+	    IF #AutoMode AND #BlowerCmd AND #PrevBlowerRun AND NOT #BlowerRunning AND NOT #RestartAfterBlowerTrip THEN
+	        #AutoMode := FALSE;
+	        #BlowerCmd := FALSE;
+	        #ScrewCmd := FALSE;
+	    END_IF;
+	    #PrevScrewRun := #ScrewRunning;
+	    #PrevBlowerRun := #BlowerRunning;
+	END_REGION
+
+	REGION Delays
+	    #tmReqOn(IN := #ExtRequest, PT := #TReqHold);
+	    #tmReqOff(IN := NOT #ExtRequest, PT := #TReqOffScrewStop);
+	    #tmBlowerReady(IN := #AutoMode AND #BlowerRunning, PT := #TBlowerToScrew);
+	END_REGION
+
+	REGION Auto commands
+	    IF #AutoMode THEN
+	        #BlowerCmd := TRUE;
+	        #BlowerStopPending := FALSE;
+	        IF NOT #BlowerRunning THEN
+	            // Blower01 not running -> Screw01 and Paddle Patterns stop now
+	            #ScrewCmd := FALSE;
+	        ELSE
+	            IF NOT #ScrewCmd AND #ExtRequest AND #tmBlowerReady.Q AND #tmReqOn.Q THEN
+	                #ScrewCmd := TRUE;
+	            END_IF;
+	            IF #ScrewCmd AND #tmReqOff.Q THEN
+	                #ScrewCmd := FALSE;
+	            END_IF;
+	        END_IF;
+	    ELSE
+	        // Auto Stop: no reaction to External Request
+	        #ScrewCmd := FALSE;
+	        IF NOT #BlowerStopPending THEN
+	            #BlowerCmd := FALSE;
+	        END_IF;
+	    END_IF;
+
+	    #tmBlowerStop(IN := #BlowerStopPending, PT := #StopDelay);
+	    IF #tmBlowerStop.Q THEN
+	        #BlowerCmd := FALSE;
+	        #BlowerStopPending := FALSE;
+	    END_IF;
+	    IF #BlowerStopPending THEN
+	        #BlowerStopRemaining := #StopDelay - #tmBlowerStop.ET;
+	    ELSE
+	        #BlowerStopRemaining := T#0S;
+	    END_IF;
+
+	    // Request lost -> Paddle Patterns stop at once (no delay)
+	    #tmScrewReady(IN := #ScrewCmd AND #ScrewRunning, PT := #TScrewToPaddle);
+	    #PatternCmd := #AutoMode AND #ScrewCmd AND #ScrewRunning AND #BlowerRunning
+	                   AND #ExtRequest AND #tmScrewReady.Q;
+	END_REGION
+
+	REGION Device properties
+	    #BlowerAutoStart := #BlowerCmd;
+	    #BlowerAutoStop := NOT #AutoMode AND NOT #BlowerCmd;
+	    #ScrewAutoStart := #ScrewCmd;
+	    #ScrewAutoStop := NOT #AutoMode;
+	    #ScrewInterlock := NOT #BlowerRunning;
+	    #PaddleAutoStop := NOT #AutoMode;
+	    #PaddleInterlock := NOT #ScrewRunning;
+	END_REGION
+
+END_FUNCTION_BLOCK

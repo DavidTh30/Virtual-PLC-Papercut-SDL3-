@@ -1,0 +1,37 @@
+// =============================================================================
+// Fluff Silo System - S7-1200
+// OB100 "Startup" : runs once on STOP -> RUN
+//   - HMI commands written before the restart are discarded
+//   - parameters are loaded with defaults when the retentive data was lost
+//     or was never set (first download)
+// =============================================================================
+ORGANIZATION_BLOCK "Startup"
+TITLE = 'Complete restart'
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      LostRetentive : Bool;
+      LostRTC : Bool;
+   END_VAR
+
+   VAR_TEMP
+      i : Int;
+   END_VAR
+
+
+BEGIN
+	"DB_HMI".Cmd.AutoStart := FALSE;
+	"DB_HMI".Cmd.AutoStop := FALSE;
+	"DB_HMI".Cmd.EStop := FALSE;
+	"DB_HMI".Cmd.ResetEStop := FALSE;
+	"DB_HMI".Cmd.ExtRequest := FALSE;
+	FOR #i := 0 TO 39 DO
+	    "DB_HMI".DevCmd[#i] := FALSE;
+	END_FOR;
+
+	IF #LostRetentive OR (("DB_HMI".Pattern.StepCount = 0) AND ("DB_HMI".Delay[0] = 0)) THEN
+	    "FC_LoadDefaults"();
+	END_IF;
+	"FC_ValidateParams"();
+
+END_ORGANIZATION_BLOCK
