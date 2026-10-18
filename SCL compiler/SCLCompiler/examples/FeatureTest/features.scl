@@ -1,0 +1,233 @@
+// Language feature test for the SCL compiler (S7-1500)
+TYPE "typePoint"
+VERSION : 0.1
+   STRUCT
+      X : Int := 1;
+      Y : Int := 2;
+      Name : String[10] := 'pt';
+   END_STRUCT;
+END_TYPE
+
+DATA_BLOCK "Data"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR
+      CaseOut : Int;
+      WhileSum : DInt;
+      RepeatCnt : Int;
+      ForDown : Int;
+      ExitAt : Int;
+      ContSum : Int;
+      Str1 : String[20] := 'Hello';
+      Str2 : String[20];
+      StrLen : Int;
+      StrEq : Bool;
+      FindPos : Int;
+      Pts : Array[1..3] of "typePoint";
+      PtSum : Int;
+      Counter : Int;
+      CountQ : Bool;
+      PulseQ : Bool;
+      MuxOut : Int;
+      ShlOut : Word;
+      RolOut : Byte;
+      RealOut : Real;
+      LRealOut : LReal;
+      TruncOut : DInt;
+      RoundOut : DInt;
+      Fc2Out : Int;
+      OutParam : Int;
+      InOutVal : Int := 5;
+      Matrix : Array[0..2, 0..3] of Int;
+      MatrixSum : Int;
+      SelOut : Real;
+      ByteSlice : Byte;
+      Wd : Word := 16#1234;
+      TimeOut : Time;
+      LTimeOut : LTime;
+      Neg : Int;
+      ModOut : Int;
+      DivOut : Int;
+      Overflow : Int;
+      CntIn : Bool;
+      PulseIn : Bool;
+      Init : Array[0..4] of Int := [1, 2, 3(7)];
+      InitSum : Int;
+      ConstUse : Int;
+      Cmp : Bool;
+      SqrtOut : Real;
+   END_VAR
+BEGIN
+   Str2 := 'abc';
+END_DATA_BLOCK
+
+FUNCTION "AddMul" : Int
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      A : Int;
+      B : Int;
+   END_VAR
+   VAR_OUTPUT
+      Prod : Int;
+   END_VAR
+   VAR_IN_OUT
+      Acc : Int;
+   END_VAR
+BEGIN
+   #Prod := #A * #B;
+   #Acc := #Acc + 1;
+   #AddMul := #A + #B;
+END_FUNCTION
+
+FUNCTION "Twice" : Int
+VERSION : 0.1
+   VAR_INPUT
+      V : Int;
+   END_VAR
+BEGIN
+   #Twice := "AddMul"(A := #V, B := #V, Prod => #V, Acc := #V);
+END_FUNCTION
+
+FUNCTION "SumPts" : Int
+VERSION : 0.1
+   VAR_INPUT
+      P : Array[1..3] of "typePoint";
+   END_VAR
+   VAR_TEMP
+      i : Int;
+      s : Int;
+   END_VAR
+BEGIN
+   #s := 0;
+   FOR #i := 1 TO 3 DO
+      #s := #s + #P[#i].X + #P[#i].Y;
+   END_FOR;
+   #SumPts := #s;
+END_FUNCTION
+
+FUNCTION_BLOCK "FB_Features"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      Sel : Int;
+   END_VAR
+   VAR
+      cnt : CTU_INT;
+      pulse : TP_TIME;
+      tmr : IEC_TIMER;
+      edge : R_TRIG;
+   END_VAR
+   VAR_TEMP
+      i : Int;
+      j : Int;
+      d : DInt;
+      r : Real;
+   END_VAR
+   VAR CONSTANT
+      LIMIT_VAL : Int := 10;
+   END_VAR
+BEGIN
+   CASE #Sel OF
+      1: "Data".CaseOut := 10;
+      2, 3: "Data".CaseOut := 20;
+      4..6: "Data".CaseOut := 30;
+   ELSE
+      "Data".CaseOut := -1;
+   END_CASE;
+
+   #d := 0;
+   #i := 0;
+   WHILE #i < 100 DO
+      #i := #i + 1;
+      #d := #d + #i;
+   END_WHILE;
+   "Data".WhileSum := #d;
+
+   #i := 0;
+   REPEAT
+      #i := #i + 2;
+   UNTIL #i >= 9
+   END_REPEAT;
+   "Data".RepeatCnt := #i;
+
+   "Data".ForDown := 0;
+   FOR #i := 10 TO 1 BY -3 DO
+      "Data".ForDown := "Data".ForDown + #i;   // 10 + 7 + 4 + 1
+   END_FOR;
+
+   FOR #i := 0 TO 100 DO
+      IF #i = 42 THEN
+         EXIT;
+      END_IF;
+   END_FOR;
+   "Data".ExitAt := #i;
+
+   "Data".ContSum := 0;
+   FOR #i := 1 TO #LIMIT_VAL DO
+      IF #i MOD 2 = 0 THEN
+         CONTINUE;
+      END_IF;
+      "Data".ContSum := "Data".ContSum + #i;   // 1+3+5+7+9 = 25
+   END_FOR;
+
+   "Data".Str2 := CONCAT(IN1 := "Data".Str1, IN2 := ' World');
+   "Data".StrLen := LEN("Data".Str2);
+   "Data".StrEq := "Data".Str2 = 'Hello World';
+   "Data".FindPos := FIND(IN1 := "Data".Str2, IN2 := 'World');
+
+   "Data".Pts[2].X := 10;
+   "Data".PtSum := "SumPts"(P := "Data".Pts);
+
+   #edge(CLK := "Data".CntIn);
+   #cnt(CU := "Data".CntIn, R := FALSE, PV := 3, Q => "Data".CountQ, CV => "Data".Counter);
+   #pulse(IN := "Data".PulseIn, PT := T#500MS, Q => "Data".PulseQ);
+   #tmr.TON(IN := "Data".PulseIn, PT := T#1S);
+
+   "Data".MuxOut := MUX(K := 2, IN0 := 100, IN1 := 200, IN2 := 300);
+   "Data".ShlOut := SHL(IN := "Data".Wd, N := 4);
+   "Data".RolOut := ROL(IN := BYTE#16#81, N := 1);
+   "Data".RealOut := INT_TO_REAL(7) / 2.0;
+   "Data".LRealOut := 1.0 / 3.0;
+   "Data".TruncOut := TRUNC(-2.7);
+   "Data".RoundOut := REAL_TO_DINT(2.5);
+   "Data".Fc2Out := "Twice"(V := 21);
+   "Data".Fc2Out := "Data".Fc2Out + "AddMul"(A := 2, B := 3, Prod => "Data".OutParam, Acc := "Data".InOutVal);
+
+   FOR #i := 0 TO 2 DO
+      FOR #j := 0 TO 3 DO
+         "Data".Matrix[#i, #j] := #i * 10 + #j;
+      END_FOR;
+   END_FOR;
+   "Data".MatrixSum := "Data".Matrix[2, 3] + "Data".Matrix[1, 0];
+
+   "Data".SelOut := SEL(G := "Data".Matrix[0, 1] = 1, IN0 := 1.5, IN1 := 2.5);
+   "Data".ByteSlice := "Data".Wd.%B1;
+   "Data".Wd.%X0 := TRUE;
+   "Data".TimeOut := T#1S500MS + T#2S * 2;
+   "Data".LTimeOut := LT#1MS + LT#5NS;
+   "Data".Neg := -(-5);
+   "Data".ModOut := -7 MOD 3;
+   "Data".DivOut := -7 / 2;
+   "Data".Overflow := 32767;
+   "Data".Overflow := "Data".Overflow + 1;
+   "Data".InitSum := "Data".Init[0] + "Data".Init[1] + "Data".Init[4];
+   "Data".ConstUse := #LIMIT_VAL * 2;
+   "Data".Cmp := (5 > 3) AND NOT (2.0 > 3.0) XOR FALSE;
+   #r := 2.0;
+   "Data".SqrtOut := SQRT(#r * 8.0);
+END_FUNCTION_BLOCK
+
+DATA_BLOCK "iFeatures"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+"FB_Features"
+BEGIN
+   Sel := 3;
+END_DATA_BLOCK
+
+ORGANIZATION_BLOCK "Main"
+VERSION : 0.1
+BEGIN
+   "iFeatures"();
+END_ORGANIZATION_BLOCK

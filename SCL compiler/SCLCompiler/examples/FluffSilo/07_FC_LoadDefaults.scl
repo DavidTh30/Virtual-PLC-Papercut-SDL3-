@@ -1,0 +1,40 @@
+// =============================================================================
+// Fluff Silo System - S7-1200
+// FC "FC_LoadDefaults" : write the factory parameters into DB_HMI
+//   Delays from Concept.txt: 7 s / 3 s / 3 s / 3 s / 5 s / 5 s
+//   Paddle Patterns: P1 8 s, pause 2 s, P2 8 s, pause 2 s, P3 8 s, pause 2 s
+//   Called from OB100 when the retentive data was lost or never set.
+// =============================================================================
+FUNCTION "FC_LoadDefaults" : Void
+TITLE = 'Load default parameters'
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_TEMP
+      i : Int;
+   END_VAR
+
+
+BEGIN
+	"DB_HMI".Delay[0] := 70;   // Blower -> Screw start        7.0 s
+	"DB_HMI".Delay[1] := 30;   // External Request hold         3.0 s
+	"DB_HMI".Delay[2] := 30;   // Screw -> Paddle Patterns      3.0 s
+	"DB_HMI".Delay[3] := 30;   // Request lost -> Screw stop    3.0 s
+	"DB_HMI".Delay[4] := 50;   // Screw stopped -> Blower stop  5.0 s
+	"DB_HMI".Delay[5] := 50;   // Auto Stop -> Blower stop      5.0 s
+
+	FOR #i := 0 TO 9 DO
+	    "DB_HMI".Pattern.Mask[#i] := 0;
+	    "DB_HMI".Pattern.StepTime[#i] := 50;
+	END_FOR;
+	"DB_HMI".Pattern.StepCount := 6;
+	"DB_HMI".Pattern.Mask[0] := 1;   // Paddle01
+	"DB_HMI".Pattern.StepTime[0] := 80;
+	"DB_HMI".Pattern.StepTime[1] := 20;  // pause
+	"DB_HMI".Pattern.Mask[2] := 2;   // Paddle02
+	"DB_HMI".Pattern.StepTime[2] := 80;
+	"DB_HMI".Pattern.StepTime[3] := 20;  // pause
+	"DB_HMI".Pattern.Mask[4] := 4;   // Paddle03
+	"DB_HMI".Pattern.StepTime[4] := 80;
+	"DB_HMI".Pattern.StepTime[5] := 20;  // pause
+
+END_FUNCTION

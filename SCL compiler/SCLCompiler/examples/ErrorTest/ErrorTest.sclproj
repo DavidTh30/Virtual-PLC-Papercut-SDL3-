@@ -1,0 +1,7 @@
+[Project]
+Name=ErrorTest
+CPU=S7-1200
+OutputDir=output
+
+[Sources]
+File1=errors.scl

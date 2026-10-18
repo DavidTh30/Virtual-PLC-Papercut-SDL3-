@@ -1,0 +1,64 @@
+# Language feature test - run: sclc --sim output\FeatureTest.svpl --script tests\features.txt
+cycle-ms 10
+run 1 cycles
+expect "Data".CaseOut 20
+expect "Data".WhileSum 5050
+expect "Data".RepeatCnt 10
+expect "Data".ForDown 22
+expect "Data".ExitAt 42
+expect "Data".ContSum 25
+expect "Data".StrLen 11
+expect "Data".StrEq TRUE
+expect "Data".FindPos 7
+expect "Data".PtSum 18
+expect "Data".MuxOut 300
+expect "Data".ShlOut 9024
+expect "Data".RolOut 3
+expect "Data".RealOut 3.5
+expect "Data".LRealOut 0.333333
+expect "Data".TruncOut -2
+expect "Data".RoundOut 2
+expect "Data".Fc2Out 47
+expect "Data".OutParam 6
+expect "Data".InOutVal 6
+expect "Data".MatrixSum 33
+expect "Data".SelOut 2.5
+expect "Data".ByteSlice 18
+expect "Data".Wd 4661
+expect "Data".TimeOut T#5500MS
+expect "Data".Neg 5
+expect "Data".ModOut -1
+expect "Data".DivOut -3
+expect "Data".Overflow -32768
+expect "Data".InitSum 10
+expect "Data".ConstUse 20
+expect "Data".Cmp TRUE
+expect "Data".SqrtOut 4.0
+# counter / edge / timers
+set "iFeatures".Sel 5
+set "Data".CntIn TRUE
+run 1 cycles
+set "Data".CntIn FALSE
+run 1 cycles
+set "Data".CntIn TRUE
+run 1 cycles
+set "Data".CntIn FALSE
+run 1 cycles
+expect "Data".Counter 2
+expect "Data".CountQ FALSE
+set "Data".CntIn TRUE
+run 1 cycles
+expect "Data".Counter 3
+expect "Data".CountQ TRUE
+expect "Data".CaseOut 30
+set "Data".PulseIn TRUE
+run 1 cycles
+expect "Data".PulseQ TRUE
+run 400ms
+expect "Data".PulseQ TRUE
+run 200ms
+expect "Data".PulseQ FALSE
+expect "iFeatures".tmr.Q FALSE
+run 500ms
+expect "iFeatures".tmr.Q TRUE
+expect "iFeatures".pulse.ET T#500MS

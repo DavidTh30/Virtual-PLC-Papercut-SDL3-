@@ -1,0 +1,13 @@
+[Project]
+Name=FeatureTest
+CPU=S7-1500
+OutputDir=output
+
+[Sources]
+File1=features.scl
+
+[Tags]
+
+[BlockNumbers]
+
+[CyclicInterval]

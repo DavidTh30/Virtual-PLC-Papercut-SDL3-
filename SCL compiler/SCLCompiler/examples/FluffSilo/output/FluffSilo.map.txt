@@ -1,0 +1,1134 @@
+PLC tags
+    %I0.5          Blower01_FB              Bool     Blower01 running feedback (contactor aux NO)
+    %I0.6          Blower01_OL              Bool     Blower01 overload relay OK (NC, 0 = tripped)
+    %Q0.0          Blower01_Run             Bool     Blower01 contactor K1
+    %I0.0          EStop_OK                 Bool     Safety relay: E-Stop chain healthy (1 = OK, NC chain)
+    %I0.4          ExtRequest_In            Bool     External Request from consumer (1 = material requested)
+    %Q1.0          Fill_Request             Bool     Request raw material for the silo (level < 25 %, off at 90 %)
+    %Q0.5          Lamp_AutoRun             Bool     Pilot lamp Auto Start mode (green)
+    %Q0.7          Lamp_EStop               Bool     Pilot lamp E-Stop active (yellow)
+    %Q0.6          Lamp_Fault               Bool     Pilot lamp fault (red)
+    %I1.1          Paddle01_FB              Bool     Paddle01 running feedback (contactor aux NO)
+    %I1.2          Paddle01_OL              Bool     Paddle01 overload relay OK (NC, 0 = tripped)
+    %Q0.2          Paddle01_Run             Bool     Paddle01 contactor K3
+    %I1.3          Paddle02_FB              Bool     Paddle02 running feedback (contactor aux NO)
+    %I1.4          Paddle02_OL              Bool     Paddle02 overload relay OK (NC, 0 = tripped)
+    %Q0.3          Paddle02_Run             Bool     Paddle02 contactor K4
+    %I1.5          Paddle03_FB              Bool     Paddle03 running feedback (contactor aux NO)
+    %I8.0          Paddle03_OL              Bool     Paddle03 overload relay OK (NC, 0 = tripped) - SM 1221 DI8
+    %Q0.4          Paddle03_Run             Bool     Paddle03 contactor K5
+    %I0.1          PB_AutoStart             Bool     Panel push button Auto Start (NO)
+    %I0.2          PB_AutoStop              Bool     Panel push button Auto Stop (NC, 0 = stop)
+    %I0.3          PB_Reset                 Bool     Panel push button Reset E-Stop / faults (NO)
+    %I0.7          Screw01_FB               Bool     Screw01 running feedback (contactor aux NO)
+    %I1.0          Screw01_OL               Bool     Screw01 overload relay OK (NC, 0 = tripped)
+    %Q0.1          Screw01_Run              Bool     Screw01 contactor K2
+    %I64.0         Silo_Level_AI            Int      Silo level sensor 0..10 V = 0..100 % (CPU AI0)
+
+DB10 "DB_HMI"  82 bytes  standard access
+    DBB0       Static   Dev                                      Array[0..4] of "typeDevStatus"   [retain]
+    DBB0       Static   Dev[0]                                   "typeDevStatus"              [retain]
+    DBX0.0     Static   Dev[0].AutoStart                         Bool                       FALSE  [retain]
+    DBX0.1     Static   Dev[0].AutoStop                          Bool                       FALSE  [retain]
+    DBX0.2     Static   Dev[0].Interlock                         Bool                       FALSE  [retain]
+    DBX0.3     Static   Dev[0].ManualStart                       Bool                       FALSE  [retain]
+    DBX0.4     Static   Dev[0].ManualStop                        Bool                       FALSE  [retain]
+    DBX0.5     Static   Dev[0].Enable                            Bool                       FALSE  [retain]
+    DBX0.6     Static   Dev[0].Disable                           Bool                       FALSE  [retain]
+    DBX0.7     Static   Dev[0].Fault                             Bool                       FALSE  [retain]
+    DBX1.0     Static   Dev[0].EStop                             Bool                       FALSE  [retain]
+    DBX1.1     Static   Dev[0].Running                           Bool                       FALSE  [retain]
+    DBB2       Static   Dev[1]                                   "typeDevStatus"              [retain]
+    DBX2.0     Static   Dev[1].AutoStart                         Bool                       FALSE  [retain]
+    DBX2.1     Static   Dev[1].AutoStop                          Bool                       FALSE  [retain]
+    DBX2.2     Static   Dev[1].Interlock                         Bool                       FALSE  [retain]
+    DBX2.3     Static   Dev[1].ManualStart                       Bool                       FALSE  [retain]
+    DBX2.4     Static   Dev[1].ManualStop                        Bool                       FALSE  [retain]
+    DBX2.5     Static   Dev[1].Enable                            Bool                       FALSE  [retain]
+    DBX2.6     Static   Dev[1].Disable                           Bool                       FALSE  [retain]
+    DBX2.7     Static   Dev[1].Fault                             Bool                       FALSE  [retain]
+    DBX3.0     Static   Dev[1].EStop                             Bool                       FALSE  [retain]
+    DBX3.1     Static   Dev[1].Running                           Bool                       FALSE  [retain]
+    DBB4       Static   Dev[2]                                   "typeDevStatus"              [retain]
+    DBX4.0     Static   Dev[2].AutoStart                         Bool                       FALSE  [retain]
+    DBX4.1     Static   Dev[2].AutoStop                          Bool                       FALSE  [retain]
+    DBX4.2     Static   Dev[2].Interlock                         Bool                       FALSE  [retain]
+    DBX4.3     Static   Dev[2].ManualStart                       Bool                       FALSE  [retain]
+    DBX4.4     Static   Dev[2].ManualStop                        Bool                       FALSE  [retain]
+    DBX4.5     Static   Dev[2].Enable                            Bool                       FALSE  [retain]
+    DBX4.6     Static   Dev[2].Disable                           Bool                       FALSE  [retain]
+    DBX4.7     Static   Dev[2].Fault                             Bool                       FALSE  [retain]
+    DBX5.0     Static   Dev[2].EStop                             Bool                       FALSE  [retain]
+    DBX5.1     Static   Dev[2].Running                           Bool                       FALSE  [retain]
+    DBB6       Static   Dev[3]                                   "typeDevStatus"              [retain]
+    DBX6.0     Static   Dev[3].AutoStart                         Bool                       FALSE  [retain]
+    DBX6.1     Static   Dev[3].AutoStop                          Bool                       FALSE  [retain]
+    DBX6.2     Static   Dev[3].Interlock                         Bool                       FALSE  [retain]
+    DBX6.3     Static   Dev[3].ManualStart                       Bool                       FALSE  [retain]
+    DBX6.4     Static   Dev[3].ManualStop                        Bool                       FALSE  [retain]
+    DBX6.5     Static   Dev[3].Enable                            Bool                       FALSE  [retain]
+    DBX6.6     Static   Dev[3].Disable                           Bool                       FALSE  [retain]
+    DBX6.7     Static   Dev[3].Fault                             Bool                       FALSE  [retain]
+    DBX7.0     Static   Dev[3].EStop                             Bool                       FALSE  [retain]
+    DBX7.1     Static   Dev[3].Running                           Bool                       FALSE  [retain]
+    DBB8       Static   Dev[4]                                   "typeDevStatus"              [retain]
+    DBX8.0     Static   Dev[4].AutoStart                         Bool                       FALSE  [retain]
+    DBX8.1     Static   Dev[4].AutoStop                          Bool                       FALSE  [retain]
+    DBX8.2     Static   Dev[4].Interlock                         Bool                       FALSE  [retain]
+    DBX8.3     Static   Dev[4].ManualStart                       Bool                       FALSE  [retain]
+    DBX8.4     Static   Dev[4].ManualStop                        Bool                       FALSE  [retain]
+    DBX8.5     Static   Dev[4].Enable                            Bool                       FALSE  [retain]
+    DBX8.6     Static   Dev[4].Disable                           Bool                       FALSE  [retain]
+    DBX8.7     Static   Dev[4].Fault                             Bool                       FALSE  [retain]
+    DBX9.0     Static   Dev[4].EStop                             Bool                       FALSE  [retain]
+    DBX9.1     Static   Dev[4].Running                           Bool                       FALSE  [retain]
+    DBB10      Static   Sys                                      Struct                       [retain]
+    DBX10.0    Static   Sys.AutoMode                             Bool                       FALSE  [retain]
+    DBX10.1    Static   Sys.ExtRequest                           Bool                       FALSE  [retain]
+    DBX10.2    Static   Sys.PatternActive                        Bool                       FALSE  [retain]
+    DBX10.3    Static   Sys.EStop                                Bool                       FALSE  [retain]
+    DBB12      Static   Cmd                                      Struct                       [retain]
+    DBX12.0    Static   Cmd.AutoStart                            Bool                       FALSE  [retain]
+    DBX12.1    Static   Cmd.AutoStop                             Bool                       FALSE  [retain]
+    DBX12.2    Static   Cmd.EStop                                Bool                       FALSE  [retain]
+    DBX12.3    Static   Cmd.ResetEStop                           Bool                       FALSE  [retain]
+    DBX12.4    Static   Cmd.ExtRequest                           Bool                       FALSE  [retain]
+    DBB14      Static   DevCmd                                   Array[0..39] of Bool         [retain]
+    DBX14.0    Static   DevCmd[0]                                Bool                       FALSE  [retain]
+    DBX14.1    Static   DevCmd[1]                                Bool                       FALSE  [retain]
+    DBX14.2    Static   DevCmd[2]                                Bool                       FALSE  [retain]
+    DBX14.3    Static   DevCmd[3]                                Bool                       FALSE  [retain]
+    DBX14.4    Static   DevCmd[4]                                Bool                       FALSE  [retain]
+    DBX14.5    Static   DevCmd[5]                                Bool                       FALSE  [retain]
+    DBX14.6    Static   DevCmd[6]                                Bool                       FALSE  [retain]
+    DBX14.7    Static   DevCmd[7]                                Bool                       FALSE  [retain]
+    DBX15.0    Static   DevCmd[8]                                Bool                       FALSE  [retain]
+    DBX15.1    Static   DevCmd[9]                                Bool                       FALSE  [retain]
+    DBX15.2    Static   DevCmd[10]                               Bool                       FALSE  [retain]
+    DBX15.3    Static   DevCmd[11]                               Bool                       FALSE  [retain]
+    DBX15.4    Static   DevCmd[12]                               Bool                       FALSE  [retain]
+    DBX15.5    Static   DevCmd[13]                               Bool                       FALSE  [retain]
+    DBX15.6    Static   DevCmd[14]                               Bool                       FALSE  [retain]
+    DBX15.7    Static   DevCmd[15]                               Bool                       FALSE  [retain]
+    DBX16.0    Static   DevCmd[16]                               Bool                       FALSE  [retain]
+    DBX16.1    Static   DevCmd[17]                               Bool                       FALSE  [retain]
+    DBX16.2    Static   DevCmd[18]                               Bool                       FALSE  [retain]
+    DBX16.3    Static   DevCmd[19]                               Bool                       FALSE  [retain]
+    DBX16.4    Static   DevCmd[20]                               Bool                       FALSE  [retain]
+    DBX16.5    Static   DevCmd[21]                               Bool                       FALSE  [retain]
+    DBX16.6    Static   DevCmd[22]                               Bool                       FALSE  [retain]
+    DBX16.7    Static   DevCmd[23]                               Bool                       FALSE  [retain]
+    DBX17.0    Static   DevCmd[24]                               Bool                       FALSE  [retain]
+    DBX17.1    Static   DevCmd[25]                               Bool                       FALSE  [retain]
+    DBX17.2    Static   DevCmd[26]                               Bool                       FALSE  [retain]
+    DBX17.3    Static   DevCmd[27]                               Bool                       FALSE  [retain]
+    DBX17.4    Static   DevCmd[28]                               Bool                       FALSE  [retain]
+    DBX17.5    Static   DevCmd[29]                               Bool                       FALSE  [retain]
+    DBX17.6    Static   DevCmd[30]                               Bool                       FALSE  [retain]
+    DBX17.7    Static   DevCmd[31]                               Bool                       FALSE  [retain]
+    DBX18.0    Static   DevCmd[32]                               Bool                       FALSE  [retain]
+    DBX18.1    Static   DevCmd[33]                               Bool                       FALSE  [retain]
+    DBX18.2    Static   DevCmd[34]                               Bool                       FALSE  [retain]
+    DBX18.3    Static   DevCmd[35]                               Bool                       FALSE  [retain]
+    DBX18.4    Static   DevCmd[36]                               Bool                       FALSE  [retain]
+    DBX18.5    Static   DevCmd[37]                               Bool                       FALSE  [retain]
+    DBX18.6    Static   DevCmd[38]                               Bool                       FALSE  [retain]
+    DBX18.7    Static   DevCmd[39]                               Bool                       FALSE  [retain]
+    DBB20      Static   Delay                                    Array[0..5] of Int           [retain]
+    DBW20      Static   Delay[0]                                 Int                        70  [retain]
+    DBW22      Static   Delay[1]                                 Int                        30  [retain]
+    DBW24      Static   Delay[2]                                 Int                        30  [retain]
+    DBW26      Static   Delay[3]                                 Int                        30  [retain]
+    DBW28      Static   Delay[4]                                 Int                        50  [retain]
+    DBW30      Static   Delay[5]                                 Int                        50  [retain]
+    DBB32      Static   Proc                                     Struct                       [retain]
+    DBW32      Static   Proc.CurrentStep                         Int                        0  [retain]
+    DBW34      Static   Proc.StepElapsed                         Int                        0  [retain]
+    DBW36      Static   Proc.SiloLevel                           Int                        0  [retain]
+    DBW38      Static   Proc.Spare                               Int                        0  [retain]
+    DBB40      Static   Pattern                                  Struct                       [retain]
+    DBW40      Static   Pattern.StepCount                        Int                        6  [retain]
+    DBB42      Static   Pattern.Mask                             Array[0..9] of Int           [retain]
+    DBW42      Static   Pattern.Mask[0]                          Int                        1  [retain]
+    DBW44      Static   Pattern.Mask[1]                          Int                        0  [retain]
+    DBW46      Static   Pattern.Mask[2]                          Int                        2  [retain]
+    DBW48      Static   Pattern.Mask[3]                          Int                        0  [retain]
+    DBW50      Static   Pattern.Mask[4]                          Int                        4  [retain]
+    DBW52      Static   Pattern.Mask[5]                          Int                        0  [retain]
+    DBW54      Static   Pattern.Mask[6]                          Int                        0  [retain]
+    DBW56      Static   Pattern.Mask[7]                          Int                        0  [retain]
+    DBW58      Static   Pattern.Mask[8]                          Int                        0  [retain]
+    DBW60      Static   Pattern.Mask[9]                          Int                        0  [retain]
+    DBB62      Static   Pattern.StepTime                         Array[0..9] of Int           [retain]
+    DBW62      Static   Pattern.StepTime[0]                      Int                        80  [retain]
+    DBW64      Static   Pattern.StepTime[1]                      Int                        20  [retain]
+    DBW66      Static   Pattern.StepTime[2]                      Int                        80  [retain]
+    DBW68      Static   Pattern.StepTime[3]                      Int                        20  [retain]
+    DBW70      Static   Pattern.StepTime[4]                      Int                        80  [retain]
+    DBW72      Static   Pattern.StepTime[5]                      Int                        20  [retain]
+    DBW74      Static   Pattern.StepTime[6]                      Int                        50  [retain]
+    DBW76      Static   Pattern.StepTime[7]                      Int                        50  [retain]
+    DBW78      Static   Pattern.StepTime[8]                      Int                        50  [retain]
+    DBW80      Static   Pattern.StepTime[9]                      Int                        50  [retain]
+
+DB1 "iDB_FluffSilo"  582 bytes  instance of "FB_FluffSilo"  optimized
+    0.0        Static   FbTimeout                                Time                       T#3S
+    4.0        Static   SafeInterlock                            Bool                       FALSE
+    4.1        Static   RestartAfterBlowerTrip                   Bool                       TRUE
+    6.0        Static   FillOnLevel                              Real                       25
+    10.0       Static   FillOffLevel                             Real                       90
+    14.0       Static   EStopLatch                               Bool                       FALSE
+    14.1       Static   FillReq                                  Bool                       FALSE
+    16.0       Static   LevelPct                                 Real                       0
+    20.0       Static   LevelSensorFault                         Bool                       FALSE
+    20.1       Static   AnyFault                                 Bool                       FALSE
+    22.0       Static   rtReset                                  R_TRIG                     
+    22.0       Static   rtReset.CLK                              Bool                       FALSE
+    22.1       Static   rtReset.Q                                Bool                       FALSE
+    24.0       Static   Seq                                      "FB_Sequencer"             
+    24.0       Static   Seq.CmdAutoStart                         Bool                       FALSE
+    24.1       Static   Seq.CmdAutoStop                          Bool                       FALSE
+    24.2       Static   Seq.EStopActive                          Bool                       FALSE
+    24.3       Static   Seq.ExtRequest                           Bool                       FALSE
+    24.4       Static   Seq.BlowerRunning                        Bool                       FALSE
+    24.5       Static   Seq.ScrewRunning                         Bool                       FALSE
+    26.0       Static   Seq.TBlowerToScrew                       Time                       T#7S
+    30.0       Static   Seq.TReqHold                             Time                       T#3S
+    34.0       Static   Seq.TScrewToPaddle                       Time                       T#3S
+    38.0       Static   Seq.TReqOffScrewStop                     Time                       T#3S
+    42.0       Static   Seq.TScrewTripBlower                     Time                       T#5S
+    46.0       Static   Seq.TAutoStopBlower                      Time                       T#5S
+    50.0       Static   Seq.RestartAfterBlowerTrip               Bool                       TRUE
+    50.1       Static   Seq.AutoMode                             Bool                       FALSE
+    50.2       Static   Seq.BlowerAutoStart                      Bool                       FALSE
+    50.3       Static   Seq.BlowerAutoStop                       Bool                       FALSE
+    50.4       Static   Seq.ScrewAutoStart                       Bool                       FALSE
+    50.5       Static   Seq.ScrewAutoStop                        Bool                       FALSE
+    50.6       Static   Seq.ScrewInterlock                       Bool                       FALSE
+    50.7       Static   Seq.PaddleAutoStop                       Bool                       FALSE
+    51.0       Static   Seq.PaddleInterlock                      Bool                       FALSE
+    51.1       Static   Seq.PatternCmd                           Bool                       FALSE
+    51.2       Static   Seq.BlowerStopPending                    Bool                       FALSE
+    52.0       Static   Seq.BlowerStopRemaining                  Time                       T#0S
+    56.0       Static   Seq.BlowerCmd                            Bool                       FALSE
+    56.1       Static   Seq.ScrewCmd                             Bool                       FALSE
+    56.2       Static   Seq.PrevBlowerRun                        Bool                       FALSE
+    56.3       Static   Seq.PrevScrewRun                         Bool                       FALSE
+    58.0       Static   Seq.StopDelay                            Time                       T#0S
+    62.0       Static   Seq.rtStart                              R_TRIG                     
+    62.0       Static   Seq.rtStart.CLK                          Bool                       FALSE
+    62.1       Static   Seq.rtStart.Q                            Bool                       FALSE
+    64.0       Static   Seq.tmReqOn                              TON_TIME                   
+    64.0       Static   Seq.tmReqOn.IN                           Bool                       FALSE
+    64.1       Static   Seq.tmReqOn.R                            Bool                       FALSE
+    66.0       Static   Seq.tmReqOn.PT                           Time                       T#0S
+    70.0       Static   Seq.tmReqOn.Q                            Bool                       FALSE
+    72.0       Static   Seq.tmReqOn.ET                           Time                       T#0S
+    86.0       Static   Seq.tmReqOff                             TON_TIME                   
+    86.0       Static   Seq.tmReqOff.IN                          Bool                       FALSE
+    86.1       Static   Seq.tmReqOff.R                           Bool                       FALSE
+    88.0       Static   Seq.tmReqOff.PT                          Time                       T#0S
+    92.0       Static   Seq.tmReqOff.Q                           Bool                       FALSE
+    94.0       Static   Seq.tmReqOff.ET                          Time                       T#0S
+    108.0      Static   Seq.tmBlowerReady                        TON_TIME                   
+    108.0      Static   Seq.tmBlowerReady.IN                     Bool                       FALSE
+    108.1      Static   Seq.tmBlowerReady.R                      Bool                       FALSE
+    110.0      Static   Seq.tmBlowerReady.PT                     Time                       T#0S
+    114.0      Static   Seq.tmBlowerReady.Q                      Bool                       FALSE
+    116.0      Static   Seq.tmBlowerReady.ET                     Time                       T#0S
+    130.0      Static   Seq.tmScrewReady                         TON_TIME                   
+    130.0      Static   Seq.tmScrewReady.IN                      Bool                       FALSE
+    130.1      Static   Seq.tmScrewReady.R                       Bool                       FALSE
+    132.0      Static   Seq.tmScrewReady.PT                      Time                       T#0S
+    136.0      Static   Seq.tmScrewReady.Q                       Bool                       FALSE
+    138.0      Static   Seq.tmScrewReady.ET                      Time                       T#0S
+    152.0      Static   Seq.tmBlowerStop                         TON_TIME                   
+    152.0      Static   Seq.tmBlowerStop.IN                      Bool                       FALSE
+    152.1      Static   Seq.tmBlowerStop.R                       Bool                       FALSE
+    154.0      Static   Seq.tmBlowerStop.PT                      Time                       T#0S
+    158.0      Static   Seq.tmBlowerStop.Q                       Bool                       FALSE
+    160.0      Static   Seq.tmBlowerStop.ET                      Time                       T#0S
+    174.0      Static   Pattern                                  "FB_PaddlePattern"         
+    174.0      Static   Pattern.Enable                           Bool                       FALSE
+    176.0      Static   Pattern.Available                        Array[0..2] of Bool        
+    176.0      Static   Pattern.Available[0]                     Bool                       FALSE
+    176.1      Static   Pattern.Available[1]                     Bool                       FALSE
+    176.2      Static   Pattern.Available[2]                     Bool                       FALSE
+    178.0      Static   Pattern.StepCount                        Int                        0
+    180.0      Static   Pattern.Mask                             Array[0..9] of Int         
+    180.0      Static   Pattern.Mask[0]                          Int                        0
+    182.0      Static   Pattern.Mask[1]                          Int                        0
+    184.0      Static   Pattern.Mask[2]                          Int                        0
+    186.0      Static   Pattern.Mask[3]                          Int                        0
+    188.0      Static   Pattern.Mask[4]                          Int                        0
+    190.0      Static   Pattern.Mask[5]                          Int                        0
+    192.0      Static   Pattern.Mask[6]                          Int                        0
+    194.0      Static   Pattern.Mask[7]                          Int                        0
+    196.0      Static   Pattern.Mask[8]                          Int                        0
+    198.0      Static   Pattern.Mask[9]                          Int                        0
+    200.0      Static   Pattern.StepTime                         Array[0..9] of Int         
+    200.0      Static   Pattern.StepTime[0]                      Int                        0
+    202.0      Static   Pattern.StepTime[1]                      Int                        0
+    204.0      Static   Pattern.StepTime[2]                      Int                        0
+    206.0      Static   Pattern.StepTime[3]                      Int                        0
+    208.0      Static   Pattern.StepTime[4]                      Int                        0
+    210.0      Static   Pattern.StepTime[5]                      Int                        0
+    212.0      Static   Pattern.StepTime[6]                      Int                        0
+    214.0      Static   Pattern.StepTime[7]                      Int                        0
+    216.0      Static   Pattern.StepTime[8]                      Int                        0
+    218.0      Static   Pattern.StepTime[9]                      Int                        0
+    220.0      Static   Pattern.PaddleCmd                        Array[0..2] of Bool        
+    220.0      Static   Pattern.PaddleCmd[0]                     Bool                       FALSE
+    220.1      Static   Pattern.PaddleCmd[1]                     Bool                       FALSE
+    220.2      Static   Pattern.PaddleCmd[2]                     Bool                       FALSE
+    221.0      Static   Pattern.Active                           Bool                       FALSE
+    222.0      Static   Pattern.CurrentStep                      Int                        0
+    224.0      Static   Pattern.ElapsedTenths                    Int                        0
+    226.0      Static   Pattern.Step                             Int                        0
+    228.0      Static   Pattern.Restart                          Bool                       FALSE
+    230.0      Static   Pattern.tmStep                           TON_TIME                   
+    230.0      Static   Pattern.tmStep.IN                        Bool                       FALSE
+    230.1      Static   Pattern.tmStep.R                         Bool                       FALSE
+    232.0      Static   Pattern.tmStep.PT                        Time                       T#0S
+    236.0      Static   Pattern.tmStep.Q                         Bool                       FALSE
+    238.0      Static   Pattern.tmStep.ET                        Time                       T#0S
+    252.0      Static   Blower01                                 "FB_Motor"                 
+    252.0      Static   Blower01.AutoStart                       Bool                       FALSE
+    252.1      Static   Blower01.AutoStop                        Bool                       FALSE
+    252.2      Static   Blower01.Interlock                       Bool                       FALSE
+    252.3      Static   Blower01.EStop                           Bool                       FALSE
+    252.4      Static   Blower01.CmdManStart                     Bool                       FALSE
+    252.5      Static   Blower01.CmdManStop                      Bool                       FALSE
+    252.6      Static   Blower01.CmdReturnAuto                   Bool                       FALSE
+    252.7      Static   Blower01.CmdEnable                       Bool                       FALSE
+    253.0      Static   Blower01.CmdDisable                      Bool                       FALSE
+    253.1      Static   Blower01.CmdResetFault                   Bool                       FALSE
+    253.2      Static   Blower01.Feedback                        Bool                       FALSE
+    253.3      Static   Blower01.OverloadOK                      Bool                       FALSE
+    254.0      Static   Blower01.FbTimeout                       Time                       T#3S
+    258.0      Static   Blower01.SafeInterlock                   Bool                       FALSE
+    258.1      Static   Blower01.Run                             Bool                       FALSE
+    258.2      Static   Blower01.Available                       Bool                       FALSE
+    260.0      Static   Blower01.Status                          "typeDevStatus"            
+    260.0      Static   Blower01.Status.AutoStart                Bool                       FALSE
+    260.1      Static   Blower01.Status.AutoStop                 Bool                       FALSE
+    260.2      Static   Blower01.Status.Interlock                Bool                       FALSE
+    260.3      Static   Blower01.Status.ManualStart              Bool                       FALSE
+    260.4      Static   Blower01.Status.ManualStop               Bool                       FALSE
+    260.5      Static   Blower01.Status.Enable                   Bool                       FALSE
+    260.6      Static   Blower01.Status.Disable                  Bool                       FALSE
+    260.7      Static   Blower01.Status.Fault                    Bool                       FALSE
+    261.0      Static   Blower01.Status.EStop                    Bool                       FALSE
+    261.1      Static   Blower01.Status.Running                  Bool                       FALSE
+    262.0      Static   Blower01.CtrlLevel                       Int                        0
+    264.0      Static   Blower01.FaultCode                       Int                        0
+    266.0      Static   Blower01.StartCount                      DInt                       0
+    270.0      Static   Blower01.ManStart                        Bool                       FALSE
+    270.1      Static   Blower01.ManStop                         Bool                       FALSE
+    270.2      Static   Blower01.Disabled                        Bool                       FALSE
+    270.3      Static   Blower01.Faulted                         Bool                       FALSE
+    272.0      Static   Blower01.tmNoFb                          TON_TIME                   
+    272.0      Static   Blower01.tmNoFb.IN                       Bool                       FALSE
+    272.1      Static   Blower01.tmNoFb.R                        Bool                       FALSE
+    274.0      Static   Blower01.tmNoFb.PT                       Time                       T#0S
+    278.0      Static   Blower01.tmNoFb.Q                        Bool                       FALSE
+    280.0      Static   Blower01.tmNoFb.ET                       Time                       T#0S
+    294.0      Static   Blower01.tmFbNoCmd                       TON_TIME                   
+    294.0      Static   Blower01.tmFbNoCmd.IN                    Bool                       FALSE
+    294.1      Static   Blower01.tmFbNoCmd.R                     Bool                       FALSE
+    296.0      Static   Blower01.tmFbNoCmd.PT                    Time                       T#0S
+    300.0      Static   Blower01.tmFbNoCmd.Q                     Bool                       FALSE
+    302.0      Static   Blower01.tmFbNoCmd.ET                    Time                       T#0S
+    316.0      Static   Blower01.rtFb                            R_TRIG                     
+    316.0      Static   Blower01.rtFb.CLK                        Bool                       FALSE
+    316.1      Static   Blower01.rtFb.Q                          Bool                       FALSE
+    318.0      Static   Screw01                                  "FB_Motor"                 
+    318.0      Static   Screw01.AutoStart                        Bool                       FALSE
+    318.1      Static   Screw01.AutoStop                         Bool                       FALSE
+    318.2      Static   Screw01.Interlock                        Bool                       FALSE
+    318.3      Static   Screw01.EStop                            Bool                       FALSE
+    318.4      Static   Screw01.CmdManStart                      Bool                       FALSE
+    318.5      Static   Screw01.CmdManStop                       Bool                       FALSE
+    318.6      Static   Screw01.CmdReturnAuto                    Bool                       FALSE
+    318.7      Static   Screw01.CmdEnable                        Bool                       FALSE
+    319.0      Static   Screw01.CmdDisable                       Bool                       FALSE
+    319.1      Static   Screw01.CmdResetFault                    Bool                       FALSE
+    319.2      Static   Screw01.Feedback                         Bool                       FALSE
+    319.3      Static   Screw01.OverloadOK                       Bool                       FALSE
+    320.0      Static   Screw01.FbTimeout                        Time                       T#3S
+    324.0      Static   Screw01.SafeInterlock                    Bool                       FALSE
+    324.1      Static   Screw01.Run                              Bool                       FALSE
+    324.2      Static   Screw01.Available                        Bool                       FALSE
+    326.0      Static   Screw01.Status                           "typeDevStatus"            
+    326.0      Static   Screw01.Status.AutoStart                 Bool                       FALSE
+    326.1      Static   Screw01.Status.AutoStop                  Bool                       FALSE
+    326.2      Static   Screw01.Status.Interlock                 Bool                       FALSE
+    326.3      Static   Screw01.Status.ManualStart               Bool                       FALSE
+    326.4      Static   Screw01.Status.ManualStop                Bool                       FALSE
+    326.5      Static   Screw01.Status.Enable                    Bool                       FALSE
+    326.6      Static   Screw01.Status.Disable                   Bool                       FALSE
+    326.7      Static   Screw01.Status.Fault                     Bool                       FALSE
+    327.0      Static   Screw01.Status.EStop                     Bool                       FALSE
+    327.1      Static   Screw01.Status.Running                   Bool                       FALSE
+    328.0      Static   Screw01.CtrlLevel                        Int                        0
+    330.0      Static   Screw01.FaultCode                        Int                        0
+    332.0      Static   Screw01.StartCount                       DInt                       0
+    336.0      Static   Screw01.ManStart                         Bool                       FALSE
+    336.1      Static   Screw01.ManStop                          Bool                       FALSE
+    336.2      Static   Screw01.Disabled                         Bool                       FALSE
+    336.3      Static   Screw01.Faulted                          Bool                       FALSE
+    338.0      Static   Screw01.tmNoFb                           TON_TIME                   
+    338.0      Static   Screw01.tmNoFb.IN                        Bool                       FALSE
+    338.1      Static   Screw01.tmNoFb.R                         Bool                       FALSE
+    340.0      Static   Screw01.tmNoFb.PT                        Time                       T#0S
+    344.0      Static   Screw01.tmNoFb.Q                         Bool                       FALSE
+    346.0      Static   Screw01.tmNoFb.ET                        Time                       T#0S
+    360.0      Static   Screw01.tmFbNoCmd                        TON_TIME                   
+    360.0      Static   Screw01.tmFbNoCmd.IN                     Bool                       FALSE
+    360.1      Static   Screw01.tmFbNoCmd.R                      Bool                       FALSE
+    362.0      Static   Screw01.tmFbNoCmd.PT                     Time                       T#0S
+    366.0      Static   Screw01.tmFbNoCmd.Q                      Bool                       FALSE
+    368.0      Static   Screw01.tmFbNoCmd.ET                     Time                       T#0S
+    382.0      Static   Screw01.rtFb                             R_TRIG                     
+    382.0      Static   Screw01.rtFb.CLK                         Bool                       FALSE
+    382.1      Static   Screw01.rtFb.Q                           Bool                       FALSE
+    384.0      Static   Paddle01                                 "FB_Motor"                 
+    384.0      Static   Paddle01.AutoStart                       Bool                       FALSE
+    384.1      Static   Paddle01.AutoStop                        Bool                       FALSE
+    384.2      Static   Paddle01.Interlock                       Bool                       FALSE
+    384.3      Static   Paddle01.EStop                           Bool                       FALSE
+    384.4      Static   Paddle01.CmdManStart                     Bool                       FALSE
+    384.5      Static   Paddle01.CmdManStop                      Bool                       FALSE
+    384.6      Static   Paddle01.CmdReturnAuto                   Bool                       FALSE
+    384.7      Static   Paddle01.CmdEnable                       Bool                       FALSE
+    385.0      Static   Paddle01.CmdDisable                      Bool                       FALSE
+    385.1      Static   Paddle01.CmdResetFault                   Bool                       FALSE
+    385.2      Static   Paddle01.Feedback                        Bool                       FALSE
+    385.3      Static   Paddle01.OverloadOK                      Bool                       FALSE
+    386.0      Static   Paddle01.FbTimeout                       Time                       T#3S
+    390.0      Static   Paddle01.SafeInterlock                   Bool                       FALSE
+    390.1      Static   Paddle01.Run                             Bool                       FALSE
+    390.2      Static   Paddle01.Available                       Bool                       FALSE
+    392.0      Static   Paddle01.Status                          "typeDevStatus"            
+    392.0      Static   Paddle01.Status.AutoStart                Bool                       FALSE
+    392.1      Static   Paddle01.Status.AutoStop                 Bool                       FALSE
+    392.2      Static   Paddle01.Status.Interlock                Bool                       FALSE
+    392.3      Static   Paddle01.Status.ManualStart              Bool                       FALSE
+    392.4      Static   Paddle01.Status.ManualStop               Bool                       FALSE
+    392.5      Static   Paddle01.Status.Enable                   Bool                       FALSE
+    392.6      Static   Paddle01.Status.Disable                  Bool                       FALSE
+    392.7      Static   Paddle01.Status.Fault                    Bool                       FALSE
+    393.0      Static   Paddle01.Status.EStop                    Bool                       FALSE
+    393.1      Static   Paddle01.Status.Running                  Bool                       FALSE
+    394.0      Static   Paddle01.CtrlLevel                       Int                        0
+    396.0      Static   Paddle01.FaultCode                       Int                        0
+    398.0      Static   Paddle01.StartCount                      DInt                       0
+    402.0      Static   Paddle01.ManStart                        Bool                       FALSE
+    402.1      Static   Paddle01.ManStop                         Bool                       FALSE
+    402.2      Static   Paddle01.Disabled                        Bool                       FALSE
+    402.3      Static   Paddle01.Faulted                         Bool                       FALSE
+    404.0      Static   Paddle01.tmNoFb                          TON_TIME                   
+    404.0      Static   Paddle01.tmNoFb.IN                       Bool                       FALSE
+    404.1      Static   Paddle01.tmNoFb.R                        Bool                       FALSE
+    406.0      Static   Paddle01.tmNoFb.PT                       Time                       T#0S
+    410.0      Static   Paddle01.tmNoFb.Q                        Bool                       FALSE
+    412.0      Static   Paddle01.tmNoFb.ET                       Time                       T#0S
+    426.0      Static   Paddle01.tmFbNoCmd                       TON_TIME                   
+    426.0      Static   Paddle01.tmFbNoCmd.IN                    Bool                       FALSE
+    426.1      Static   Paddle01.tmFbNoCmd.R                     Bool                       FALSE
+    428.0      Static   Paddle01.tmFbNoCmd.PT                    Time                       T#0S
+    432.0      Static   Paddle01.tmFbNoCmd.Q                     Bool                       FALSE
+    434.0      Static   Paddle01.tmFbNoCmd.ET                    Time                       T#0S
+    448.0      Static   Paddle01.rtFb                            R_TRIG                     
+    448.0      Static   Paddle01.rtFb.CLK                        Bool                       FALSE
+    448.1      Static   Paddle01.rtFb.Q                          Bool                       FALSE
+    450.0      Static   Paddle02                                 "FB_Motor"                 
+    450.0      Static   Paddle02.AutoStart                       Bool                       FALSE
+    450.1      Static   Paddle02.AutoStop                        Bool                       FALSE
+    450.2      Static   Paddle02.Interlock                       Bool                       FALSE
+    450.3      Static   Paddle02.EStop                           Bool                       FALSE
+    450.4      Static   Paddle02.CmdManStart                     Bool                       FALSE
+    450.5      Static   Paddle02.CmdManStop                      Bool                       FALSE
+    450.6      Static   Paddle02.CmdReturnAuto                   Bool                       FALSE
+    450.7      Static   Paddle02.CmdEnable                       Bool                       FALSE
+    451.0      Static   Paddle02.CmdDisable                      Bool                       FALSE
+    451.1      Static   Paddle02.CmdResetFault                   Bool                       FALSE
+    451.2      Static   Paddle02.Feedback                        Bool                       FALSE
+    451.3      Static   Paddle02.OverloadOK                      Bool                       FALSE
+    452.0      Static   Paddle02.FbTimeout                       Time                       T#3S
+    456.0      Static   Paddle02.SafeInterlock                   Bool                       FALSE
+    456.1      Static   Paddle02.Run                             Bool                       FALSE
+    456.2      Static   Paddle02.Available                       Bool                       FALSE
+    458.0      Static   Paddle02.Status                          "typeDevStatus"            
+    458.0      Static   Paddle02.Status.AutoStart                Bool                       FALSE
+    458.1      Static   Paddle02.Status.AutoStop                 Bool                       FALSE
+    458.2      Static   Paddle02.Status.Interlock                Bool                       FALSE
+    458.3      Static   Paddle02.Status.ManualStart              Bool                       FALSE
+    458.4      Static   Paddle02.Status.ManualStop               Bool                       FALSE
+    458.5      Static   Paddle02.Status.Enable                   Bool                       FALSE
+    458.6      Static   Paddle02.Status.Disable                  Bool                       FALSE
+    458.7      Static   Paddle02.Status.Fault                    Bool                       FALSE
+    459.0      Static   Paddle02.Status.EStop                    Bool                       FALSE
+    459.1      Static   Paddle02.Status.Running                  Bool                       FALSE
+    460.0      Static   Paddle02.CtrlLevel                       Int                        0
+    462.0      Static   Paddle02.FaultCode                       Int                        0
+    464.0      Static   Paddle02.StartCount                      DInt                       0
+    468.0      Static   Paddle02.ManStart                        Bool                       FALSE
+    468.1      Static   Paddle02.ManStop                         Bool                       FALSE
+    468.2      Static   Paddle02.Disabled                        Bool                       FALSE
+    468.3      Static   Paddle02.Faulted                         Bool                       FALSE
+    470.0      Static   Paddle02.tmNoFb                          TON_TIME                   
+    470.0      Static   Paddle02.tmNoFb.IN                       Bool                       FALSE
+    470.1      Static   Paddle02.tmNoFb.R                        Bool                       FALSE
+    472.0      Static   Paddle02.tmNoFb.PT                       Time                       T#0S
+    476.0      Static   Paddle02.tmNoFb.Q                        Bool                       FALSE
+    478.0      Static   Paddle02.tmNoFb.ET                       Time                       T#0S
+    492.0      Static   Paddle02.tmFbNoCmd                       TON_TIME                   
+    492.0      Static   Paddle02.tmFbNoCmd.IN                    Bool                       FALSE
+    492.1      Static   Paddle02.tmFbNoCmd.R                     Bool                       FALSE
+    494.0      Static   Paddle02.tmFbNoCmd.PT                    Time                       T#0S
+    498.0      Static   Paddle02.tmFbNoCmd.Q                     Bool                       FALSE
+    500.0      Static   Paddle02.tmFbNoCmd.ET                    Time                       T#0S
+    514.0      Static   Paddle02.rtFb                            R_TRIG                     
+    514.0      Static   Paddle02.rtFb.CLK                        Bool                       FALSE
+    514.1      Static   Paddle02.rtFb.Q                          Bool                       FALSE
+    516.0      Static   Paddle03                                 "FB_Motor"                 
+    516.0      Static   Paddle03.AutoStart                       Bool                       FALSE
+    516.1      Static   Paddle03.AutoStop                        Bool                       FALSE
+    516.2      Static   Paddle03.Interlock                       Bool                       FALSE
+    516.3      Static   Paddle03.EStop                           Bool                       FALSE
+    516.4      Static   Paddle03.CmdManStart                     Bool                       FALSE
+    516.5      Static   Paddle03.CmdManStop                      Bool                       FALSE
+    516.6      Static   Paddle03.CmdReturnAuto                   Bool                       FALSE
+    516.7      Static   Paddle03.CmdEnable                       Bool                       FALSE
+    517.0      Static   Paddle03.CmdDisable                      Bool                       FALSE
+    517.1      Static   Paddle03.CmdResetFault                   Bool                       FALSE
+    517.2      Static   Paddle03.Feedback                        Bool                       FALSE
+    517.3      Static   Paddle03.OverloadOK                      Bool                       FALSE
+    518.0      Static   Paddle03.FbTimeout                       Time                       T#3S
+    522.0      Static   Paddle03.SafeInterlock                   Bool                       FALSE
+    522.1      Static   Paddle03.Run                             Bool                       FALSE
+    522.2      Static   Paddle03.Available                       Bool                       FALSE
+    524.0      Static   Paddle03.Status                          "typeDevStatus"            
+    524.0      Static   Paddle03.Status.AutoStart                Bool                       FALSE
+    524.1      Static   Paddle03.Status.AutoStop                 Bool                       FALSE
+    524.2      Static   Paddle03.Status.Interlock                Bool                       FALSE
+    524.3      Static   Paddle03.Status.ManualStart              Bool                       FALSE
+    524.4      Static   Paddle03.Status.ManualStop               Bool                       FALSE
+    524.5      Static   Paddle03.Status.Enable                   Bool                       FALSE
+    524.6      Static   Paddle03.Status.Disable                  Bool                       FALSE
+    524.7      Static   Paddle03.Status.Fault                    Bool                       FALSE
+    525.0      Static   Paddle03.Status.EStop                    Bool                       FALSE
+    525.1      Static   Paddle03.Status.Running                  Bool                       FALSE
+    526.0      Static   Paddle03.CtrlLevel                       Int                        0
+    528.0      Static   Paddle03.FaultCode                       Int                        0
+    530.0      Static   Paddle03.StartCount                      DInt                       0
+    534.0      Static   Paddle03.ManStart                        Bool                       FALSE
+    534.1      Static   Paddle03.ManStop                         Bool                       FALSE
+    534.2      Static   Paddle03.Disabled                        Bool                       FALSE
+    534.3      Static   Paddle03.Faulted                         Bool                       FALSE
+    536.0      Static   Paddle03.tmNoFb                          TON_TIME                   
+    536.0      Static   Paddle03.tmNoFb.IN                       Bool                       FALSE
+    536.1      Static   Paddle03.tmNoFb.R                        Bool                       FALSE
+    538.0      Static   Paddle03.tmNoFb.PT                       Time                       T#0S
+    542.0      Static   Paddle03.tmNoFb.Q                        Bool                       FALSE
+    544.0      Static   Paddle03.tmNoFb.ET                       Time                       T#0S
+    558.0      Static   Paddle03.tmFbNoCmd                       TON_TIME                   
+    558.0      Static   Paddle03.tmFbNoCmd.IN                    Bool                       FALSE
+    558.1      Static   Paddle03.tmFbNoCmd.R                     Bool                       FALSE
+    560.0      Static   Paddle03.tmFbNoCmd.PT                    Time                       T#0S
+    564.0      Static   Paddle03.tmFbNoCmd.Q                     Bool                       FALSE
+    566.0      Static   Paddle03.tmFbNoCmd.ET                    Time                       T#0S
+    580.0      Static   Paddle03.rtFb                            R_TRIG                     
+    580.0      Static   Paddle03.rtFb.CLK                        Bool                       FALSE
+    580.1      Static   Paddle03.rtFb.Q                          Bool                       FALSE
+
+FC1 "FC_TenthsToTime"  parameters 6 bytes  temp 0 bytes  code 51 bytes
+    0.0        Return   RET_VAL                                  Time                       
+    4.0        Input    Tenths                                   Int                        
+
+FC2 "FC_ScaleAnalog"  parameters 16 bytes  temp 4 bytes  code 172 bytes
+    0.0        Return   RET_VAL                                  Real                       
+    4.0        Input    Raw                                      Int                        
+    6.0        Input    EngLow                                   Real                       
+    10.0       Input    EngHigh                                  Real                       
+    14.0       Output   Fault                                    Bool                       
+    16.0       Temp     norm                                     Real                       
+
+FC3 "FC_ValidateParams"  parameters 0 bytes  temp 18 bytes  code 585 bytes
+    0.0        Temp     i                                        Int                        
+
+FC4 "FC_LoadDefaults"  parameters 0 bytes  temp 10 bytes  code 729 bytes
+    0.0        Temp     i                                        Int                        
+
+FC5 "FC_StepBlocked"  parameters 12 bytes  temp 2 bytes  code 168 bytes
+    0.0        Return   RET_VAL                                  Bool                       
+    2.0        Input    Mask                                     Int                        
+    4.0        Input    Available                                Array[0..2] of Bool          [pointer]
+    12.0       Temp     w                                        Word                       
+
+FB1 "FB_Motor"  instance 66 bytes  temp 4 bytes  code 1427 bytes
+    0.0        Input    AutoStart                                Bool                       
+    0.1        Input    AutoStop                                 Bool                       
+    0.2        Input    Interlock                                Bool                       
+    0.3        Input    EStop                                    Bool                       
+    0.4        Input    CmdManStart                              Bool                       
+    0.5        Input    CmdManStop                               Bool                       
+    0.6        Input    CmdReturnAuto                            Bool                       
+    0.7        Input    CmdEnable                                Bool                       
+    1.0        Input    CmdDisable                               Bool                       
+    1.1        Input    CmdResetFault                            Bool                       
+    1.2        Input    Feedback                                 Bool                       
+    1.3        Input    OverloadOK                               Bool                       
+    2.0        Input    FbTimeout                                Time                       T#3S
+    6.0        Input    SafeInterlock                            Bool                       
+    6.1        Output   Run                                      Bool                       
+    6.2        Output   Available                                Bool                       
+    8.0        Output   Status                                   "typeDevStatus"            
+    8.0        Output   Status.AutoStart                         Bool                       
+    8.1        Output   Status.AutoStop                          Bool                       
+    8.2        Output   Status.Interlock                         Bool                       
+    8.3        Output   Status.ManualStart                       Bool                       
+    8.4        Output   Status.ManualStop                        Bool                       
+    8.5        Output   Status.Enable                            Bool                       
+    8.6        Output   Status.Disable                           Bool                       
+    8.7        Output   Status.Fault                             Bool                       
+    9.0        Output   Status.EStop                             Bool                       
+    9.1        Output   Status.Running                           Bool                       
+    10.0       Output   CtrlLevel                                Int                        
+    12.0       Output   FaultCode                                Int                        
+    14.0       Output   StartCount                               DInt                       
+    18.0       Static   ManStart                                 Bool                       
+    18.1       Static   ManStop                                  Bool                       
+    18.2       Static   Disabled                                 Bool                       
+    18.3       Static   Faulted                                  Bool                       
+    20.0       Static   tmNoFb                                   TON_TIME                   
+    20.0       Static   tmNoFb.IN                                Bool                       
+    20.1       Static   tmNoFb.R                                 Bool                       
+    22.0       Static   tmNoFb.PT                                Time                       
+    26.0       Static   tmNoFb.Q                                 Bool                       
+    28.0       Static   tmNoFb.ET                                Time                       
+    42.0       Static   tmFbNoCmd                                TON_TIME                   
+    42.0       Static   tmFbNoCmd.IN                             Bool                       
+    42.1       Static   tmFbNoCmd.R                              Bool                       
+    44.0       Static   tmFbNoCmd.PT                             Time                       
+    48.0       Static   tmFbNoCmd.Q                              Bool                       
+    50.0       Static   tmFbNoCmd.ET                             Time                       
+    64.0       Static   rtFb                                     R_TRIG                     
+    64.0       Static   rtFb.CLK                                 Bool                       
+    64.1       Static   rtFb.Q                                   Bool                       
+    0.0        Temp     doRun                                    Bool                       
+    2.0        Temp     lvl                                      Int                        
+
+FB2 "FB_Sequencer"  instance 150 bytes  temp 0 bytes  code 1400 bytes
+    0.0        Input    CmdAutoStart                             Bool                       
+    0.1        Input    CmdAutoStop                              Bool                       
+    0.2        Input    EStopActive                              Bool                       
+    0.3        Input    ExtRequest                               Bool                       
+    0.4        Input    BlowerRunning                            Bool                       
+    0.5        Input    ScrewRunning                             Bool                       
+    2.0        Input    TBlowerToScrew                           Time                       T#7S
+    6.0        Input    TReqHold                                 Time                       T#3S
+    10.0       Input    TScrewToPaddle                           Time                       T#3S
+    14.0       Input    TReqOffScrewStop                         Time                       T#3S
+    18.0       Input    TScrewTripBlower                         Time                       T#5S
+    22.0       Input    TAutoStopBlower                          Time                       T#5S
+    26.0       Input    RestartAfterBlowerTrip                   Bool                       TRUE
+    26.1       Output   AutoMode                                 Bool                       
+    26.2       Output   BlowerAutoStart                          Bool                       
+    26.3       Output   BlowerAutoStop                           Bool                       
+    26.4       Output   ScrewAutoStart                           Bool                       
+    26.5       Output   ScrewAutoStop                            Bool                       
+    26.6       Output   ScrewInterlock                           Bool                       
+    26.7       Output   PaddleAutoStop                           Bool                       
+    27.0       Output   PaddleInterlock                          Bool                       
+    27.1       Output   PatternCmd                               Bool                       
+    27.2       Output   BlowerStopPending                        Bool                       
+    28.0       Output   BlowerStopRemaining                      Time                       
+    32.0       Static   BlowerCmd                                Bool                       
+    32.1       Static   ScrewCmd                                 Bool                       
+    32.2       Static   PrevBlowerRun                            Bool                       
+    32.3       Static   PrevScrewRun                             Bool                       
+    34.0       Static   StopDelay                                Time                       
+    38.0       Static   rtStart                                  R_TRIG                     
+    38.0       Static   rtStart.CLK                              Bool                       
+    38.1       Static   rtStart.Q                                Bool                       
+    40.0       Static   tmReqOn                                  TON_TIME                   
+    40.0       Static   tmReqOn.IN                               Bool                       
+    40.1       Static   tmReqOn.R                                Bool                       
+    42.0       Static   tmReqOn.PT                               Time                       
+    46.0       Static   tmReqOn.Q                                Bool                       
+    48.0       Static   tmReqOn.ET                               Time                       
+    62.0       Static   tmReqOff                                 TON_TIME                   
+    62.0       Static   tmReqOff.IN                              Bool                       
+    62.1       Static   tmReqOff.R                               Bool                       
+    64.0       Static   tmReqOff.PT                              Time                       
+    68.0       Static   tmReqOff.Q                               Bool                       
+    70.0       Static   tmReqOff.ET                              Time                       
+    84.0       Static   tmBlowerReady                            TON_TIME                   
+    84.0       Static   tmBlowerReady.IN                         Bool                       
+    84.1       Static   tmBlowerReady.R                          Bool                       
+    86.0       Static   tmBlowerReady.PT                         Time                       
+    90.0       Static   tmBlowerReady.Q                          Bool                       
+    92.0       Static   tmBlowerReady.ET                         Time                       
+    106.0      Static   tmScrewReady                             TON_TIME                   
+    106.0      Static   tmScrewReady.IN                          Bool                       
+    106.1      Static   tmScrewReady.R                           Bool                       
+    108.0      Static   tmScrewReady.PT                          Time                       
+    112.0      Static   tmScrewReady.Q                           Bool                       
+    114.0      Static   tmScrewReady.ET                          Time                       
+    128.0      Static   tmBlowerStop                             TON_TIME                   
+    128.0      Static   tmBlowerStop.IN                          Bool                       
+    128.1      Static   tmBlowerStop.R                           Bool                       
+    130.0      Static   tmBlowerStop.PT                          Time                       
+    134.0      Static   tmBlowerStop.Q                           Bool                       
+    136.0      Static   tmBlowerStop.ET                          Time                       
+
+FB3 "FB_PaddlePattern"  instance 78 bytes  temp 34 bytes  code 1607 bytes
+    0.0        Input    Enable                                   Bool                       
+    2.0        Input    Available                                Array[0..2] of Bool        
+    2.0        Input    Available[0]                             Bool                       
+    2.1        Input    Available[1]                             Bool                       
+    2.2        Input    Available[2]                             Bool                       
+    4.0        Input    StepCount                                Int                        
+    6.0        Input    Mask                                     Array[0..9] of Int         
+    6.0        Input    Mask[0]                                  Int                        
+    8.0        Input    Mask[1]                                  Int                        
+    10.0       Input    Mask[2]                                  Int                        
+    12.0       Input    Mask[3]                                  Int                        
+    14.0       Input    Mask[4]                                  Int                        
+    16.0       Input    Mask[5]                                  Int                        
+    18.0       Input    Mask[6]                                  Int                        
+    20.0       Input    Mask[7]                                  Int                        
+    22.0       Input    Mask[8]                                  Int                        
+    24.0       Input    Mask[9]                                  Int                        
+    26.0       Input    StepTime                                 Array[0..9] of Int         
+    26.0       Input    StepTime[0]                              Int                        
+    28.0       Input    StepTime[1]                              Int                        
+    30.0       Input    StepTime[2]                              Int                        
+    32.0       Input    StepTime[3]                              Int                        
+    34.0       Input    StepTime[4]                              Int                        
+    36.0       Input    StepTime[5]                              Int                        
+    38.0       Input    StepTime[6]                              Int                        
+    40.0       Input    StepTime[7]                              Int                        
+    42.0       Input    StepTime[8]                              Int                        
+    44.0       Input    StepTime[9]                              Int                        
+    46.0       Output   PaddleCmd                                Array[0..2] of Bool        
+    46.0       Output   PaddleCmd[0]                             Bool                       
+    46.1       Output   PaddleCmd[1]                             Bool                       
+    46.2       Output   PaddleCmd[2]                             Bool                       
+    47.0       Output   Active                                   Bool                       
+    48.0       Output   CurrentStep                              Int                        
+    50.0       Output   ElapsedTenths                            Int                        
+    52.0       Static   Step                                     Int                        
+    54.0       Static   Restart                                  Bool                       
+    56.0       Static   tmStep                                   TON_TIME                   
+    56.0       Static   tmStep.IN                                Bool                       
+    56.1       Static   tmStep.R                                 Bool                       
+    58.0       Static   tmStep.PT                                Time                       
+    62.0       Static   tmStep.Q                                 Bool                       
+    64.0       Static   tmStep.ET                                Time                       
+    0.0        Temp     n                                        Int                        
+    2.0        Temp     k                                        Int                        
+    4.0        Temp     s                                        Int                        
+    6.0        Temp     pass                                     Int                        
+    8.0        Temp     nextStep                                 Int                        
+    10.0       Temp     search                                   Bool                       
+    10.1       Temp     skipPauses                               Bool                       
+    10.2       Temp     starting                                 Bool                       
+    12.0       Temp     w                                        Word                       
+    14.0       Temp     stepT                                    Time                       
+
+FB4 "FB_FluffSilo"  instance 582 bytes  temp 38 bytes  code 4199 bytes
+    0.0        Static   FbTimeout                                Time                       T#3S
+    4.0        Static   SafeInterlock                            Bool                       FALSE
+    4.1        Static   RestartAfterBlowerTrip                   Bool                       TRUE
+    6.0        Static   FillOnLevel                              Real                       25
+    10.0       Static   FillOffLevel                             Real                       90
+    14.0       Static   EStopLatch                               Bool                       
+    14.1       Static   FillReq                                  Bool                       
+    16.0       Static   LevelPct                                 Real                       
+    20.0       Static   LevelSensorFault                         Bool                       
+    20.1       Static   AnyFault                                 Bool                       
+    22.0       Static   rtReset                                  R_TRIG                     
+    22.0       Static   rtReset.CLK                              Bool                       
+    22.1       Static   rtReset.Q                                Bool                       
+    24.0       Static   Seq                                      "FB_Sequencer"             
+    24.0       Static   Seq.CmdAutoStart                         Bool                       
+    24.1       Static   Seq.CmdAutoStop                          Bool                       
+    24.2       Static   Seq.EStopActive                          Bool                       
+    24.3       Static   Seq.ExtRequest                           Bool                       
+    24.4       Static   Seq.BlowerRunning                        Bool                       
+    24.5       Static   Seq.ScrewRunning                         Bool                       
+    26.0       Static   Seq.TBlowerToScrew                       Time                       T#7S
+    30.0       Static   Seq.TReqHold                             Time                       T#3S
+    34.0       Static   Seq.TScrewToPaddle                       Time                       T#3S
+    38.0       Static   Seq.TReqOffScrewStop                     Time                       T#3S
+    42.0       Static   Seq.TScrewTripBlower                     Time                       T#5S
+    46.0       Static   Seq.TAutoStopBlower                      Time                       T#5S
+    50.0       Static   Seq.RestartAfterBlowerTrip               Bool                       TRUE
+    50.1       Static   Seq.AutoMode                             Bool                       
+    50.2       Static   Seq.BlowerAutoStart                      Bool                       
+    50.3       Static   Seq.BlowerAutoStop                       Bool                       
+    50.4       Static   Seq.ScrewAutoStart                       Bool                       
+    50.5       Static   Seq.ScrewAutoStop                        Bool                       
+    50.6       Static   Seq.ScrewInterlock                       Bool                       
+    50.7       Static   Seq.PaddleAutoStop                       Bool                       
+    51.0       Static   Seq.PaddleInterlock                      Bool                       
+    51.1       Static   Seq.PatternCmd                           Bool                       
+    51.2       Static   Seq.BlowerStopPending                    Bool                       
+    52.0       Static   Seq.BlowerStopRemaining                  Time                       
+    56.0       Static   Seq.BlowerCmd                            Bool                       
+    56.1       Static   Seq.ScrewCmd                             Bool                       
+    56.2       Static   Seq.PrevBlowerRun                        Bool                       
+    56.3       Static   Seq.PrevScrewRun                         Bool                       
+    58.0       Static   Seq.StopDelay                            Time                       
+    62.0       Static   Seq.rtStart                              R_TRIG                     
+    62.0       Static   Seq.rtStart.CLK                          Bool                       
+    62.1       Static   Seq.rtStart.Q                            Bool                       
+    64.0       Static   Seq.tmReqOn                              TON_TIME                   
+    64.0       Static   Seq.tmReqOn.IN                           Bool                       
+    64.1       Static   Seq.tmReqOn.R                            Bool                       
+    66.0       Static   Seq.tmReqOn.PT                           Time                       
+    70.0       Static   Seq.tmReqOn.Q                            Bool                       
+    72.0       Static   Seq.tmReqOn.ET                           Time                       
+    86.0       Static   Seq.tmReqOff                             TON_TIME                   
+    86.0       Static   Seq.tmReqOff.IN                          Bool                       
+    86.1       Static   Seq.tmReqOff.R                           Bool                       
+    88.0       Static   Seq.tmReqOff.PT                          Time                       
+    92.0       Static   Seq.tmReqOff.Q                           Bool                       
+    94.0       Static   Seq.tmReqOff.ET                          Time                       
+    108.0      Static   Seq.tmBlowerReady                        TON_TIME                   
+    108.0      Static   Seq.tmBlowerReady.IN                     Bool                       
+    108.1      Static   Seq.tmBlowerReady.R                      Bool                       
+    110.0      Static   Seq.tmBlowerReady.PT                     Time                       
+    114.0      Static   Seq.tmBlowerReady.Q                      Bool                       
+    116.0      Static   Seq.tmBlowerReady.ET                     Time                       
+    130.0      Static   Seq.tmScrewReady                         TON_TIME                   
+    130.0      Static   Seq.tmScrewReady.IN                      Bool                       
+    130.1      Static   Seq.tmScrewReady.R                       Bool                       
+    132.0      Static   Seq.tmScrewReady.PT                      Time                       
+    136.0      Static   Seq.tmScrewReady.Q                       Bool                       
+    138.0      Static   Seq.tmScrewReady.ET                      Time                       
+    152.0      Static   Seq.tmBlowerStop                         TON_TIME                   
+    152.0      Static   Seq.tmBlowerStop.IN                      Bool                       
+    152.1      Static   Seq.tmBlowerStop.R                       Bool                       
+    154.0      Static   Seq.tmBlowerStop.PT                      Time                       
+    158.0      Static   Seq.tmBlowerStop.Q                       Bool                       
+    160.0      Static   Seq.tmBlowerStop.ET                      Time                       
+    174.0      Static   Pattern                                  "FB_PaddlePattern"         
+    174.0      Static   Pattern.Enable                           Bool                       
+    176.0      Static   Pattern.Available                        Array[0..2] of Bool        
+    176.0      Static   Pattern.Available[0]                     Bool                       
+    176.1      Static   Pattern.Available[1]                     Bool                       
+    176.2      Static   Pattern.Available[2]                     Bool                       
+    178.0      Static   Pattern.StepCount                        Int                        
+    180.0      Static   Pattern.Mask                             Array[0..9] of Int         
+    180.0      Static   Pattern.Mask[0]                          Int                        
+    182.0      Static   Pattern.Mask[1]                          Int                        
+    184.0      Static   Pattern.Mask[2]                          Int                        
+    186.0      Static   Pattern.Mask[3]                          Int                        
+    188.0      Static   Pattern.Mask[4]                          Int                        
+    190.0      Static   Pattern.Mask[5]                          Int                        
+    192.0      Static   Pattern.Mask[6]                          Int                        
+    194.0      Static   Pattern.Mask[7]                          Int                        
+    196.0      Static   Pattern.Mask[8]                          Int                        
+    198.0      Static   Pattern.Mask[9]                          Int                        
+    200.0      Static   Pattern.StepTime                         Array[0..9] of Int         
+    200.0      Static   Pattern.StepTime[0]                      Int                        
+    202.0      Static   Pattern.StepTime[1]                      Int                        
+    204.0      Static   Pattern.StepTime[2]                      Int                        
+    206.0      Static   Pattern.StepTime[3]                      Int                        
+    208.0      Static   Pattern.StepTime[4]                      Int                        
+    210.0      Static   Pattern.StepTime[5]                      Int                        
+    212.0      Static   Pattern.StepTime[6]                      Int                        
+    214.0      Static   Pattern.StepTime[7]                      Int                        
+    216.0      Static   Pattern.StepTime[8]                      Int                        
+    218.0      Static   Pattern.StepTime[9]                      Int                        
+    220.0      Static   Pattern.PaddleCmd                        Array[0..2] of Bool        
+    220.0      Static   Pattern.PaddleCmd[0]                     Bool                       
+    220.1      Static   Pattern.PaddleCmd[1]                     Bool                       
+    220.2      Static   Pattern.PaddleCmd[2]                     Bool                       
+    221.0      Static   Pattern.Active                           Bool                       
+    222.0      Static   Pattern.CurrentStep                      Int                        
+    224.0      Static   Pattern.ElapsedTenths                    Int                        
+    226.0      Static   Pattern.Step                             Int                        
+    228.0      Static   Pattern.Restart                          Bool                       
+    230.0      Static   Pattern.tmStep                           TON_TIME                   
+    230.0      Static   Pattern.tmStep.IN                        Bool                       
+    230.1      Static   Pattern.tmStep.R                         Bool                       
+    232.0      Static   Pattern.tmStep.PT                        Time                       
+    236.0      Static   Pattern.tmStep.Q                         Bool                       
+    238.0      Static   Pattern.tmStep.ET                        Time                       
+    252.0      Static   Blower01                                 "FB_Motor"                 
+    252.0      Static   Blower01.AutoStart                       Bool                       
+    252.1      Static   Blower01.AutoStop                        Bool                       
+    252.2      Static   Blower01.Interlock                       Bool                       
+    252.3      Static   Blower01.EStop                           Bool                       
+    252.4      Static   Blower01.CmdManStart                     Bool                       
+    252.5      Static   Blower01.CmdManStop                      Bool                       
+    252.6      Static   Blower01.CmdReturnAuto                   Bool                       
+    252.7      Static   Blower01.CmdEnable                       Bool                       
+    253.0      Static   Blower01.CmdDisable                      Bool                       
+    253.1      Static   Blower01.CmdResetFault                   Bool                       
+    253.2      Static   Blower01.Feedback                        Bool                       
+    253.3      Static   Blower01.OverloadOK                      Bool                       
+    254.0      Static   Blower01.FbTimeout                       Time                       T#3S
+    258.0      Static   Blower01.SafeInterlock                   Bool                       
+    258.1      Static   Blower01.Run                             Bool                       
+    258.2      Static   Blower01.Available                       Bool                       
+    260.0      Static   Blower01.Status                          "typeDevStatus"            
+    260.0      Static   Blower01.Status.AutoStart                Bool                       
+    260.1      Static   Blower01.Status.AutoStop                 Bool                       
+    260.2      Static   Blower01.Status.Interlock                Bool                       
+    260.3      Static   Blower01.Status.ManualStart              Bool                       
+    260.4      Static   Blower01.Status.ManualStop               Bool                       
+    260.5      Static   Blower01.Status.Enable                   Bool                       
+    260.6      Static   Blower01.Status.Disable                  Bool                       
+    260.7      Static   Blower01.Status.Fault                    Bool                       
+    261.0      Static   Blower01.Status.EStop                    Bool                       
+    261.1      Static   Blower01.Status.Running                  Bool                       
+    262.0      Static   Blower01.CtrlLevel                       Int                        
+    264.0      Static   Blower01.FaultCode                       Int                        
+    266.0      Static   Blower01.StartCount                      DInt                       
+    270.0      Static   Blower01.ManStart                        Bool                       
+    270.1      Static   Blower01.ManStop                         Bool                       
+    270.2      Static   Blower01.Disabled                        Bool                       
+    270.3      Static   Blower01.Faulted                         Bool                       
+    272.0      Static   Blower01.tmNoFb                          TON_TIME                   
+    272.0      Static   Blower01.tmNoFb.IN                       Bool                       
+    272.1      Static   Blower01.tmNoFb.R                        Bool                       
+    274.0      Static   Blower01.tmNoFb.PT                       Time                       
+    278.0      Static   Blower01.tmNoFb.Q                        Bool                       
+    280.0      Static   Blower01.tmNoFb.ET                       Time                       
+    294.0      Static   Blower01.tmFbNoCmd                       TON_TIME                   
+    294.0      Static   Blower01.tmFbNoCmd.IN                    Bool                       
+    294.1      Static   Blower01.tmFbNoCmd.R                     Bool                       
+    296.0      Static   Blower01.tmFbNoCmd.PT                    Time                       
+    300.0      Static   Blower01.tmFbNoCmd.Q                     Bool                       
+    302.0      Static   Blower01.tmFbNoCmd.ET                    Time                       
+    316.0      Static   Blower01.rtFb                            R_TRIG                     
+    316.0      Static   Blower01.rtFb.CLK                        Bool                       
+    316.1      Static   Blower01.rtFb.Q                          Bool                       
+    318.0      Static   Screw01                                  "FB_Motor"                 
+    318.0      Static   Screw01.AutoStart                        Bool                       
+    318.1      Static   Screw01.AutoStop                         Bool                       
+    318.2      Static   Screw01.Interlock                        Bool                       
+    318.3      Static   Screw01.EStop                            Bool                       
+    318.4      Static   Screw01.CmdManStart                      Bool                       
+    318.5      Static   Screw01.CmdManStop                       Bool                       
+    318.6      Static   Screw01.CmdReturnAuto                    Bool                       
+    318.7      Static   Screw01.CmdEnable                        Bool                       
+    319.0      Static   Screw01.CmdDisable                       Bool                       
+    319.1      Static   Screw01.CmdResetFault                    Bool                       
+    319.2      Static   Screw01.Feedback                         Bool                       
+    319.3      Static   Screw01.OverloadOK                       Bool                       
+    320.0      Static   Screw01.FbTimeout                        Time                       T#3S
+    324.0      Static   Screw01.SafeInterlock                    Bool                       
+    324.1      Static   Screw01.Run                              Bool                       
+    324.2      Static   Screw01.Available                        Bool                       
+    326.0      Static   Screw01.Status                           "typeDevStatus"            
+    326.0      Static   Screw01.Status.AutoStart                 Bool                       
+    326.1      Static   Screw01.Status.AutoStop                  Bool                       
+    326.2      Static   Screw01.Status.Interlock                 Bool                       
+    326.3      Static   Screw01.Status.ManualStart               Bool                       
+    326.4      Static   Screw01.Status.ManualStop                Bool                       
+    326.5      Static   Screw01.Status.Enable                    Bool                       
+    326.6      Static   Screw01.Status.Disable                   Bool                       
+    326.7      Static   Screw01.Status.Fault                     Bool                       
+    327.0      Static   Screw01.Status.EStop                     Bool                       
+    327.1      Static   Screw01.Status.Running                   Bool                       
+    328.0      Static   Screw01.CtrlLevel                        Int                        
+    330.0      Static   Screw01.FaultCode                        Int                        
+    332.0      Static   Screw01.StartCount                       DInt                       
+    336.0      Static   Screw01.ManStart                         Bool                       
+    336.1      Static   Screw01.ManStop                          Bool                       
+    336.2      Static   Screw01.Disabled                         Bool                       
+    336.3      Static   Screw01.Faulted                          Bool                       
+    338.0      Static   Screw01.tmNoFb                           TON_TIME                   
+    338.0      Static   Screw01.tmNoFb.IN                        Bool                       
+    338.1      Static   Screw01.tmNoFb.R                         Bool                       
+    340.0      Static   Screw01.tmNoFb.PT                        Time                       
+    344.0      Static   Screw01.tmNoFb.Q                         Bool                       
+    346.0      Static   Screw01.tmNoFb.ET                        Time                       
+    360.0      Static   Screw01.tmFbNoCmd                        TON_TIME                   
+    360.0      Static   Screw01.tmFbNoCmd.IN                     Bool                       
+    360.1      Static   Screw01.tmFbNoCmd.R                      Bool                       
+    362.0      Static   Screw01.tmFbNoCmd.PT                     Time                       
+    366.0      Static   Screw01.tmFbNoCmd.Q                      Bool                       
+    368.0      Static   Screw01.tmFbNoCmd.ET                     Time                       
+    382.0      Static   Screw01.rtFb                             R_TRIG                     
+    382.0      Static   Screw01.rtFb.CLK                         Bool                       
+    382.1      Static   Screw01.rtFb.Q                           Bool                       
+    384.0      Static   Paddle01                                 "FB_Motor"                 
+    384.0      Static   Paddle01.AutoStart                       Bool                       
+    384.1      Static   Paddle01.AutoStop                        Bool                       
+    384.2      Static   Paddle01.Interlock                       Bool                       
+    384.3      Static   Paddle01.EStop                           Bool                       
+    384.4      Static   Paddle01.CmdManStart                     Bool                       
+    384.5      Static   Paddle01.CmdManStop                      Bool                       
+    384.6      Static   Paddle01.CmdReturnAuto                   Bool                       
+    384.7      Static   Paddle01.CmdEnable                       Bool                       
+    385.0      Static   Paddle01.CmdDisable                      Bool                       
+    385.1      Static   Paddle01.CmdResetFault                   Bool                       
+    385.2      Static   Paddle01.Feedback                        Bool                       
+    385.3      Static   Paddle01.OverloadOK                      Bool                       
+    386.0      Static   Paddle01.FbTimeout                       Time                       T#3S
+    390.0      Static   Paddle01.SafeInterlock                   Bool                       
+    390.1      Static   Paddle01.Run                             Bool                       
+    390.2      Static   Paddle01.Available                       Bool                       
+    392.0      Static   Paddle01.Status                          "typeDevStatus"            
+    392.0      Static   Paddle01.Status.AutoStart                Bool                       
+    392.1      Static   Paddle01.Status.AutoStop                 Bool                       
+    392.2      Static   Paddle01.Status.Interlock                Bool                       
+    392.3      Static   Paddle01.Status.ManualStart              Bool                       
+    392.4      Static   Paddle01.Status.ManualStop               Bool                       
+    392.5      Static   Paddle01.Status.Enable                   Bool                       
+    392.6      Static   Paddle01.Status.Disable                  Bool                       
+    392.7      Static   Paddle01.Status.Fault                    Bool                       
+    393.0      Static   Paddle01.Status.EStop                    Bool                       
+    393.1      Static   Paddle01.Status.Running                  Bool                       
+    394.0      Static   Paddle01.CtrlLevel                       Int                        
+    396.0      Static   Paddle01.FaultCode                       Int                        
+    398.0      Static   Paddle01.StartCount                      DInt                       
+    402.0      Static   Paddle01.ManStart                        Bool                       
+    402.1      Static   Paddle01.ManStop                         Bool                       
+    402.2      Static   Paddle01.Disabled                        Bool                       
+    402.3      Static   Paddle01.Faulted                         Bool                       
+    404.0      Static   Paddle01.tmNoFb                          TON_TIME                   
+    404.0      Static   Paddle01.tmNoFb.IN                       Bool                       
+    404.1      Static   Paddle01.tmNoFb.R                        Bool                       
+    406.0      Static   Paddle01.tmNoFb.PT                       Time                       
+    410.0      Static   Paddle01.tmNoFb.Q                        Bool                       
+    412.0      Static   Paddle01.tmNoFb.ET                       Time                       
+    426.0      Static   Paddle01.tmFbNoCmd                       TON_TIME                   
+    426.0      Static   Paddle01.tmFbNoCmd.IN                    Bool                       
+    426.1      Static   Paddle01.tmFbNoCmd.R                     Bool                       
+    428.0      Static   Paddle01.tmFbNoCmd.PT                    Time                       
+    432.0      Static   Paddle01.tmFbNoCmd.Q                     Bool                       
+    434.0      Static   Paddle01.tmFbNoCmd.ET                    Time                       
+    448.0      Static   Paddle01.rtFb                            R_TRIG                     
+    448.0      Static   Paddle01.rtFb.CLK                        Bool                       
+    448.1      Static   Paddle01.rtFb.Q                          Bool                       
+    450.0      Static   Paddle02                                 "FB_Motor"                 
+    450.0      Static   Paddle02.AutoStart                       Bool                       
+    450.1      Static   Paddle02.AutoStop                        Bool                       
+    450.2      Static   Paddle02.Interlock                       Bool                       
+    450.3      Static   Paddle02.EStop                           Bool                       
+    450.4      Static   Paddle02.CmdManStart                     Bool                       
+    450.5      Static   Paddle02.CmdManStop                      Bool                       
+    450.6      Static   Paddle02.CmdReturnAuto                   Bool                       
+    450.7      Static   Paddle02.CmdEnable                       Bool                       
+    451.0      Static   Paddle02.CmdDisable                      Bool                       
+    451.1      Static   Paddle02.CmdResetFault                   Bool                       
+    451.2      Static   Paddle02.Feedback                        Bool                       
+    451.3      Static   Paddle02.OverloadOK                      Bool                       
+    452.0      Static   Paddle02.FbTimeout                       Time                       T#3S
+    456.0      Static   Paddle02.SafeInterlock                   Bool                       
+    456.1      Static   Paddle02.Run                             Bool                       
+    456.2      Static   Paddle02.Available                       Bool                       
+    458.0      Static   Paddle02.Status                          "typeDevStatus"            
+    458.0      Static   Paddle02.Status.AutoStart                Bool                       
+    458.1      Static   Paddle02.Status.AutoStop                 Bool                       
+    458.2      Static   Paddle02.Status.Interlock                Bool                       
+    458.3      Static   Paddle02.Status.ManualStart              Bool                       
+    458.4      Static   Paddle02.Status.ManualStop               Bool                       
+    458.5      Static   Paddle02.Status.Enable                   Bool                       
+    458.6      Static   Paddle02.Status.Disable                  Bool                       
+    458.7      Static   Paddle02.Status.Fault                    Bool                       
+    459.0      Static   Paddle02.Status.EStop                    Bool                       
+    459.1      Static   Paddle02.Status.Running                  Bool                       
+    460.0      Static   Paddle02.CtrlLevel                       Int                        
+    462.0      Static   Paddle02.FaultCode                       Int                        
+    464.0      Static   Paddle02.StartCount                      DInt                       
+    468.0      Static   Paddle02.ManStart                        Bool                       
+    468.1      Static   Paddle02.ManStop                         Bool                       
+    468.2      Static   Paddle02.Disabled                        Bool                       
+    468.3      Static   Paddle02.Faulted                         Bool                       
+    470.0      Static   Paddle02.tmNoFb                          TON_TIME                   
+    470.0      Static   Paddle02.tmNoFb.IN                       Bool                       
+    470.1      Static   Paddle02.tmNoFb.R                        Bool                       
+    472.0      Static   Paddle02.tmNoFb.PT                       Time                       
+    476.0      Static   Paddle02.tmNoFb.Q                        Bool                       
+    478.0      Static   Paddle02.tmNoFb.ET                       Time                       
+    492.0      Static   Paddle02.tmFbNoCmd                       TON_TIME                   
+    492.0      Static   Paddle02.tmFbNoCmd.IN                    Bool                       
+    492.1      Static   Paddle02.tmFbNoCmd.R                     Bool                       
+    494.0      Static   Paddle02.tmFbNoCmd.PT                    Time                       
+    498.0      Static   Paddle02.tmFbNoCmd.Q                     Bool                       
+    500.0      Static   Paddle02.tmFbNoCmd.ET                    Time                       
+    514.0      Static   Paddle02.rtFb                            R_TRIG                     
+    514.0      Static   Paddle02.rtFb.CLK                        Bool                       
+    514.1      Static   Paddle02.rtFb.Q                          Bool                       
+    516.0      Static   Paddle03                                 "FB_Motor"                 
+    516.0      Static   Paddle03.AutoStart                       Bool                       
+    516.1      Static   Paddle03.AutoStop                        Bool                       
+    516.2      Static   Paddle03.Interlock                       Bool                       
+    516.3      Static   Paddle03.EStop                           Bool                       
+    516.4      Static   Paddle03.CmdManStart                     Bool                       
+    516.5      Static   Paddle03.CmdManStop                      Bool                       
+    516.6      Static   Paddle03.CmdReturnAuto                   Bool                       
+    516.7      Static   Paddle03.CmdEnable                       Bool                       
+    517.0      Static   Paddle03.CmdDisable                      Bool                       
+    517.1      Static   Paddle03.CmdResetFault                   Bool                       
+    517.2      Static   Paddle03.Feedback                        Bool                       
+    517.3      Static   Paddle03.OverloadOK                      Bool                       
+    518.0      Static   Paddle03.FbTimeout                       Time                       T#3S
+    522.0      Static   Paddle03.SafeInterlock                   Bool                       
+    522.1      Static   Paddle03.Run                             Bool                       
+    522.2      Static   Paddle03.Available                       Bool                       
+    524.0      Static   Paddle03.Status                          "typeDevStatus"            
+    524.0      Static   Paddle03.Status.AutoStart                Bool                       
+    524.1      Static   Paddle03.Status.AutoStop                 Bool                       
+    524.2      Static   Paddle03.Status.Interlock                Bool                       
+    524.3      Static   Paddle03.Status.ManualStart              Bool                       
+    524.4      Static   Paddle03.Status.ManualStop               Bool                       
+    524.5      Static   Paddle03.Status.Enable                   Bool                       
+    524.6      Static   Paddle03.Status.Disable                  Bool                       
+    524.7      Static   Paddle03.Status.Fault                    Bool                       
+    525.0      Static   Paddle03.Status.EStop                    Bool                       
+    525.1      Static   Paddle03.Status.Running                  Bool                       
+    526.0      Static   Paddle03.CtrlLevel                       Int                        
+    528.0      Static   Paddle03.FaultCode                       Int                        
+    530.0      Static   Paddle03.StartCount                      DInt                       
+    534.0      Static   Paddle03.ManStart                        Bool                       
+    534.1      Static   Paddle03.ManStop                         Bool                       
+    534.2      Static   Paddle03.Disabled                        Bool                       
+    534.3      Static   Paddle03.Faulted                         Bool                       
+    536.0      Static   Paddle03.tmNoFb                          TON_TIME                   
+    536.0      Static   Paddle03.tmNoFb.IN                       Bool                       
+    536.1      Static   Paddle03.tmNoFb.R                        Bool                       
+    538.0      Static   Paddle03.tmNoFb.PT                       Time                       
+    542.0      Static   Paddle03.tmNoFb.Q                        Bool                       
+    544.0      Static   Paddle03.tmNoFb.ET                       Time                       
+    558.0      Static   Paddle03.tmFbNoCmd                       TON_TIME                   
+    558.0      Static   Paddle03.tmFbNoCmd.IN                    Bool                       
+    558.1      Static   Paddle03.tmFbNoCmd.R                     Bool                       
+    560.0      Static   Paddle03.tmFbNoCmd.PT                    Time                       
+    564.0      Static   Paddle03.tmFbNoCmd.Q                     Bool                       
+    566.0      Static   Paddle03.tmFbNoCmd.ET                    Time                       
+    580.0      Static   Paddle03.rtFb                            R_TRIG                     
+    580.0      Static   Paddle03.rtFb.CLK                        Bool                       
+    580.1      Static   Paddle03.rtFb.Q                          Bool                       
+    0.0        Temp     resetPulse                               Bool                       
+    0.1        Temp     extReq                                   Bool                       
+    0.2        Temp     cmdStart                                 Bool                       
+    0.3        Temp     cmdStop                                  Bool                       
+    2.0        Temp     avail                                    Array[0..2] of Bool        
+    2.0        Temp     avail[0]                                 Bool                       
+    2.1        Temp     avail[1]                                 Bool                       
+    2.2        Temp     avail[2]                                 Bool                       
+    4.0        Temp     tBlowerToScrew                           Time                       
+    8.0        Temp     tReqHold                                 Time                       
+    12.0       Temp     tScrewToPaddle                           Time                       
+    16.0       Temp     tReqOffScrewStop                         Time                       
+    20.0       Temp     tScrewTripBlower                         Time                       
+    24.0       Temp     tAutoStopBlower                          Time                       
+    28.0       Temp     i                                        Int                        
+
+OB1 "Main"  event class 1  temp 0 bytes  code 23 bytes
+
+OB100 "Startup"  event class 100  temp 12 bytes  code 403 bytes
+    0.0        Temp     LostRetentive                            Bool                       
+    0.1        Temp     LostRTC                                  Bool                       
+    2.0        Temp     i                                        Int                        

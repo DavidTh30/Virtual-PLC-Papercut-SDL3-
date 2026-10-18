@@ -1,0 +1,158 @@
+PLC tags
+
+DB1 "Data"  226 bytes  optimized
+    0.0        Static   CaseOut                                  Int                        0  [retain]
+    2.0        Static   WhileSum                                 DInt                       0  [retain]
+    6.0        Static   RepeatCnt                                Int                        0  [retain]
+    8.0        Static   ForDown                                  Int                        0  [retain]
+    10.0       Static   ExitAt                                   Int                        0  [retain]
+    12.0       Static   ContSum                                  Int                        0  [retain]
+    14.0       Static   Str1                                     String[20]                 'Hello'  [retain]
+    36.0       Static   Str2                                     String[20]                 'abc'  [retain]
+    58.0       Static   StrLen                                   Int                        0  [retain]
+    60.0       Static   StrEq                                    Bool                       FALSE  [retain]
+    62.0       Static   FindPos                                  Int                        0  [retain]
+    64.0       Static   Pts                                      Array[1..3] of "typePoint"   [retain]
+    64.0       Static   Pts[1]                                   "typePoint"                  [retain]
+    64.0       Static   Pts[1].X                                 Int                        1  [retain]
+    66.0       Static   Pts[1].Y                                 Int                        2  [retain]
+    68.0       Static   Pts[1].Name                              String[10]                 'pt'  [retain]
+    80.0       Static   Pts[2]                                   "typePoint"                  [retain]
+    80.0       Static   Pts[2].X                                 Int                        1  [retain]
+    82.0       Static   Pts[2].Y                                 Int                        2  [retain]
+    84.0       Static   Pts[2].Name                              String[10]                 'pt'  [retain]
+    96.0       Static   Pts[3]                                   "typePoint"                  [retain]
+    96.0       Static   Pts[3].X                                 Int                        1  [retain]
+    98.0       Static   Pts[3].Y                                 Int                        2  [retain]
+    100.0      Static   Pts[3].Name                              String[10]                 'pt'  [retain]
+    112.0      Static   PtSum                                    Int                        0  [retain]
+    114.0      Static   Counter                                  Int                        0  [retain]
+    116.0      Static   CountQ                                   Bool                       FALSE  [retain]
+    116.1      Static   PulseQ                                   Bool                       FALSE  [retain]
+    118.0      Static   MuxOut                                   Int                        0  [retain]
+    120.0      Static   ShlOut                                   Word                       16#0000  [retain]
+    122.0      Static   RolOut                                   Byte                       16#00  [retain]
+    124.0      Static   RealOut                                  Real                       0  [retain]
+    128.0      Static   LRealOut                                 LReal                      0  [retain]
+    136.0      Static   TruncOut                                 DInt                       0  [retain]
+    140.0      Static   RoundOut                                 DInt                       0  [retain]
+    144.0      Static   Fc2Out                                   Int                        0  [retain]
+    146.0      Static   OutParam                                 Int                        0  [retain]
+    148.0      Static   InOutVal                                 Int                        5  [retain]
+    150.0      Static   Matrix                                   Array[0..2] of Array[0..3] of Int   [retain]
+    150.0      Static   Matrix[0]                                Array[0..3] of Int           [retain]
+    150.0      Static   Matrix[0][0]                             Int                        0  [retain]
+    152.0      Static   Matrix[0][1]                             Int                        0  [retain]
+    154.0      Static   Matrix[0][2]                             Int                        0  [retain]
+    156.0      Static   Matrix[0][3]                             Int                        0  [retain]
+    158.0      Static   Matrix[1]                                Array[0..3] of Int           [retain]
+    158.0      Static   Matrix[1][0]                             Int                        0  [retain]
+    160.0      Static   Matrix[1][1]                             Int                        0  [retain]
+    162.0      Static   Matrix[1][2]                             Int                        0  [retain]
+    164.0      Static   Matrix[1][3]                             Int                        0  [retain]
+    166.0      Static   Matrix[2]                                Array[0..3] of Int           [retain]
+    166.0      Static   Matrix[2][0]                             Int                        0  [retain]
+    168.0      Static   Matrix[2][1]                             Int                        0  [retain]
+    170.0      Static   Matrix[2][2]                             Int                        0  [retain]
+    172.0      Static   Matrix[2][3]                             Int                        0  [retain]
+    174.0      Static   MatrixSum                                Int                        0  [retain]
+    176.0      Static   SelOut                                   Real                       0  [retain]
+    180.0      Static   ByteSlice                                Byte                       16#00  [retain]
+    182.0      Static   Wd                                       Word                       16#1234  [retain]
+    184.0      Static   TimeOut                                  Time                       T#0S  [retain]
+    188.0      Static   LTimeOut                                 LTime                      LT#0S  [retain]
+    196.0      Static   Neg                                      Int                        0  [retain]
+    198.0      Static   ModOut                                   Int                        0  [retain]
+    200.0      Static   DivOut                                   Int                        0  [retain]
+    202.0      Static   Overflow                                 Int                        0  [retain]
+    204.0      Static   CntIn                                    Bool                       FALSE  [retain]
+    204.1      Static   PulseIn                                  Bool                       FALSE  [retain]
+    206.0      Static   Init                                     Array[0..4] of Int           [retain]
+    206.0      Static   Init[0]                                  Int                        1  [retain]
+    208.0      Static   Init[1]                                  Int                        2  [retain]
+    210.0      Static   Init[2]                                  Int                        7  [retain]
+    212.0      Static   Init[3]                                  Int                        7  [retain]
+    214.0      Static   Init[4]                                  Int                        7  [retain]
+    216.0      Static   InitSum                                  Int                        0  [retain]
+    218.0      Static   ConstUse                                 Int                        0  [retain]
+    220.0      Static   Cmp                                      Bool                       FALSE  [retain]
+    222.0      Static   SqrtOut                                  Real                       0  [retain]
+
+DB2 "iFeatures"  54 bytes  instance of "FB_Features"  optimized
+    0.0        Input    Sel                                      Int                        3
+    2.0        Static   cnt                                      CTU_INT                    
+    2.0        Static   cnt.CU                                   Bool                       FALSE
+    2.1        Static   cnt.CD                                   Bool                       FALSE
+    2.2        Static   cnt.R                                    Bool                       FALSE
+    2.3        Static   cnt.LD                                   Bool                       FALSE
+    2.4        Static   cnt.Q                                    Bool                       FALSE
+    2.5        Static   cnt.QU                                   Bool                       FALSE
+    2.6        Static   cnt.QD                                   Bool                       FALSE
+    4.0        Static   cnt.PV                                   Int                        0
+    6.0        Static   cnt.CV                                   Int                        0
+    8.0        Static   pulse                                    TP_TIME                    
+    8.0        Static   pulse.IN                                 Bool                       FALSE
+    8.1        Static   pulse.R                                  Bool                       FALSE
+    10.0       Static   pulse.PT                                 Time                       T#0S
+    14.0       Static   pulse.Q                                  Bool                       FALSE
+    16.0       Static   pulse.ET                                 Time                       T#0S
+    30.0       Static   tmr                                      IEC_TIMER                  
+    30.0       Static   tmr.IN                                   Bool                       FALSE
+    30.1       Static   tmr.R                                    Bool                       FALSE
+    32.0       Static   tmr.PT                                   Time                       T#0S
+    36.0       Static   tmr.Q                                    Bool                       FALSE
+    38.0       Static   tmr.ET                                   Time                       T#0S
+    52.0       Static   edge                                     R_TRIG                     
+    52.0       Static   edge.CLK                                 Bool                       FALSE
+    52.1       Static   edge.Q                                   Bool                       FALSE
+
+FC1 "AddMul"  parameters 16 bytes  temp 0 bytes  code 87 bytes
+    0.0        Return   RET_VAL                                  Int                        
+    2.0        Input    A                                        Int                        
+    4.0        Input    B                                        Int                        
+    6.0        Output   Prod                                     Int                        
+    8.0        InOut    Acc                                      Int                          [pointer]
+
+FC2 "Twice"  parameters 4 bytes  temp 0 bytes  code 88 bytes
+    0.0        Return   RET_VAL                                  Int                        
+    2.0        Input    V                                        Int                        
+
+FC3 "SumPts"  parameters 10 bytes  temp 12 bytes  code 235 bytes
+    0.0        Return   RET_VAL                                  Int                        
+    2.0        Input    P                                        Array[1..3] of "typePoint"   [pointer]
+    10.0       Temp     i                                        Int                        
+    12.0       Temp     s                                        Int                        
+
+FB1 "FB_Features"  instance 54 bytes  temp 310 bytes  code 2904 bytes
+    0.0        Input    Sel                                      Int                        
+    2.0        Static   cnt                                      CTU_INT                    
+    2.0        Static   cnt.CU                                   Bool                       
+    2.1        Static   cnt.CD                                   Bool                       
+    2.2        Static   cnt.R                                    Bool                       
+    2.3        Static   cnt.LD                                   Bool                       
+    2.4        Static   cnt.Q                                    Bool                       
+    2.5        Static   cnt.QU                                   Bool                       
+    2.6        Static   cnt.QD                                   Bool                       
+    4.0        Static   cnt.PV                                   Int                        
+    6.0        Static   cnt.CV                                   Int                        
+    8.0        Static   pulse                                    TP_TIME                    
+    8.0        Static   pulse.IN                                 Bool                       
+    8.1        Static   pulse.R                                  Bool                       
+    10.0       Static   pulse.PT                                 Time                       
+    14.0       Static   pulse.Q                                  Bool                       
+    16.0       Static   pulse.ET                                 Time                       
+    30.0       Static   tmr                                      IEC_TIMER                  
+    30.0       Static   tmr.IN                                   Bool                       
+    30.1       Static   tmr.R                                    Bool                       
+    32.0       Static   tmr.PT                                   Time                       
+    36.0       Static   tmr.Q                                    Bool                       
+    38.0       Static   tmr.ET                                   Time                       
+    52.0       Static   edge                                     R_TRIG                     
+    52.0       Static   edge.CLK                                 Bool                       
+    52.1       Static   edge.Q                                   Bool                       
+    0.0        Temp     i                                        Int                        
+    2.0        Temp     j                                        Int                        
+    4.0        Temp     d                                        DInt                       
+    8.0        Temp     r                                        Real                       
+
+OB1 "Main"  event class 1  temp 0 bytes  code 23 bytes

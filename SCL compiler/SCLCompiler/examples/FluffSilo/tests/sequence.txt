@@ -1,0 +1,183 @@
+# Fluff Silo - commissioning checklist (README section 8) on the reference Virtual PLC
+# run:  sclc --sim output\FluffSilo.svpl --script tests\sequence.txt
+cycle-ms 10
+
+# healthy field: E-Stop chain OK, overload relays OK (NC), Auto Stop push button (NC) released
+set EStop_OK TRUE
+set PB_AutoStop TRUE
+set Blower01_OL TRUE
+set Screw01_OL TRUE
+set Paddle01_OL TRUE
+set Paddle02_OL TRUE
+set Paddle03_OL TRUE
+# contactor auxiliary contacts follow the run outputs
+link Blower01_FB Blower01_Run
+link Screw01_FB Screw01_Run
+link Paddle01_FB Paddle01_Run
+link Paddle02_FB Paddle02_Run
+link Paddle03_FB Paddle03_Run
+run 100ms
+
+echo --- OB100 loaded the default parameters
+expect "DB_HMI".Delay[0] 70
+expect "DB_HMI".Delay[5] 50
+expect "DB_HMI".Pattern.StepCount 6
+expect "DB_HMI".Pattern.Mask[4] 4
+expect Blower01_Run FALSE
+expect Lamp_AutoRun FALSE
+
+echo --- 3: Auto Start -> Blower01 runs
+set PB_AutoStart TRUE
+run 20ms
+set PB_AutoStart FALSE
+run 100ms
+expect Lamp_AutoRun TRUE
+expect Blower01_Run TRUE
+expect Screw01_Run FALSE
+expect "DB_HMI".Sys.AutoMode TRUE
+
+echo --- 4: External Request held -> Screw01 after Blower ran 7 s, Paddle Patterns 3 s later
+set ExtRequest_In TRUE
+run 6500ms
+expect Screw01_Run FALSE
+run 700ms
+expect Screw01_Run TRUE
+expect Paddle01_Run FALSE
+run 3100ms
+expect Paddle01_Run TRUE
+expect "DB_HMI".Sys.PatternActive TRUE
+expect "DB_HMI".Proc.CurrentStep 1
+
+echo --- 5: Pattern P1 8 s -> pause 2 s -> P2
+run 7000ms
+expect Paddle01_Run TRUE
+run 1100ms
+expect Paddle01_Run FALSE
+expect "DB_HMI".Proc.CurrentStep 2
+run 2000ms
+expect Paddle02_Run TRUE
+expect "DB_HMI".Proc.CurrentStep 3
+
+echo --- 6: overload of the running paddle -> fault, pattern continues with the next paddle
+set Paddle02_OL FALSE
+run 50ms
+expect Paddle02_Run FALSE
+expect "DB_HMI".Dev[3].Fault TRUE
+expect "iDB_FluffSilo".Paddle02.FaultCode 1
+expect Paddle03_Run TRUE
+expect "DB_HMI".Proc.CurrentStep 5
+expect Lamp_Fault TRUE
+set Paddle02_OL TRUE
+set PB_Reset TRUE
+run 20ms
+set PB_Reset FALSE
+run 20ms
+expect "DB_HMI".Dev[3].Fault FALSE
+expect Lamp_Fault FALSE
+
+echo --- 7: External Request OFF -> paddles stop now, Screw01 after 3 s, Blower keeps running
+set ExtRequest_In FALSE
+run 50ms
+expect Paddle03_Run FALSE
+expect Screw01_Run TRUE
+run 3000ms
+expect Screw01_Run FALSE
+expect Blower01_Run TRUE
+
+echo --- 9: Auto Stop (NC button pressed) -> Blower01 stops after 5 s
+set PB_AutoStop FALSE
+run 50ms
+set PB_AutoStop TRUE
+expect Lamp_AutoRun FALSE
+expect Blower01_Run TRUE
+run 4900ms
+expect Blower01_Run TRUE
+run 200ms
+expect Blower01_Run FALSE
+
+echo --- 1/2: E-Stop stops everything, reset does not restart
+set PB_AutoStart TRUE
+run 20ms
+set PB_AutoStart FALSE
+run 100ms
+expect Blower01_Run TRUE
+set EStop_OK FALSE
+run 20ms
+expect Blower01_Run FALSE
+expect Lamp_EStop TRUE
+expect "DB_HMI".Dev[0].EStop TRUE
+set PB_AutoStart TRUE
+run 20ms
+set PB_AutoStart FALSE
+run 20ms
+expect Lamp_AutoRun FALSE
+set EStop_OK TRUE
+set PB_Reset TRUE
+run 20ms
+set PB_Reset FALSE
+run 100ms
+expect Lamp_EStop FALSE
+expect Blower01_Run FALSE
+
+echo --- 11: HMI pulse commands (DevCmd index = device*8 + command)
+set "DB_HMI".DevCmd[8] TRUE
+run 20ms
+expect "DB_HMI".DevCmd[8] FALSE
+expect Screw01_Run TRUE
+expect "iDB_FluffSilo".Screw01.CtrlLevel 3
+expect "DB_HMI".Dev[1].ManualStart TRUE
+set "DB_HMI".DevCmd[10] TRUE
+run 20ms
+expect Screw01_Run FALSE
+set "DB_HMI".DevCmd[4] TRUE
+run 20ms
+expect "DB_HMI".Dev[0].Disable TRUE
+set "DB_HMI".DevCmd[3] TRUE
+run 20ms
+expect "DB_HMI".Dev[0].Enable TRUE
+
+echo --- 8: Screw01 overload while in Auto -> Auto ends, Blower stops after 5 s
+set ExtRequest_In TRUE
+set PB_AutoStart TRUE
+run 20ms
+set PB_AutoStart FALSE
+run 10500ms
+expect Screw01_Run TRUE
+set Screw01_OL FALSE
+run 50ms
+expect Screw01_Run FALSE
+expect Lamp_AutoRun FALSE
+expect Blower01_Run TRUE
+run 5100ms
+expect Blower01_Run FALSE
+set Screw01_OL TRUE
+set ExtRequest_In FALSE
+set PB_Reset TRUE
+run 20ms
+set PB_Reset FALSE
+
+echo --- Silo level 0..10 V -> 0..100 %, Fill_Request hysteresis 25 / 90 %
+set Silo_Level_AI 5000
+run 20ms
+expect Fill_Request TRUE
+expect "DB_HMI".Proc.SiloLevel 181
+set Silo_Level_AI 20000
+run 20ms
+expect Fill_Request TRUE
+set Silo_Level_AI 27000
+run 20ms
+expect Fill_Request FALSE
+set Silo_Level_AI 20000
+run 20ms
+expect Fill_Request FALSE
+set Silo_Level_AI 32767
+run 20ms
+expect Lamp_Fault TRUE
+expect Fill_Request FALSE
+
+echo --- HMI parameter clamp (FC_ValidateParams)
+set "DB_HMI".Delay[2] 9999
+set "DB_HMI".Pattern.StepTime[0] 1
+run 20ms
+expect "DB_HMI".Delay[2] 6000
+expect "DB_HMI".Pattern.StepTime[0] 5

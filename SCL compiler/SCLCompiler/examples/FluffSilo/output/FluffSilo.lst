@@ -1,0 +1,3651 @@
+; SCL Compiler 1.0.0 listing - project FluffSilo - S7-1200
+
+; ===== [0] FC1 "FC_TenthsToTime" (04_FC_TenthsToTime.scl) =====
+; line table: 16@5 
+       0  Jmp            -> 46
+       5  AddrLocal      0.0
+      10  AddrLocal      4.0
+      15  Load           Int
+      17  PushI          0
+      26  MaxI           
+      27  Wrap           DInt
+      29  PushI          100
+      38  MulI           
+      39  Wrap           DInt
+      41  Wrap           Time
+      43  Store          Time
+      45  Ret            
+      46  Jmp            -> 5
+
+; ===== [1] FC2 "FC_ScaleAnalog" (05_FC_ScaleAnalog.scl) =====
+; line table: 28@5 29@47 30@93 31@127 
+       0  Jmp            -> 167
+       5  AddrLocal      14.0
+      10  AddrLocal      4.0
+      15  Load           Int
+      17  PushI          32511
+      26  GtI            
+      27  AddrLocal      4.0
+      32  Load           Int
+      34  PushI          -4864
+      43  LtI            
+      44  Or             
+      45  Store          Bool
+      47  AddrLocal      16.0
+      52  AddrLocal      4.0
+      57  Load           Int
+      59  I2F            
+      60  PushF          0
+      69  SubF           
+      70  PushF          27648
+      79  PushF          0
+      88  SubF           
+      89  DivF           
+      90  F2F32          
+      91  Store          Real
+      93  AddrLocal      16.0
+      98  AddrLocal      16.0
+     103  Load           Real
+     105  PushF          0
+     114  MaxF           
+     115  PushF          1
+     124  MinF           
+     125  Store          Real
+     127  AddrLocal      0.0
+     132  AddrLocal      16.0
+     137  Load           Real
+     139  AddrLocal      10.0
+     144  Load           Real
+     146  AddrLocal      6.0
+     151  Load           Real
+     153  SubF           
+     154  MulF           
+     155  AddrLocal      6.0
+     160  Load           Real
+     162  AddF           
+     163  F2F32          
+     164  Store          Real
+     166  Ret            
+     167  Jmp            -> 5
+
+; ===== [2] FC3 "FC_ValidateParams" (06_FC_ValidateParams.scl) =====
+; line table: 19@5 20@57 23@210 25@262 26@314 27@416 
+       0  Jmp            -> 580
+       5  AddrLocal      0.0
+      10  PushI          0
+      19  Store          Int
+      21  AddrLocal      2.0
+      26  PushI          5
+      35  Store          LInt
+      37  AddrLocal      0.0
+      42  Load           Int
+      44  AddrLocal      2.0
+      49  Load           LInt
+      51  GtI            
+      52  Jnz            -> 210
+      57  PushAddr       %DB10.DBX0.0
+      66  AddrAdd        20.0
+      71  AddrLocal      0.0
+      76  Load           Int
+      78  AddrIndex      0, 16, 6
+      91  PushAddr       %DB10.DBX0.0
+     100  AddrAdd        20.0
+     105  AddrLocal      0.0
+     110  Load           Int
+     112  AddrIndex      0, 16, 6
+     125  Load           Int
+     127  PushI          0
+     136  MaxI           
+     137  PushI          6000
+     146  MinI           
+     147  Store          Int
+     149  AddrLocal      0.0
+     154  AddrLocal      0.0
+     159  Load           Int
+     161  PushI          1
+     170  AddI           
+     171  Dup            
+     172  Wrap           Int
+     174  EqI            
+     175  Jz             -> 210
+     180  AddrLocal      0.0
+     185  AddrLocal      0.0
+     190  Load           Int
+     192  PushI          1
+     201  AddI           
+     202  Store          Int
+     204  Drop           
+     205  Jmp            -> 37
+     210  PushAddr       %DB10.DBX0.0
+     219  AddrAdd        40.0
+     224  PushAddr       %DB10.DBX0.0
+     233  AddrAdd        40.0
+     238  Load           Int
+     240  PushI          0
+     249  MaxI           
+     250  PushI          10
+     259  MinI           
+     260  Store          Int
+     262  AddrLocal      0.0
+     267  PushI          0
+     276  Store          Int
+     278  AddrLocal      10.0
+     283  PushI          9
+     292  Store          LInt
+     294  AddrLocal      0.0
+     299  Load           Int
+     301  AddrLocal      10.0
+     306  Load           LInt
+     308  GtI            
+     309  Jnz            -> 579
+     314  PushAddr       %DB10.DBX0.0
+     323  AddrAdd        40.0
+     328  AddrAdd        2.0
+     333  AddrLocal      0.0
+     338  Load           Int
+     340  AddrIndex      0, 16, 10
+     353  PushAddr       %DB10.DBX0.0
+     362  AddrAdd        40.0
+     367  AddrAdd        2.0
+     372  AddrLocal      0.0
+     377  Load           Int
+     379  AddrIndex      0, 16, 10
+     392  Load           Int
+     394  PushI          0
+     403  MaxI           
+     404  PushI          7
+     413  MinI           
+     414  Store          Int
+     416  PushAddr       %DB10.DBX0.0
+     425  AddrAdd        40.0
+     430  AddrAdd        22.0
+     435  AddrLocal      0.0
+     440  Load           Int
+     442  AddrIndex      0, 16, 10
+     455  PushAddr       %DB10.DBX0.0
+     464  AddrAdd        40.0
+     469  AddrAdd        22.0
+     474  AddrLocal      0.0
+     479  Load           Int
+     481  AddrIndex      0, 16, 10
+     494  Load           Int
+     496  PushI          5
+     505  MaxI           
+     506  PushI          6000
+     515  MinI           
+     516  Store          Int
+     518  AddrLocal      0.0
+     523  AddrLocal      0.0
+     528  Load           Int
+     530  PushI          1
+     539  AddI           
+     540  Dup            
+     541  Wrap           Int
+     543  EqI            
+     544  Jz             -> 579
+     549  AddrLocal      0.0
+     554  AddrLocal      0.0
+     559  Load           Int
+     561  PushI          1
+     570  AddI           
+     571  Store          Int
+     573  Drop           
+     574  Jmp            -> 294
+     579  Ret            
+     580  Jmp            -> 5
+
+; ===== [3] FC4 "FC_LoadDefaults" (07_FC_LoadDefaults.scl) =====
+; line table: 18@5 19@30 20@60 21@90 22@120 23@150 25@180 26@232 27@282 29@393 30@418 31@448 32@478 33@513 34@548 35@583 36@618 37@653 38@688 
+       0  Jmp            -> 724
+       5  PushAddr       %DB10.DBX0.0
+      14  AddrAdd        20.0
+      19  PushI          70
+      28  Store          Int
+      30  PushAddr       %DB10.DBX0.0
+      39  AddrAdd        20.0
+      44  AddrAdd        2.0
+      49  PushI          30
+      58  Store          Int
+      60  PushAddr       %DB10.DBX0.0
+      69  AddrAdd        20.0
+      74  AddrAdd        4.0
+      79  PushI          30
+      88  Store          Int
+      90  PushAddr       %DB10.DBX0.0
+      99  AddrAdd        20.0
+     104  AddrAdd        6.0
+     109  PushI          30
+     118  Store          Int
+     120  PushAddr       %DB10.DBX0.0
+     129  AddrAdd        20.0
+     134  AddrAdd        8.0
+     139  PushI          50
+     148  Store          Int
+     150  PushAddr       %DB10.DBX0.0
+     159  AddrAdd        20.0
+     164  AddrAdd        10.0
+     169  PushI          50
+     178  Store          Int
+     180  AddrLocal      0.0
+     185  PushI          0
+     194  Store          Int
+     196  AddrLocal      2.0
+     201  PushI          9
+     210  Store          LInt
+     212  AddrLocal      0.0
+     217  Load           Int
+     219  AddrLocal      2.0
+     224  Load           LInt
+     226  GtI            
+     227  Jnz            -> 393
+     232  PushAddr       %DB10.DBX0.0
+     241  AddrAdd        40.0
+     246  AddrAdd        2.0
+     251  AddrLocal      0.0
+     256  Load           Int
+     258  AddrIndex      0, 16, 10
+     271  PushI          0
+     280  Store          Int
+     282  PushAddr       %DB10.DBX0.0
+     291  AddrAdd        40.0
+     296  AddrAdd        22.0
+     301  AddrLocal      0.0
+     306  Load           Int
+     308  AddrIndex      0, 16, 10
+     321  PushI          50
+     330  Store          Int
+     332  AddrLocal      0.0
+     337  AddrLocal      0.0
+     342  Load           Int
+     344  PushI          1
+     353  AddI           
+     354  Dup            
+     355  Wrap           Int
+     357  EqI            
+     358  Jz             -> 393
+     363  AddrLocal      0.0
+     368  AddrLocal      0.0
+     373  Load           Int
+     375  PushI          1
+     384  AddI           
+     385  Store          Int
+     387  Drop           
+     388  Jmp            -> 212
+     393  PushAddr       %DB10.DBX0.0
+     402  AddrAdd        40.0
+     407  PushI          6
+     416  Store          Int
+     418  PushAddr       %DB10.DBX0.0
+     427  AddrAdd        40.0
+     432  AddrAdd        2.0
+     437  PushI          1
+     446  Store          Int
+     448  PushAddr       %DB10.DBX0.0
+     457  AddrAdd        40.0
+     462  AddrAdd        22.0
+     467  PushI          80
+     476  Store          Int
+     478  PushAddr       %DB10.DBX0.0
+     487  AddrAdd        40.0
+     492  AddrAdd        22.0
+     497  AddrAdd        2.0
+     502  PushI          20
+     511  Store          Int
+     513  PushAddr       %DB10.DBX0.0
+     522  AddrAdd        40.0
+     527  AddrAdd        2.0
+     532  AddrAdd        4.0
+     537  PushI          2
+     546  Store          Int
+     548  PushAddr       %DB10.DBX0.0
+     557  AddrAdd        40.0
+     562  AddrAdd        22.0
+     567  AddrAdd        4.0
+     572  PushI          80
+     581  Store          Int
+     583  PushAddr       %DB10.DBX0.0
+     592  AddrAdd        40.0
+     597  AddrAdd        22.0
+     602  AddrAdd        6.0
+     607  PushI          20
+     616  Store          Int
+     618  PushAddr       %DB10.DBX0.0
+     627  AddrAdd        40.0
+     632  AddrAdd        2.0
+     637  AddrAdd        8.0
+     642  PushI          4
+     651  Store          Int
+     653  PushAddr       %DB10.DBX0.0
+     662  AddrAdd        40.0
+     667  AddrAdd        22.0
+     672  AddrAdd        8.0
+     677  PushI          80
+     686  Store          Int
+     688  PushAddr       %DB10.DBX0.0
+     697  AddrAdd        40.0
+     702  AddrAdd        22.0
+     707  AddrAdd        10.0
+     712  PushI          20
+     721  Store          Int
+     723  Ret            
+     724  Jmp            -> 5
+
+; ===== [4] FC5 "FC_StepBlocked" (08_FC_StepBlocked.scl) =====
+; line table: 23@5 24@21 25@53 26@69 29@79 
+       0  Jmp            -> 163
+       5  AddrLocal      12.0
+      10  AddrLocal      2.0
+      15  Load           Int
+      17  Wrap           Word
+      19  Store          Word
+      21  AddrLocal      12.0
+      26  Load           Word
+      28  PushI          7
+      37  And            
+      38  PushI          0
+      47  EqI            
+      48  Jz             -> 79
+      53  AddrLocal      0.0
+      58  PushI          0
+      67  Store          Bool
+      69  Jmp            -> 162
+      74  Jmp            -> 79
+      79  AddrLocal      0.0
+      84  AddrLocal      12.0
+      89  Load           Word
+      91  GetBit         0
+      93  AddrLocal      4.0
+      98  LoadPtr        
+      99  Load           Bool
+     101  And            
+     102  AddrLocal      12.0
+     107  Load           Word
+     109  GetBit         1
+     111  AddrLocal      4.0
+     116  LoadPtr        
+     117  AddrAdd        0.1
+     122  Load           Bool
+     124  And            
+     125  Or             
+     126  AddrLocal      12.0
+     131  Load           Word
+     133  GetBit         2
+     135  AddrLocal      4.0
+     140  LoadPtr        
+     141  AddrAdd        0.2
+     146  Load           Bool
+     148  And            
+     149  Or             
+     150  PushI          1
+     159  Xor            
+     160  Store          Bool
+     162  Ret            
+     163  Jmp            -> 5
+
+; ===== [5] FB1 "FB_Motor" (09_FB_Motor.scl) =====
+; line table: 66@5 67@17 68@33 70@54 71@66 72@82 74@103 75@115 76@131 78@152 79@164 81@185 82@197 87@218 88@258 89@274 93@295 94@355 95@390 96@406 99@427 100@487 101@522 102@538 105@559 106@602 107@618 112@639 113@651 114@667 115@688 116@700 117@716 118@737 119@749 120@765 121@786 122@798 123@814 124@835 125@855 126@871 127@892 128@904 129@920 130@941 131@961 132@977 133@998 134@1010 135@1026 137@1047 138@1063 141@1079 142@1093 143@1107 147@1155 148@1178 149@1195 152@1226 153@1240 154@1259 155@1278 156@1297 157@1316 158@1345 159@1364 160@1383 161@1402 
+       0  Jmp            -> 1422
+       5  AddrInst       0.4
+      10  Load           Bool
+      12  Jz             -> 54
+      17  AddrInst       18.0
+      22  PushI          1
+      31  Store          Bool
+      33  AddrInst       18.1
+      38  PushI          0
+      47  Store          Bool
+      49  Jmp            -> 54
+      54  AddrInst       0.5
+      59  Load           Bool
+      61  Jz             -> 103
+      66  AddrInst       18.1
+      71  PushI          1
+      80  Store          Bool
+      82  AddrInst       18.0
+      87  PushI          0
+      96  Store          Bool
+      98  Jmp            -> 103
+     103  AddrInst       0.6
+     108  Load           Bool
+     110  Jz             -> 152
+     115  AddrInst       18.0
+     120  PushI          0
+     129  Store          Bool
+     131  AddrInst       18.1
+     136  PushI          0
+     145  Store          Bool
+     147  Jmp            -> 152
+     152  AddrInst       1.0
+     157  Load           Bool
+     159  Jz             -> 185
+     164  AddrInst       18.2
+     169  PushI          1
+     178  Store          Bool
+     180  Jmp            -> 185
+     185  AddrInst       0.7
+     190  Load           Bool
+     192  Jz             -> 218
+     197  AddrInst       18.2
+     202  PushI          0
+     211  Store          Bool
+     213  Jmp            -> 218
+     218  AddrInst       1.3
+     223  Load           Bool
+     225  PushI          1
+     234  Xor            
+     235  AddrInst       18.3
+     240  Load           Bool
+     242  PushI          1
+     251  Xor            
+     252  And            
+     253  Jz             -> 295
+     258  AddrInst       18.3
+     263  PushI          1
+     272  Store          Bool
+     274  AddrInst       12.0
+     279  PushI          1
+     288  Store          Int
+     290  Jmp            -> 295
+     295  AddrInst       20.0
+     300  AddrInst       6.1
+     305  Load           Bool
+     307  AddrInst       1.2
+     312  Load           Bool
+     314  PushI          1
+     323  Xor            
+     324  And            
+     325  Store          Bool
+     327  AddrInst       20.0
+     332  AddrAdd        2.0
+     337  AddrInst       2.0
+     342  Load           Time
+     344  Store          Time
+     346  AddrInst       20.0
+     351  SysFB          2, 0
+     355  AddrInst       20.0
+     360  AddrAdd        6.0
+     365  Load           Bool
+     367  AddrInst       18.3
+     372  Load           Bool
+     374  PushI          1
+     383  Xor            
+     384  And            
+     385  Jz             -> 427
+     390  AddrInst       18.3
+     395  PushI          1
+     404  Store          Bool
+     406  AddrInst       12.0
+     411  PushI          2
+     420  Store          Int
+     422  Jmp            -> 427
+     427  AddrInst       42.0
+     432  AddrInst       1.2
+     437  Load           Bool
+     439  AddrInst       6.1
+     444  Load           Bool
+     446  PushI          1
+     455  Xor            
+     456  And            
+     457  Store          Bool
+     459  AddrInst       42.0
+     464  AddrAdd        2.0
+     469  AddrInst       2.0
+     474  Load           Time
+     476  Store          Time
+     478  AddrInst       42.0
+     483  SysFB          2, 0
+     487  AddrInst       42.0
+     492  AddrAdd        6.0
+     497  Load           Bool
+     499  AddrInst       18.3
+     504  Load           Bool
+     506  PushI          1
+     515  Xor            
+     516  And            
+     517  Jz             -> 559
+     522  AddrInst       18.3
+     527  PushI          1
+     536  Store          Bool
+     538  AddrInst       12.0
+     543  PushI          3
+     552  Store          Int
+     554  Jmp            -> 559
+     559  AddrInst       1.1
+     564  Load           Bool
+     566  AddrInst       1.3
+     571  Load           Bool
+     573  And            
+     574  AddrInst       42.0
+     579  AddrAdd        6.0
+     584  Load           Bool
+     586  PushI          1
+     595  Xor            
+     596  And            
+     597  Jz             -> 639
+     602  AddrInst       18.3
+     607  PushI          0
+     616  Store          Bool
+     618  AddrInst       12.0
+     623  PushI          0
+     632  Store          Int
+     634  Jmp            -> 639
+     639  AddrInst       18.3
+     644  Load           Bool
+     646  Jz             -> 688
+     651  AddrLocal      0.0
+     656  PushI          0
+     665  Store          Bool
+     667  AddrLocal      2.0
+     672  PushI          6
+     681  Store          Int
+     683  Jmp            -> 1079
+     688  AddrInst       0.3
+     693  Load           Bool
+     695  Jz             -> 737
+     700  AddrLocal      0.0
+     705  PushI          0
+     714  Store          Bool
+     716  AddrLocal      2.0
+     721  PushI          6
+     730  Store          Int
+     732  Jmp            -> 1079
+     737  AddrInst       18.2
+     742  Load           Bool
+     744  Jz             -> 786
+     749  AddrLocal      0.0
+     754  PushI          0
+     763  Store          Bool
+     765  AddrLocal      2.0
+     770  PushI          5
+     779  Store          Int
+     781  Jmp            -> 1079
+     786  AddrInst       18.1
+     791  Load           Bool
+     793  Jz             -> 835
+     798  AddrLocal      0.0
+     803  PushI          0
+     812  Store          Bool
+     814  AddrLocal      2.0
+     819  PushI          4
+     828  Store          Int
+     830  Jmp            -> 1079
+     835  AddrInst       6.0
+     840  Load           Bool
+     842  AddrInst       0.2
+     847  Load           Bool
+     849  And            
+     850  Jz             -> 892
+     855  AddrLocal      0.0
+     860  PushI          0
+     869  Store          Bool
+     871  AddrLocal      2.0
+     876  PushI          2
+     885  Store          Int
+     887  Jmp            -> 1079
+     892  AddrInst       18.0
+     897  Load           Bool
+     899  Jz             -> 941
+     904  AddrLocal      0.0
+     909  PushI          1
+     918  Store          Bool
+     920  AddrLocal      2.0
+     925  PushI          3
+     934  Store          Int
+     936  Jmp            -> 1079
+     941  AddrInst       0.1
+     946  Load           Bool
+     948  AddrInst       0.2
+     953  Load           Bool
+     955  Or             
+     956  Jz             -> 998
+     961  AddrLocal      0.0
+     966  PushI          0
+     975  Store          Bool
+     977  AddrLocal      2.0
+     982  PushI          2
+     991  Store          Int
+     993  Jmp            -> 1079
+     998  AddrInst       0.0
+    1003  Load           Bool
+    1005  Jz             -> 1047
+    1010  AddrLocal      0.0
+    1015  PushI          1
+    1024  Store          Bool
+    1026  AddrLocal      2.0
+    1031  PushI          1
+    1040  Store          Int
+    1042  Jmp            -> 1079
+    1047  AddrLocal      0.0
+    1052  PushI          0
+    1061  Store          Bool
+    1063  AddrLocal      2.0
+    1068  PushI          0
+    1077  Store          Int
+    1079  AddrInst       6.1
+    1084  AddrLocal      0.0
+    1089  Load           Bool
+    1091  Store          Bool
+    1093  AddrInst       10.0
+    1098  AddrLocal      2.0
+    1103  Load           Int
+    1105  Store          Int
+    1107  AddrInst       6.2
+    1112  AddrInst       18.3
+    1117  Load           Bool
+    1119  AddrInst       0.3
+    1124  Load           Bool
+    1126  Or             
+    1127  AddrInst       18.2
+    1132  Load           Bool
+    1134  Or             
+    1135  AddrInst       18.1
+    1140  Load           Bool
+    1142  Or             
+    1143  PushI          1
+    1152  Xor            
+    1153  Store          Bool
+    1155  AddrInst       64.0
+    1160  AddrInst       1.2
+    1165  Load           Bool
+    1167  Store          Bool
+    1169  AddrInst       64.0
+    1174  SysFB          30, 0
+    1178  AddrInst       64.0
+    1183  AddrAdd        0.1
+    1188  Load           Bool
+    1190  Jz             -> 1226
+    1195  AddrInst       14.0
+    1200  AddrInst       14.0
+    1205  Load           DInt
+    1207  PushI          1
+    1216  AddI           
+    1217  Wrap           DInt
+    1219  Store          DInt
+    1221  Jmp            -> 1226
+    1226  AddrInst       8.0
+    1231  AddrInst       0.0
+    1236  Load           Bool
+    1238  Store          Bool
+    1240  AddrInst       8.0
+    1245  AddrAdd        0.1
+    1250  AddrInst       0.1
+    1255  Load           Bool
+    1257  Store          Bool
+    1259  AddrInst       8.0
+    1264  AddrAdd        0.2
+    1269  AddrInst       0.2
+    1274  Load           Bool
+    1276  Store          Bool
+    1278  AddrInst       8.0
+    1283  AddrAdd        0.3
+    1288  AddrInst       18.0
+    1293  Load           Bool
+    1295  Store          Bool
+    1297  AddrInst       8.0
+    1302  AddrAdd        0.4
+    1307  AddrInst       18.1
+    1312  Load           Bool
+    1314  Store          Bool
+    1316  AddrInst       8.0
+    1321  AddrAdd        0.5
+    1326  AddrInst       18.2
+    1331  Load           Bool
+    1333  PushI          1
+    1342  Xor            
+    1343  Store          Bool
+    1345  AddrInst       8.0
+    1350  AddrAdd        0.6
+    1355  AddrInst       18.2
+    1360  Load           Bool
+    1362  Store          Bool
+    1364  AddrInst       8.0
+    1369  AddrAdd        0.7
+    1374  AddrInst       18.3
+    1379  Load           Bool
+    1381  Store          Bool
+    1383  AddrInst       8.0
+    1388  AddrAdd        1.0
+    1393  AddrInst       0.3
+    1398  Load           Bool
+    1400  Store          Bool
+    1402  AddrInst       8.0
+    1407  AddrAdd        1.1
+    1412  AddrInst       1.2
+    1417  Load           Bool
+    1419  Store          Bool
+    1421  Ret            
+    1422  Jmp            -> 5
+
+; ===== [6] FB2 "FB_Sequencer" (10_FB_Sequencer.scl) =====
+; line table: 74@5 75@28 76@40 77@56 78@72 79@88 81@109 82@144 83@160 85@181 86@201 87@217 88@233 89@245 90@261 98@285 99@331 100@347 101@363 102@379 105@398 106@462 107@478 108@494 110@515 111@529 115@543 116@585 117@637 121@687 122@699 123@715 124@731 126@753 128@774 129@830 131@851 132@876 137@902 138@918 139@940 143@961 144@1003 145@1020 146@1036 148@1057 149@1069 151@1103 155@1119 156@1169 161@1228 162@1242 163@1284 164@1298 165@1322 166@1346 167@1370 
+       0  Jmp            -> 1395
+       5  AddrInst       38.0
+      10  AddrInst       0.0
+      15  Load           Bool
+      17  Store          Bool
+      19  AddrInst       38.0
+      24  SysFB          30, 0
+      28  AddrInst       0.2
+      33  Load           Bool
+      35  Jz             -> 109
+      40  AddrInst       26.1
+      45  PushI          0
+      54  Store          Bool
+      56  AddrInst       32.0
+      61  PushI          0
+      70  Store          Bool
+      72  AddrInst       32.1
+      77  PushI          0
+      86  Store          Bool
+      88  AddrInst       27.2
+      93  PushI          0
+     102  Store          Bool
+     104  Jmp            -> 285
+     109  AddrInst       38.0
+     114  AddrAdd        0.1
+     119  Load           Bool
+     121  AddrInst       0.1
+     126  Load           Bool
+     128  PushI          1
+     137  Xor            
+     138  And            
+     139  Jz             -> 181
+     144  AddrInst       26.1
+     149  PushI          1
+     158  Store          Bool
+     160  AddrInst       27.2
+     165  PushI          0
+     174  Store          Bool
+     176  Jmp            -> 181
+     181  AddrInst       0.1
+     186  Load           Bool
+     188  AddrInst       26.1
+     193  Load           Bool
+     195  And            
+     196  Jz             -> 285
+     201  AddrInst       26.1
+     206  PushI          0
+     215  Store          Bool
+     217  AddrInst       32.1
+     222  PushI          0
+     231  Store          Bool
+     233  AddrInst       32.0
+     238  Load           Bool
+     240  Jz             -> 280
+     245  AddrInst       27.2
+     250  PushI          1
+     259  Store          Bool
+     261  AddrInst       34.0
+     266  AddrInst       22.0
+     271  Load           Time
+     273  Store          Time
+     275  Jmp            -> 280
+     280  Jmp            -> 285
+     285  AddrInst       26.1
+     290  Load           Bool
+     292  AddrInst       32.1
+     297  Load           Bool
+     299  And            
+     300  AddrInst       32.3
+     305  Load           Bool
+     307  And            
+     308  AddrInst       0.5
+     313  Load           Bool
+     315  PushI          1
+     324  Xor            
+     325  And            
+     326  Jz             -> 398
+     331  AddrInst       26.1
+     336  PushI          0
+     345  Store          Bool
+     347  AddrInst       32.1
+     352  PushI          0
+     361  Store          Bool
+     363  AddrInst       27.2
+     368  PushI          1
+     377  Store          Bool
+     379  AddrInst       34.0
+     384  AddrInst       18.0
+     389  Load           Time
+     391  Store          Time
+     393  Jmp            -> 398
+     398  AddrInst       26.1
+     403  Load           Bool
+     405  AddrInst       32.0
+     410  Load           Bool
+     412  And            
+     413  AddrInst       32.2
+     418  Load           Bool
+     420  And            
+     421  AddrInst       0.4
+     426  Load           Bool
+     428  PushI          1
+     437  Xor            
+     438  And            
+     439  AddrInst       26.0
+     444  Load           Bool
+     446  PushI          1
+     455  Xor            
+     456  And            
+     457  Jz             -> 515
+     462  AddrInst       26.1
+     467  PushI          0
+     476  Store          Bool
+     478  AddrInst       32.0
+     483  PushI          0
+     492  Store          Bool
+     494  AddrInst       32.1
+     499  PushI          0
+     508  Store          Bool
+     510  Jmp            -> 515
+     515  AddrInst       32.3
+     520  AddrInst       0.5
+     525  Load           Bool
+     527  Store          Bool
+     529  AddrInst       32.2
+     534  AddrInst       0.4
+     539  Load           Bool
+     541  Store          Bool
+     543  AddrInst       40.0
+     548  AddrInst       0.3
+     553  Load           Bool
+     555  Store          Bool
+     557  AddrInst       40.0
+     562  AddrAdd        2.0
+     567  AddrInst       6.0
+     572  Load           Time
+     574  Store          Time
+     576  AddrInst       40.0
+     581  SysFB          2, 0
+     585  AddrInst       62.0
+     590  AddrInst       0.3
+     595  Load           Bool
+     597  PushI          1
+     606  Xor            
+     607  Store          Bool
+     609  AddrInst       62.0
+     614  AddrAdd        2.0
+     619  AddrInst       14.0
+     624  Load           Time
+     626  Store          Time
+     628  AddrInst       62.0
+     633  SysFB          2, 0
+     637  AddrInst       84.0
+     642  AddrInst       26.1
+     647  Load           Bool
+     649  AddrInst       0.4
+     654  Load           Bool
+     656  And            
+     657  Store          Bool
+     659  AddrInst       84.0
+     664  AddrAdd        2.0
+     669  AddrInst       2.0
+     674  Load           Time
+     676  Store          Time
+     678  AddrInst       84.0
+     683  SysFB          2, 0
+     687  AddrInst       26.1
+     692  Load           Bool
+     694  Jz             -> 902
+     699  AddrInst       32.0
+     704  PushI          1
+     713  Store          Bool
+     715  AddrInst       27.2
+     720  PushI          0
+     729  Store          Bool
+     731  AddrInst       0.4
+     736  Load           Bool
+     738  PushI          1
+     747  Xor            
+     748  Jz             -> 774
+     753  AddrInst       32.1
+     758  PushI          0
+     767  Store          Bool
+     769  Jmp            -> 897
+     774  AddrInst       32.1
+     779  Load           Bool
+     781  PushI          1
+     790  Xor            
+     791  AddrInst       0.3
+     796  Load           Bool
+     798  And            
+     799  AddrInst       84.0
+     804  AddrAdd        6.0
+     809  Load           Bool
+     811  And            
+     812  AddrInst       40.0
+     817  AddrAdd        6.0
+     822  Load           Bool
+     824  And            
+     825  Jz             -> 851
+     830  AddrInst       32.1
+     835  PushI          1
+     844  Store          Bool
+     846  Jmp            -> 851
+     851  AddrInst       32.1
+     856  Load           Bool
+     858  AddrInst       62.0
+     863  AddrAdd        6.0
+     868  Load           Bool
+     870  And            
+     871  Jz             -> 897
+     876  AddrInst       32.1
+     881  PushI          0
+     890  Store          Bool
+     892  Jmp            -> 897
+     897  Jmp            -> 961
+     902  AddrInst       32.1
+     907  PushI          0
+     916  Store          Bool
+     918  AddrInst       27.2
+     923  Load           Bool
+     925  PushI          1
+     934  Xor            
+     935  Jz             -> 961
+     940  AddrInst       32.0
+     945  PushI          0
+     954  Store          Bool
+     956  Jmp            -> 961
+     961  AddrInst       128.0
+     966  AddrInst       27.2
+     971  Load           Bool
+     973  Store          Bool
+     975  AddrInst       128.0
+     980  AddrAdd        2.0
+     985  AddrInst       34.0
+     990  Load           Time
+     992  Store          Time
+     994  AddrInst       128.0
+     999  SysFB          2, 0
+    1003  AddrInst       128.0
+    1008  AddrAdd        6.0
+    1013  Load           Bool
+    1015  Jz             -> 1057
+    1020  AddrInst       32.0
+    1025  PushI          0
+    1034  Store          Bool
+    1036  AddrInst       27.2
+    1041  PushI          0
+    1050  Store          Bool
+    1052  Jmp            -> 1057
+    1057  AddrInst       27.2
+    1062  Load           Bool
+    1064  Jz             -> 1103
+    1069  AddrInst       28.0
+    1074  AddrInst       34.0
+    1079  Load           Time
+    1081  AddrInst       128.0
+    1086  AddrAdd        8.0
+    1091  Load           Time
+    1093  SubI           
+    1094  Wrap           Time
+    1096  Store          Time
+    1098  Jmp            -> 1119
+    1103  AddrInst       28.0
+    1108  PushI          0
+    1117  Store          Time
+    1119  AddrInst       106.0
+    1124  AddrInst       32.1
+    1129  Load           Bool
+    1131  AddrInst       0.5
+    1136  Load           Bool
+    1138  And            
+    1139  Store          Bool
+    1141  AddrInst       106.0
+    1146  AddrAdd        2.0
+    1151  AddrInst       10.0
+    1156  Load           Time
+    1158  Store          Time
+    1160  AddrInst       106.0
+    1165  SysFB          2, 0
+    1169  AddrInst       27.1
+    1174  AddrInst       26.1
+    1179  Load           Bool
+    1181  AddrInst       32.1
+    1186  Load           Bool
+    1188  And            
+    1189  AddrInst       0.5
+    1194  Load           Bool
+    1196  And            
+    1197  AddrInst       0.4
+    1202  Load           Bool
+    1204  And            
+    1205  AddrInst       0.3
+    1210  Load           Bool
+    1212  And            
+    1213  AddrInst       106.0
+    1218  AddrAdd        6.0
+    1223  Load           Bool
+    1225  And            
+    1226  Store          Bool
+    1228  AddrInst       26.2
+    1233  AddrInst       32.0
+    1238  Load           Bool
+    1240  Store          Bool
+    1242  AddrInst       26.3
+    1247  AddrInst       26.1
+    1252  Load           Bool
+    1254  PushI          1
+    1263  Xor            
+    1264  AddrInst       32.0
+    1269  Load           Bool
+    1271  PushI          1
+    1280  Xor            
+    1281  And            
+    1282  Store          Bool
+    1284  AddrInst       26.4
+    1289  AddrInst       32.1
+    1294  Load           Bool
+    1296  Store          Bool
+    1298  AddrInst       26.5
+    1303  AddrInst       26.1
+    1308  Load           Bool
+    1310  PushI          1
+    1319  Xor            
+    1320  Store          Bool
+    1322  AddrInst       26.6
+    1327  AddrInst       0.4
+    1332  Load           Bool
+    1334  PushI          1
+    1343  Xor            
+    1344  Store          Bool
+    1346  AddrInst       26.7
+    1351  AddrInst       26.1
+    1356  Load           Bool
+    1358  PushI          1
+    1367  Xor            
+    1368  Store          Bool
+    1370  AddrInst       27.0
+    1375  AddrInst       0.5
+    1380  Load           Bool
+    1382  PushI          1
+    1391  Xor            
+    1392  Store          Bool
+    1394  Ret            
+    1395  Jmp            -> 5
+
+; ===== [7] FB3 "FB_PaddlePattern" (11_FB_PaddlePattern.scl) =====
+; line table: 53@5 56@39 57@79 58@95 59@111 60@127 61@173 62@189 63@210 64@231 65@247 66@263 71@273 72@311 73@327 76@348 77@364 78@380 79@396 80@418 81@434 82@450 83@466 84@497 85@514 86@535 87@602 88@618 93@639 94@651 96@667 97@719 98@759 100@769 101@819 103@853 104@986 105@1000 108@1071 109@1093 113@1164 114@1194 116@1215 117@1271 118@1285 124@1311 125@1378 126@1430 128@1446 129@1482 130@1498 131@1519 132@1540 133@1566 
+       0  Jmp            -> 1602
+       5  AddrLocal      0.0
+      10  AddrInst       4.0
+      15  Load           Int
+      17  PushI          0
+      26  MaxI           
+      27  PushI          10
+      36  MinI           
+      37  Store          Int
+      39  AddrInst       0.0
+      44  Load           Bool
+      46  PushI          1
+      55  Xor            
+      56  AddrLocal      0.0
+      61  Load           Int
+      63  PushI          0
+      72  EqI            
+      73  Or             
+      74  Jz             -> 273
+      79  AddrInst       47.0
+      84  PushI          0
+      93  Store          Bool
+      95  AddrInst       52.0
+     100  PushI          0
+     109  Store          Int
+     111  AddrInst       54.0
+     116  PushI          1
+     125  Store          Bool
+     127  AddrInst       56.0
+     132  PushI          0
+     141  Store          Bool
+     143  AddrInst       56.0
+     148  AddrAdd        2.0
+     153  PushI          0
+     162  Store          Time
+     164  AddrInst       56.0
+     169  SysFB          2, 0
+     173  AddrInst       46.0
+     178  PushI          0
+     187  Store          Bool
+     189  AddrInst       46.0
+     194  AddrAdd        0.1
+     199  PushI          0
+     208  Store          Bool
+     210  AddrInst       46.0
+     215  AddrAdd        0.2
+     220  PushI          0
+     229  Store          Bool
+     231  AddrInst       48.0
+     236  PushI          0
+     245  Store          Int
+     247  AddrInst       50.0
+     252  PushI          0
+     261  Store          Int
+     263  Jmp            -> 1601
+     268  Jmp            -> 273
+     273  AddrInst       52.0
+     278  Load           Int
+     280  PushI          0
+     289  LtI            
+     290  AddrInst       52.0
+     295  Load           Int
+     297  AddrLocal      0.0
+     302  Load           Int
+     304  GeI            
+     305  Or             
+     306  Jz             -> 348
+     311  AddrInst       52.0
+     316  PushI          0
+     325  Store          Int
+     327  AddrInst       54.0
+     332  PushI          1
+     341  Store          Bool
+     343  Jmp            -> 348
+     348  AddrLocal      10.0
+     353  PushI          0
+     362  Store          Bool
+     364  AddrLocal      10.1
+     369  PushI          0
+     378  Store          Bool
+     380  AddrLocal      10.2
+     385  PushI          0
+     394  Store          Bool
+     396  AddrInst       47.0
+     401  Load           Bool
+     403  PushI          1
+     412  Xor            
+     413  Jz             -> 497
+     418  AddrInst       47.0
+     423  PushI          1
+     432  Store          Bool
+     434  AddrLocal      10.2
+     439  PushI          1
+     448  Store          Bool
+     450  AddrLocal      10.0
+     455  PushI          1
+     464  Store          Bool
+     466  AddrInst       52.0
+     471  AddrLocal      0.0
+     476  Load           Int
+     478  PushI          1
+     487  SubI           
+     488  Wrap           Int
+     490  Store          Int
+     492  Jmp            -> 639
+     497  AddrInst       56.0
+     502  AddrAdd        6.0
+     507  Load           Bool
+     509  Jz             -> 535
+     514  AddrLocal      10.0
+     519  PushI          1
+     528  Store          Bool
+     530  Jmp            -> 639
+     535  FrameAlloc     12
+     540  AddrNewFrame   2.0
+     545  AddrInst       6.0
+     550  AddrInst       52.0
+     555  Load           Int
+     557  AddrIndex      0, 16, 10
+     570  Load           Int
+     572  Store          Int
+     574  AddrNewFrame   4.0
+     579  AddrInst       2.0
+     584  Store          Ptr
+     586  Call           4 ; FC_StepBlocked
+     589  AddrNewFrame   0.0
+     594  Load           Bool
+     596  FrameFree      
+     597  Jz             -> 639
+     602  AddrLocal      10.0
+     607  PushI          1
+     616  Store          Bool
+     618  AddrLocal      10.1
+     623  PushI          1
+     632  Store          Bool
+     634  Jmp            -> 639
+     639  AddrLocal      10.0
+     644  Load           Bool
+     646  Jz             -> 1311
+     651  AddrLocal      8.0
+     656  PushI          -1
+     665  Store          Int
+     667  AddrLocal      6.0
+     672  PushI          0
+     681  Store          Int
+     683  AddrLocal      18.0
+     688  PushI          1
+     697  Store          LInt
+     699  AddrLocal      6.0
+     704  Load           Int
+     706  AddrLocal      18.0
+     711  Load           LInt
+     713  GtI            
+     714  Jnz            -> 1164
+     719  AddrLocal      6.0
+     724  Load           Int
+     726  PushI          0
+     735  EqI            
+     736  AddrLocal      10.1
+     741  Load           Bool
+     743  PushI          1
+     752  Xor            
+     753  And            
+     754  Jz             -> 769
+     759  Jmp            -> 1103
+     764  Jmp            -> 769
+     769  AddrLocal      2.0
+     774  PushI          1
+     783  Store          Int
+     785  AddrLocal      26.0
+     790  AddrLocal      0.0
+     795  Load           Int
+     797  Store          LInt
+     799  AddrLocal      2.0
+     804  Load           Int
+     806  AddrLocal      26.0
+     811  Load           LInt
+     813  GtI            
+     814  Jnz            -> 1071
+     819  AddrLocal      4.0
+     824  AddrInst       52.0
+     829  Load           Int
+     831  AddrLocal      2.0
+     836  Load           Int
+     838  AddI           
+     839  Wrap           Int
+     841  AddrLocal      0.0
+     846  Load           Int
+     848  ModI           
+     849  Wrap           Int
+     851  Store          Int
+     853  FrameAlloc     12
+     858  AddrNewFrame   2.0
+     863  AddrInst       6.0
+     868  AddrLocal      4.0
+     873  Load           Int
+     875  AddrIndex      0, 16, 10
+     888  Load           Int
+     890  Store          Int
+     892  AddrNewFrame   4.0
+     897  AddrInst       2.0
+     902  Store          Ptr
+     904  Call           4 ; FC_StepBlocked
+     907  AddrNewFrame   0.0
+     912  Load           Bool
+     914  FrameFree      
+     915  PushI          1
+     924  Xor            
+     925  AddrLocal      6.0
+     930  Load           Int
+     932  PushI          1
+     941  EqI            
+     942  AddrInst       6.0
+     947  AddrLocal      4.0
+     952  Load           Int
+     954  AddrIndex      0, 16, 10
+     967  Load           Int
+     969  PushI          0
+     978  NeI            
+     979  Or             
+     980  And            
+     981  Jz             -> 1010
+     986  AddrLocal      8.0
+     991  AddrLocal      4.0
+     996  Load           Int
+     998  Store          Int
+    1000  Jmp            -> 1071
+    1005  Jmp            -> 1010
+    1010  AddrLocal      2.0
+    1015  AddrLocal      2.0
+    1020  Load           Int
+    1022  PushI          1
+    1031  AddI           
+    1032  Dup            
+    1033  Wrap           Int
+    1035  EqI            
+    1036  Jz             -> 1071
+    1041  AddrLocal      2.0
+    1046  AddrLocal      2.0
+    1051  Load           Int
+    1053  PushI          1
+    1062  AddI           
+    1063  Store          Int
+    1065  Drop           
+    1066  Jmp            -> 799
+    1071  AddrLocal      8.0
+    1076  Load           Int
+    1078  PushI          0
+    1087  GeI            
+    1088  Jz             -> 1103
+    1093  Jmp            -> 1164
+    1098  Jmp            -> 1103
+    1103  AddrLocal      6.0
+    1108  AddrLocal      6.0
+    1113  Load           Int
+    1115  PushI          1
+    1124  AddI           
+    1125  Dup            
+    1126  Wrap           Int
+    1128  EqI            
+    1129  Jz             -> 1164
+    1134  AddrLocal      6.0
+    1139  AddrLocal      6.0
+    1144  Load           Int
+    1146  PushI          1
+    1155  AddI           
+    1156  Store          Int
+    1158  Drop           
+    1159  Jmp            -> 699
+    1164  AddrLocal      10.2
+    1169  Load           Bool
+    1171  AddrLocal      8.0
+    1176  Load           Int
+    1178  PushI          0
+    1187  LtI            
+    1188  And            
+    1189  Jz             -> 1215
+    1194  AddrLocal      8.0
+    1199  PushI          0
+    1208  Store          Int
+    1210  Jmp            -> 1215
+    1215  AddrLocal      8.0
+    1220  Load           Int
+    1222  PushI          0
+    1231  GeI            
+    1232  AddrLocal      8.0
+    1237  Load           Int
+    1239  AddrInst       52.0
+    1244  Load           Int
+    1246  NeI            
+    1247  AddrLocal      10.1
+    1252  Load           Bool
+    1254  PushI          1
+    1263  Xor            
+    1264  Or             
+    1265  And            
+    1266  Jz             -> 1306
+    1271  AddrInst       52.0
+    1276  AddrLocal      8.0
+    1281  Load           Int
+    1283  Store          Int
+    1285  AddrInst       54.0
+    1290  PushI          1
+    1299  Store          Bool
+    1301  Jmp            -> 1306
+    1306  Jmp            -> 1311
+    1311  AddrLocal      14.0
+    1316  FrameAlloc     6
+    1321  AddrNewFrame   4.0
+    1326  AddrInst       26.0
+    1331  AddrInst       52.0
+    1336  Load           Int
+    1338  AddrIndex      0, 16, 10
+    1351  Load           Int
+    1353  PushI          5
+    1362  MaxI           
+    1363  Store          Int
+    1365  Call           0 ; FC_TenthsToTime
+    1368  AddrNewFrame   0.0
+    1373  Load           Time
+    1375  FrameFree      
+    1376  Store          Time
+    1378  AddrInst       56.0
+    1383  AddrInst       54.0
+    1388  Load           Bool
+    1390  PushI          1
+    1399  Xor            
+    1400  Store          Bool
+    1402  AddrInst       56.0
+    1407  AddrAdd        2.0
+    1412  AddrLocal      14.0
+    1417  Load           Time
+    1419  Store          Time
+    1421  AddrInst       56.0
+    1426  SysFB          2, 0
+    1430  AddrInst       54.0
+    1435  PushI          0
+    1444  Store          Bool
+    1446  AddrLocal      12.0
+    1451  AddrInst       6.0
+    1456  AddrInst       52.0
+    1461  Load           Int
+    1463  AddrIndex      0, 16, 10
+    1476  Load           Int
+    1478  Wrap           Word
+    1480  Store          Word
+    1482  AddrInst       46.0
+    1487  AddrLocal      12.0
+    1492  Load           Word
+    1494  GetBit         0
+    1496  Store          Bool
+    1498  AddrInst       46.0
+    1503  AddrAdd        0.1
+    1508  AddrLocal      12.0
+    1513  Load           Word
+    1515  GetBit         1
+    1517  Store          Bool
+    1519  AddrInst       46.0
+    1524  AddrAdd        0.2
+    1529  AddrLocal      12.0
+    1534  Load           Word
+    1536  GetBit         2
+    1538  Store          Bool
+    1540  AddrInst       48.0
+    1545  AddrInst       52.0
+    1550  Load           Int
+    1552  PushI          1
+    1561  AddI           
+    1562  Wrap           Int
+    1564  Store          Int
+    1566  AddrInst       50.0
+    1571  AddrInst       56.0
+    1576  AddrAdd        8.0
+    1581  Load           Time
+    1583  Wrap           DInt
+    1585  PushI          100
+    1594  DivI           
+    1595  Wrap           DInt
+    1597  Wrap           Int
+    1599  Store          Int
+    1601  Ret            
+    1602  Jmp            -> 5
+
+; ===== [8] FB4 "FB_FluffSilo" (12_FB_FluffSilo.scl) =====
+; line table: 58@5 59@54 60@73 61@121 63@142 64@198 70@219 72@259 73@268 74@314 75@365 76@416 77@467 78@518 83@569 84@619 86@672 103@930 104@949 105@973 107@997 117@1140 132@1516 147@1900 162@2284 177@2673 194@3062 195@3085 196@3108 197@3131 198@3154 200@3177 202@3273 203@3296 204@3322 208@3340 211@3427 212@3439 213@3460 214@3480 215@3501 216@3521 218@3542 222@3560 223@3584 224@3613 225@3642 226@3671 228@3700 229@3728 230@3756 231@3789 233@3817 234@3845 235@3878 240@3920 241@3945 242@3975 243@4005 244@4035 245@4087 
+       0  Jmp            -> 4194
+       5  AddrInst       22.0
+      10  PushAddr       %I0.3
+      19  Load           Bool
+      21  PushAddr       %DB10.DBX0.0
+      30  AddrAdd        12.0
+      35  AddrAdd        0.3
+      40  Load           Bool
+      42  Or             
+      43  Store          Bool
+      45  AddrInst       22.0
+      50  SysFB          30, 0
+      54  AddrLocal      0.0
+      59  AddrInst       22.0
+      64  AddrAdd        0.1
+      69  Load           Bool
+      71  Store          Bool
+      73  PushAddr       %I0.0
+      82  Load           Bool
+      84  PushI          1
+      93  Xor            
+      94  PushAddr       %DB10.DBX0.0
+     103  AddrAdd        12.0
+     108  AddrAdd        0.2
+     113  Load           Bool
+     115  Or             
+     116  Jz             -> 142
+     121  AddrInst       14.0
+     126  PushI          1
+     135  Store          Bool
+     137  Jmp            -> 142
+     142  AddrLocal      0.0
+     147  Load           Bool
+     149  PushAddr       %I0.0
+     158  Load           Bool
+     160  And            
+     161  PushAddr       %DB10.DBX0.0
+     170  AddrAdd        12.0
+     175  AddrAdd        0.2
+     180  Load           Bool
+     182  PushI          1
+     191  Xor            
+     192  And            
+     193  Jz             -> 219
+     198  AddrInst       14.0
+     203  PushI          0
+     212  Store          Bool
+     214  Jmp            -> 219
+     219  AddrLocal      0.1
+     224  PushAddr       %I0.4
+     233  Load           Bool
+     235  PushAddr       %DB10.DBX0.0
+     244  AddrAdd        12.0
+     249  AddrAdd        0.4
+     254  Load           Bool
+     256  Or             
+     257  Store          Bool
+     259  FrameAlloc     0
+     264  Call           2 ; FC_ValidateParams
+     267  FrameFree      
+     268  AddrLocal      4.0
+     273  FrameAlloc     6
+     278  AddrNewFrame   4.0
+     283  PushAddr       %DB10.DBX0.0
+     292  AddrAdd        20.0
+     297  Load           Int
+     299  Store          Int
+     301  Call           0 ; FC_TenthsToTime
+     304  AddrNewFrame   0.0
+     309  Load           Time
+     311  FrameFree      
+     312  Store          Time
+     314  AddrLocal      8.0
+     319  FrameAlloc     6
+     324  AddrNewFrame   4.0
+     329  PushAddr       %DB10.DBX0.0
+     338  AddrAdd        20.0
+     343  AddrAdd        2.0
+     348  Load           Int
+     350  Store          Int
+     352  Call           0 ; FC_TenthsToTime
+     355  AddrNewFrame   0.0
+     360  Load           Time
+     362  FrameFree      
+     363  Store          Time
+     365  AddrLocal      12.0
+     370  FrameAlloc     6
+     375  AddrNewFrame   4.0
+     380  PushAddr       %DB10.DBX0.0
+     389  AddrAdd        20.0
+     394  AddrAdd        4.0
+     399  Load           Int
+     401  Store          Int
+     403  Call           0 ; FC_TenthsToTime
+     406  AddrNewFrame   0.0
+     411  Load           Time
+     413  FrameFree      
+     414  Store          Time
+     416  AddrLocal      16.0
+     421  FrameAlloc     6
+     426  AddrNewFrame   4.0
+     431  PushAddr       %DB10.DBX0.0
+     440  AddrAdd        20.0
+     445  AddrAdd        6.0
+     450  Load           Int
+     452  Store          Int
+     454  Call           0 ; FC_TenthsToTime
+     457  AddrNewFrame   0.0
+     462  Load           Time
+     464  FrameFree      
+     465  Store          Time
+     467  AddrLocal      20.0
+     472  FrameAlloc     6
+     477  AddrNewFrame   4.0
+     482  PushAddr       %DB10.DBX0.0
+     491  AddrAdd        20.0
+     496  AddrAdd        8.0
+     501  Load           Int
+     503  Store          Int
+     505  Call           0 ; FC_TenthsToTime
+     508  AddrNewFrame   0.0
+     513  Load           Time
+     515  FrameFree      
+     516  Store          Time
+     518  AddrLocal      24.0
+     523  FrameAlloc     6
+     528  AddrNewFrame   4.0
+     533  PushAddr       %DB10.DBX0.0
+     542  AddrAdd        20.0
+     547  AddrAdd        10.0
+     552  Load           Int
+     554  Store          Int
+     556  Call           0 ; FC_TenthsToTime
+     559  AddrNewFrame   0.0
+     564  Load           Time
+     566  FrameFree      
+     567  Store          Time
+     569  AddrLocal      0.3
+     574  PushAddr       %DB10.DBX0.0
+     583  AddrAdd        12.0
+     588  AddrAdd        0.1
+     593  Load           Bool
+     595  PushAddr       %I0.2
+     604  Load           Bool
+     606  PushI          1
+     615  Xor            
+     616  Or             
+     617  Store          Bool
+     619  AddrLocal      0.2
+     624  PushAddr       %DB10.DBX0.0
+     633  AddrAdd        12.0
+     638  Load           Bool
+     640  PushAddr       %I0.1
+     649  Load           Bool
+     651  Or             
+     652  AddrLocal      0.3
+     657  Load           Bool
+     659  PushI          1
+     668  Xor            
+     669  And            
+     670  Store          Bool
+     672  AddrInst       24.0
+     677  AddrLocal      0.2
+     682  Load           Bool
+     684  Store          Bool
+     686  AddrInst       24.0
+     691  AddrAdd        0.1
+     696  AddrLocal      0.3
+     701  Load           Bool
+     703  Store          Bool
+     705  AddrInst       24.0
+     710  AddrAdd        0.2
+     715  AddrInst       14.0
+     720  Load           Bool
+     722  Store          Bool
+     724  AddrInst       24.0
+     729  AddrAdd        0.3
+     734  AddrLocal      0.1
+     739  Load           Bool
+     741  Store          Bool
+     743  AddrInst       24.0
+     748  AddrAdd        0.4
+     753  PushAddr       %I0.5
+     762  Load           Bool
+     764  Store          Bool
+     766  AddrInst       24.0
+     771  AddrAdd        0.5
+     776  PushAddr       %I0.7
+     785  Load           Bool
+     787  Store          Bool
+     789  AddrInst       24.0
+     794  AddrAdd        2.0
+     799  AddrLocal      4.0
+     804  Load           Time
+     806  Store          Time
+     808  AddrInst       24.0
+     813  AddrAdd        6.0
+     818  AddrLocal      8.0
+     823  Load           Time
+     825  Store          Time
+     827  AddrInst       24.0
+     832  AddrAdd        10.0
+     837  AddrLocal      12.0
+     842  Load           Time
+     844  Store          Time
+     846  AddrInst       24.0
+     851  AddrAdd        14.0
+     856  AddrLocal      16.0
+     861  Load           Time
+     863  Store          Time
+     865  AddrInst       24.0
+     870  AddrAdd        18.0
+     875  AddrLocal      20.0
+     880  Load           Time
+     882  Store          Time
+     884  AddrInst       24.0
+     889  AddrAdd        22.0
+     894  AddrLocal      24.0
+     899  Load           Time
+     901  Store          Time
+     903  AddrInst       24.0
+     908  AddrAdd        26.0
+     913  AddrInst       4.1
+     918  Load           Bool
+     920  Store          Bool
+     922  AddrInst       24.0
+     927  CallFB         6 ; FB_Sequencer
+     930  AddrLocal      2.0
+     935  AddrInst       384.0
+     940  AddrAdd        6.2
+     945  Load           Bool
+     947  Store          Bool
+     949  AddrLocal      2.0
+     954  AddrAdd        0.1
+     959  AddrInst       450.0
+     964  AddrAdd        6.2
+     969  Load           Bool
+     971  Store          Bool
+     973  AddrLocal      2.0
+     978  AddrAdd        0.2
+     983  AddrInst       516.0
+     988  AddrAdd        6.2
+     993  Load           Bool
+     995  Store          Bool
+     997  AddrInst       174.0
+    1002  AddrInst       24.0
+    1007  AddrAdd        27.1
+    1012  Load           Bool
+    1014  Store          Bool
+    1016  AddrInst       174.0
+    1021  AddrAdd        2.0
+    1026  AddrLocal      2.0
+    1031  MemCpy         8
+    1036  AddrInst       174.0
+    1041  AddrAdd        4.0
+    1046  PushAddr       %DB10.DBX0.0
+    1055  AddrAdd        40.0
+    1060  Load           Int
+    1062  Store          Int
+    1064  AddrInst       174.0
+    1069  AddrAdd        6.0
+    1074  PushAddr       %DB10.DBX0.0
+    1083  AddrAdd        40.0
+    1088  AddrAdd        2.0
+    1093  MemCpy         160
+    1098  AddrInst       174.0
+    1103  AddrAdd        26.0
+    1108  PushAddr       %DB10.DBX0.0
+    1117  AddrAdd        40.0
+    1122  AddrAdd        22.0
+    1127  MemCpy         160
+    1132  AddrInst       174.0
+    1137  CallFB         7 ; FB_PaddlePattern
+    1140  AddrInst       252.0
+    1145  AddrInst       24.0
+    1150  AddrAdd        26.2
+    1155  Load           Bool
+    1157  Store          Bool
+    1159  AddrInst       252.0
+    1164  AddrAdd        0.1
+    1169  AddrInst       24.0
+    1174  AddrAdd        26.3
+    1179  Load           Bool
+    1181  Store          Bool
+    1183  AddrInst       252.0
+    1188  AddrAdd        0.2
+    1193  PushI          0
+    1202  Store          Bool
+    1204  AddrInst       252.0
+    1209  AddrAdd        0.3
+    1214  AddrInst       14.0
+    1219  Load           Bool
+    1221  Store          Bool
+    1223  AddrInst       252.0
+    1228  AddrAdd        0.4
+    1233  PushAddr       %DB10.DBX0.0
+    1242  AddrAdd        14.0
+    1247  Load           Bool
+    1249  Store          Bool
+    1251  AddrInst       252.0
+    1256  AddrAdd        0.5
+    1261  PushAddr       %DB10.DBX0.0
+    1270  AddrAdd        14.0
+    1275  AddrAdd        0.1
+    1280  Load           Bool
+    1282  Store          Bool
+    1284  AddrInst       252.0
+    1289  AddrAdd        0.6
+    1294  PushAddr       %DB10.DBX0.0
+    1303  AddrAdd        14.0
+    1308  AddrAdd        0.2
+    1313  Load           Bool
+    1315  Store          Bool
+    1317  AddrInst       252.0
+    1322  AddrAdd        0.7
+    1327  PushAddr       %DB10.DBX0.0
+    1336  AddrAdd        14.0
+    1341  AddrAdd        0.3
+    1346  Load           Bool
+    1348  Store          Bool
+    1350  AddrInst       252.0
+    1355  AddrAdd        1.0
+    1360  PushAddr       %DB10.DBX0.0
+    1369  AddrAdd        14.0
+    1374  AddrAdd        0.4
+    1379  Load           Bool
+    1381  Store          Bool
+    1383  AddrInst       252.0
+    1388  AddrAdd        1.1
+    1393  PushAddr       %DB10.DBX0.0
+    1402  AddrAdd        14.0
+    1407  AddrAdd        0.5
+    1412  Load           Bool
+    1414  AddrLocal      0.0
+    1419  Load           Bool
+    1421  Or             
+    1422  Store          Bool
+    1424  AddrInst       252.0
+    1429  AddrAdd        1.2
+    1434  PushAddr       %I0.5
+    1443  Load           Bool
+    1445  Store          Bool
+    1447  AddrInst       252.0
+    1452  AddrAdd        1.3
+    1457  PushAddr       %I0.6
+    1466  Load           Bool
+    1468  Store          Bool
+    1470  AddrInst       252.0
+    1475  AddrAdd        2.0
+    1480  AddrInst       0.0
+    1485  Load           Time
+    1487  Store          Time
+    1489  AddrInst       252.0
+    1494  AddrAdd        6.0
+    1499  AddrInst       4.0
+    1504  Load           Bool
+    1506  Store          Bool
+    1508  AddrInst       252.0
+    1513  CallFB         5 ; FB_Motor
+    1516  AddrInst       318.0
+    1521  AddrInst       24.0
+    1526  AddrAdd        26.4
+    1531  Load           Bool
+    1533  Store          Bool
+    1535  AddrInst       318.0
+    1540  AddrAdd        0.1
+    1545  AddrInst       24.0
+    1550  AddrAdd        26.5
+    1555  Load           Bool
+    1557  Store          Bool
+    1559  AddrInst       318.0
+    1564  AddrAdd        0.2
+    1569  AddrInst       24.0
+    1574  AddrAdd        26.6
+    1579  Load           Bool
+    1581  Store          Bool
+    1583  AddrInst       318.0
+    1588  AddrAdd        0.3
+    1593  AddrInst       14.0
+    1598  Load           Bool
+    1600  Store          Bool
+    1602  AddrInst       318.0
+    1607  AddrAdd        0.4
+    1612  PushAddr       %DB10.DBX0.0
+    1621  AddrAdd        14.0
+    1626  AddrAdd        1.0
+    1631  Load           Bool
+    1633  Store          Bool
+    1635  AddrInst       318.0
+    1640  AddrAdd        0.5
+    1645  PushAddr       %DB10.DBX0.0
+    1654  AddrAdd        14.0
+    1659  AddrAdd        1.1
+    1664  Load           Bool
+    1666  Store          Bool
+    1668  AddrInst       318.0
+    1673  AddrAdd        0.6
+    1678  PushAddr       %DB10.DBX0.0
+    1687  AddrAdd        14.0
+    1692  AddrAdd        1.2
+    1697  Load           Bool
+    1699  Store          Bool
+    1701  AddrInst       318.0
+    1706  AddrAdd        0.7
+    1711  PushAddr       %DB10.DBX0.0
+    1720  AddrAdd        14.0
+    1725  AddrAdd        1.3
+    1730  Load           Bool
+    1732  Store          Bool
+    1734  AddrInst       318.0
+    1739  AddrAdd        1.0
+    1744  PushAddr       %DB10.DBX0.0
+    1753  AddrAdd        14.0
+    1758  AddrAdd        1.4
+    1763  Load           Bool
+    1765  Store          Bool
+    1767  AddrInst       318.0
+    1772  AddrAdd        1.1
+    1777  PushAddr       %DB10.DBX0.0
+    1786  AddrAdd        14.0
+    1791  AddrAdd        1.5
+    1796  Load           Bool
+    1798  AddrLocal      0.0
+    1803  Load           Bool
+    1805  Or             
+    1806  Store          Bool
+    1808  AddrInst       318.0
+    1813  AddrAdd        1.2
+    1818  PushAddr       %I0.7
+    1827  Load           Bool
+    1829  Store          Bool
+    1831  AddrInst       318.0
+    1836  AddrAdd        1.3
+    1841  PushAddr       %I1.0
+    1850  Load           Bool
+    1852  Store          Bool
+    1854  AddrInst       318.0
+    1859  AddrAdd        2.0
+    1864  AddrInst       0.0
+    1869  Load           Time
+    1871  Store          Time
+    1873  AddrInst       318.0
+    1878  AddrAdd        6.0
+    1883  AddrInst       4.0
+    1888  Load           Bool
+    1890  Store          Bool
+    1892  AddrInst       318.0
+    1897  CallFB         5 ; FB_Motor
+    1900  AddrInst       384.0
+    1905  AddrInst       174.0
+    1910  AddrAdd        46.0
+    1915  Load           Bool
+    1917  Store          Bool
+    1919  AddrInst       384.0
+    1924  AddrAdd        0.1
+    1929  AddrInst       24.0
+    1934  AddrAdd        26.7
+    1939  Load           Bool
+    1941  Store          Bool
+    1943  AddrInst       384.0
+    1948  AddrAdd        0.2
+    1953  AddrInst       24.0
+    1958  AddrAdd        27.0
+    1963  Load           Bool
+    1965  Store          Bool
+    1967  AddrInst       384.0
+    1972  AddrAdd        0.3
+    1977  AddrInst       14.0
+    1982  Load           Bool
+    1984  Store          Bool
+    1986  AddrInst       384.0
+    1991  AddrAdd        0.4
+    1996  PushAddr       %DB10.DBX0.0
+    2005  AddrAdd        14.0
+    2010  AddrAdd        2.0
+    2015  Load           Bool
+    2017  Store          Bool
+    2019  AddrInst       384.0
+    2024  AddrAdd        0.5
+    2029  PushAddr       %DB10.DBX0.0
+    2038  AddrAdd        14.0
+    2043  AddrAdd        2.1
+    2048  Load           Bool
+    2050  Store          Bool
+    2052  AddrInst       384.0
+    2057  AddrAdd        0.6
+    2062  PushAddr       %DB10.DBX0.0
+    2071  AddrAdd        14.0
+    2076  AddrAdd        2.2
+    2081  Load           Bool
+    2083  Store          Bool
+    2085  AddrInst       384.0
+    2090  AddrAdd        0.7
+    2095  PushAddr       %DB10.DBX0.0
+    2104  AddrAdd        14.0
+    2109  AddrAdd        2.3
+    2114  Load           Bool
+    2116  Store          Bool
+    2118  AddrInst       384.0
+    2123  AddrAdd        1.0
+    2128  PushAddr       %DB10.DBX0.0
+    2137  AddrAdd        14.0
+    2142  AddrAdd        2.4
+    2147  Load           Bool
+    2149  Store          Bool
+    2151  AddrInst       384.0
+    2156  AddrAdd        1.1
+    2161  PushAddr       %DB10.DBX0.0
+    2170  AddrAdd        14.0
+    2175  AddrAdd        2.5
+    2180  Load           Bool
+    2182  AddrLocal      0.0
+    2187  Load           Bool
+    2189  Or             
+    2190  Store          Bool
+    2192  AddrInst       384.0
+    2197  AddrAdd        1.2
+    2202  PushAddr       %I1.1
+    2211  Load           Bool
+    2213  Store          Bool
+    2215  AddrInst       384.0
+    2220  AddrAdd        1.3
+    2225  PushAddr       %I1.2
+    2234  Load           Bool
+    2236  Store          Bool
+    2238  AddrInst       384.0
+    2243  AddrAdd        2.0
+    2248  AddrInst       0.0
+    2253  Load           Time
+    2255  Store          Time
+    2257  AddrInst       384.0
+    2262  AddrAdd        6.0
+    2267  AddrInst       4.0
+    2272  Load           Bool
+    2274  Store          Bool
+    2276  AddrInst       384.0
+    2281  CallFB         5 ; FB_Motor
+    2284  AddrInst       450.0
+    2289  AddrInst       174.0
+    2294  AddrAdd        46.0
+    2299  AddrAdd        0.1
+    2304  Load           Bool
+    2306  Store          Bool
+    2308  AddrInst       450.0
+    2313  AddrAdd        0.1
+    2318  AddrInst       24.0
+    2323  AddrAdd        26.7
+    2328  Load           Bool
+    2330  Store          Bool
+    2332  AddrInst       450.0
+    2337  AddrAdd        0.2
+    2342  AddrInst       24.0
+    2347  AddrAdd        27.0
+    2352  Load           Bool
+    2354  Store          Bool
+    2356  AddrInst       450.0
+    2361  AddrAdd        0.3
+    2366  AddrInst       14.0
+    2371  Load           Bool
+    2373  Store          Bool
+    2375  AddrInst       450.0
+    2380  AddrAdd        0.4
+    2385  PushAddr       %DB10.DBX0.0
+    2394  AddrAdd        14.0
+    2399  AddrAdd        3.0
+    2404  Load           Bool
+    2406  Store          Bool
+    2408  AddrInst       450.0
+    2413  AddrAdd        0.5
+    2418  PushAddr       %DB10.DBX0.0
+    2427  AddrAdd        14.0
+    2432  AddrAdd        3.1
+    2437  Load           Bool
+    2439  Store          Bool
+    2441  AddrInst       450.0
+    2446  AddrAdd        0.6
+    2451  PushAddr       %DB10.DBX0.0
+    2460  AddrAdd        14.0
+    2465  AddrAdd        3.2
+    2470  Load           Bool
+    2472  Store          Bool
+    2474  AddrInst       450.0
+    2479  AddrAdd        0.7
+    2484  PushAddr       %DB10.DBX0.0
+    2493  AddrAdd        14.0
+    2498  AddrAdd        3.3
+    2503  Load           Bool
+    2505  Store          Bool
+    2507  AddrInst       450.0
+    2512  AddrAdd        1.0
+    2517  PushAddr       %DB10.DBX0.0
+    2526  AddrAdd        14.0
+    2531  AddrAdd        3.4
+    2536  Load           Bool
+    2538  Store          Bool
+    2540  AddrInst       450.0
+    2545  AddrAdd        1.1
+    2550  PushAddr       %DB10.DBX0.0
+    2559  AddrAdd        14.0
+    2564  AddrAdd        3.5
+    2569  Load           Bool
+    2571  AddrLocal      0.0
+    2576  Load           Bool
+    2578  Or             
+    2579  Store          Bool
+    2581  AddrInst       450.0
+    2586  AddrAdd        1.2
+    2591  PushAddr       %I1.3
+    2600  Load           Bool
+    2602  Store          Bool
+    2604  AddrInst       450.0
+    2609  AddrAdd        1.3
+    2614  PushAddr       %I1.4
+    2623  Load           Bool
+    2625  Store          Bool
+    2627  AddrInst       450.0
+    2632  AddrAdd        2.0
+    2637  AddrInst       0.0
+    2642  Load           Time
+    2644  Store          Time
+    2646  AddrInst       450.0
+    2651  AddrAdd        6.0
+    2656  AddrInst       4.0
+    2661  Load           Bool
+    2663  Store          Bool
+    2665  AddrInst       450.0
+    2670  CallFB         5 ; FB_Motor
+    2673  AddrInst       516.0
+    2678  AddrInst       174.0
+    2683  AddrAdd        46.0
+    2688  AddrAdd        0.2
+    2693  Load           Bool
+    2695  Store          Bool
+    2697  AddrInst       516.0
+    2702  AddrAdd        0.1
+    2707  AddrInst       24.0
+    2712  AddrAdd        26.7
+    2717  Load           Bool
+    2719  Store          Bool
+    2721  AddrInst       516.0
+    2726  AddrAdd        0.2
+    2731  AddrInst       24.0
+    2736  AddrAdd        27.0
+    2741  Load           Bool
+    2743  Store          Bool
+    2745  AddrInst       516.0
+    2750  AddrAdd        0.3
+    2755  AddrInst       14.0
+    2760  Load           Bool
+    2762  Store          Bool
+    2764  AddrInst       516.0
+    2769  AddrAdd        0.4
+    2774  PushAddr       %DB10.DBX0.0
+    2783  AddrAdd        14.0
+    2788  AddrAdd        4.0
+    2793  Load           Bool
+    2795  Store          Bool
+    2797  AddrInst       516.0
+    2802  AddrAdd        0.5
+    2807  PushAddr       %DB10.DBX0.0
+    2816  AddrAdd        14.0
+    2821  AddrAdd        4.1
+    2826  Load           Bool
+    2828  Store          Bool
+    2830  AddrInst       516.0
+    2835  AddrAdd        0.6
+    2840  PushAddr       %DB10.DBX0.0
+    2849  AddrAdd        14.0
+    2854  AddrAdd        4.2
+    2859  Load           Bool
+    2861  Store          Bool
+    2863  AddrInst       516.0
+    2868  AddrAdd        0.7
+    2873  PushAddr       %DB10.DBX0.0
+    2882  AddrAdd        14.0
+    2887  AddrAdd        4.3
+    2892  Load           Bool
+    2894  Store          Bool
+    2896  AddrInst       516.0
+    2901  AddrAdd        1.0
+    2906  PushAddr       %DB10.DBX0.0
+    2915  AddrAdd        14.0
+    2920  AddrAdd        4.4
+    2925  Load           Bool
+    2927  Store          Bool
+    2929  AddrInst       516.0
+    2934  AddrAdd        1.1
+    2939  PushAddr       %DB10.DBX0.0
+    2948  AddrAdd        14.0
+    2953  AddrAdd        4.5
+    2958  Load           Bool
+    2960  AddrLocal      0.0
+    2965  Load           Bool
+    2967  Or             
+    2968  Store          Bool
+    2970  AddrInst       516.0
+    2975  AddrAdd        1.2
+    2980  PushAddr       %I1.5
+    2989  Load           Bool
+    2991  Store          Bool
+    2993  AddrInst       516.0
+    2998  AddrAdd        1.3
+    3003  PushAddr       %I8.0
+    3012  Load           Bool
+    3014  Store          Bool
+    3016  AddrInst       516.0
+    3021  AddrAdd        2.0
+    3026  AddrInst       0.0
+    3031  Load           Time
+    3033  Store          Time
+    3035  AddrInst       516.0
+    3040  AddrAdd        6.0
+    3045  AddrInst       4.0
+    3050  Load           Bool
+    3052  Store          Bool
+    3054  AddrInst       516.0
+    3059  CallFB         5 ; FB_Motor
+    3062  PushAddr       %Q0.0
+    3071  AddrInst       252.0
+    3076  AddrAdd        6.1
+    3081  Load           Bool
+    3083  Store          Bool
+    3085  PushAddr       %Q0.1
+    3094  AddrInst       318.0
+    3099  AddrAdd        6.1
+    3104  Load           Bool
+    3106  Store          Bool
+    3108  PushAddr       %Q0.2
+    3117  AddrInst       384.0
+    3122  AddrAdd        6.1
+    3127  Load           Bool
+    3129  Store          Bool
+    3131  PushAddr       %Q0.3
+    3140  AddrInst       450.0
+    3145  AddrAdd        6.1
+    3150  Load           Bool
+    3152  Store          Bool
+    3154  PushAddr       %Q0.4
+    3163  AddrInst       516.0
+    3168  AddrAdd        6.1
+    3173  Load           Bool
+    3175  Store          Bool
+    3177  AddrInst       20.1
+    3182  AddrInst       252.0
+    3187  AddrAdd        8.0
+    3192  AddrAdd        0.7
+    3197  Load           Bool
+    3199  AddrInst       318.0
+    3204  AddrAdd        8.0
+    3209  AddrAdd        0.7
+    3214  Load           Bool
+    3216  Or             
+    3217  AddrInst       384.0
+    3222  AddrAdd        8.0
+    3227  AddrAdd        0.7
+    3232  Load           Bool
+    3234  Or             
+    3235  AddrInst       450.0
+    3240  AddrAdd        8.0
+    3245  AddrAdd        0.7
+    3250  Load           Bool
+    3252  Or             
+    3253  AddrInst       516.0
+    3258  AddrAdd        8.0
+    3263  AddrAdd        0.7
+    3268  Load           Bool
+    3270  Or             
+    3271  Store          Bool
+    3273  PushAddr       %Q0.5
+    3282  AddrInst       24.0
+    3287  AddrAdd        26.1
+    3292  Load           Bool
+    3294  Store          Bool
+    3296  PushAddr       %Q0.6
+    3305  AddrInst       20.1
+    3310  Load           Bool
+    3312  AddrInst       20.0
+    3317  Load           Bool
+    3319  Or             
+    3320  Store          Bool
+    3322  PushAddr       %Q0.7
+    3331  AddrInst       14.0
+    3336  Load           Bool
+    3338  Store          Bool
+    3340  AddrInst       16.0
+    3345  FrameAlloc     16
+    3350  AddrNewFrame   4.0
+    3355  PushAddr       %I64.0
+    3364  Load           Int
+    3366  Store          Int
+    3368  AddrNewFrame   6.0
+    3373  PushF          0
+    3382  Store          Real
+    3384  AddrNewFrame   10.0
+    3389  PushF          100
+    3398  Store          Real
+    3400  Call           1 ; FC_ScaleAnalog
+    3403  AddrInst       20.0
+    3408  AddrNewFrame   14.0
+    3413  Load           Bool
+    3415  Store          Bool
+    3417  AddrNewFrame   0.0
+    3422  Load           Real
+    3424  FrameFree      
+    3425  Store          Real
+    3427  AddrInst       20.0
+    3432  Load           Bool
+    3434  Jz             -> 3460
+    3439  AddrInst       14.1
+    3444  PushI          0
+    3453  Store          Bool
+    3455  Jmp            -> 3542
+    3460  AddrInst       16.0
+    3465  Load           Real
+    3467  AddrInst       6.0
+    3472  Load           Real
+    3474  LtF            
+    3475  Jz             -> 3501
+    3480  AddrInst       14.1
+    3485  PushI          1
+    3494  Store          Bool
+    3496  Jmp            -> 3542
+    3501  AddrInst       16.0
+    3506  Load           Real
+    3508  AddrInst       10.0
+    3513  Load           Real
+    3515  GeF            
+    3516  Jz             -> 3542
+    3521  AddrInst       14.1
+    3526  PushI          0
+    3535  Store          Bool
+    3537  Jmp            -> 3542
+    3542  PushAddr       %Q1.0
+    3551  AddrInst       14.1
+    3556  Load           Bool
+    3558  Store          Bool
+    3560  PushAddr       %DB10.DBX0.0
+    3569  AddrInst       252.0
+    3574  AddrAdd        8.0
+    3579  MemCpy         16
+    3584  PushAddr       %DB10.DBX0.0
+    3593  AddrAdd        2.0
+    3598  AddrInst       318.0
+    3603  AddrAdd        8.0
+    3608  MemCpy         16
+    3613  PushAddr       %DB10.DBX0.0
+    3622  AddrAdd        4.0
+    3627  AddrInst       384.0
+    3632  AddrAdd        8.0
+    3637  MemCpy         16
+    3642  PushAddr       %DB10.DBX0.0
+    3651  AddrAdd        6.0
+    3656  AddrInst       450.0
+    3661  AddrAdd        8.0
+    3666  MemCpy         16
+    3671  PushAddr       %DB10.DBX0.0
+    3680  AddrAdd        8.0
+    3685  AddrInst       516.0
+    3690  AddrAdd        8.0
+    3695  MemCpy         16
+    3700  PushAddr       %DB10.DBX0.0
+    3709  AddrAdd        10.0
+    3714  AddrInst       24.0
+    3719  AddrAdd        26.1
+    3724  Load           Bool
+    3726  Store          Bool
+    3728  PushAddr       %DB10.DBX0.0
+    3737  AddrAdd        10.0
+    3742  AddrAdd        0.1
+    3747  AddrLocal      0.1
+    3752  Load           Bool
+    3754  Store          Bool
+    3756  PushAddr       %DB10.DBX0.0
+    3765  AddrAdd        10.0
+    3770  AddrAdd        0.2
+    3775  AddrInst       174.0
+    3780  AddrAdd        47.0
+    3785  Load           Bool
+    3787  Store          Bool
+    3789  PushAddr       %DB10.DBX0.0
+    3798  AddrAdd        10.0
+    3803  AddrAdd        0.3
+    3808  AddrInst       14.0
+    3813  Load           Bool
+    3815  Store          Bool
+    3817  PushAddr       %DB10.DBX0.0
+    3826  AddrAdd        32.0
+    3831  AddrInst       174.0
+    3836  AddrAdd        48.0
+    3841  Load           Int
+    3843  Store          Int
+    3845  PushAddr       %DB10.DBX0.0
+    3854  AddrAdd        32.0
+    3859  AddrAdd        2.0
+    3864  AddrInst       174.0
+    3869  AddrAdd        50.0
+    3874  Load           Int
+    3876  Store          Int
+    3878  PushAddr       %DB10.DBX0.0
+    3887  AddrAdd        32.0
+    3892  AddrAdd        4.0
+    3897  AddrInst       16.0
+    3902  Load           Real
+    3904  PushF          10
+    3913  MulF           
+    3914  F2F32          
+    3915  F2IRound       
+    3916  Wrap           Int
+    3918  Store          Int
+    3920  PushAddr       %DB10.DBX0.0
+    3929  AddrAdd        12.0
+    3934  PushI          0
+    3943  Store          Bool
+    3945  PushAddr       %DB10.DBX0.0
+    3954  AddrAdd        12.0
+    3959  AddrAdd        0.1
+    3964  PushI          0
+    3973  Store          Bool
+    3975  PushAddr       %DB10.DBX0.0
+    3984  AddrAdd        12.0
+    3989  AddrAdd        0.2
+    3994  PushI          0
+    4003  Store          Bool
+    4005  PushAddr       %DB10.DBX0.0
+    4014  AddrAdd        12.0
+    4019  AddrAdd        0.3
+    4024  PushI          0
+    4033  Store          Bool
+    4035  AddrLocal      28.0
+    4040  PushI          0
+    4049  Store          Int
+    4051  AddrLocal      30.0
+    4056  PushI          39
+    4065  Store          LInt
+    4067  AddrLocal      28.0
+    4072  Load           Int
+    4074  AddrLocal      30.0
+    4079  Load           LInt
+    4081  GtI            
+    4082  Jnz            -> 4193
+    4087  PushAddr       %DB10.DBX0.0
+    4096  AddrAdd        14.0
+    4101  AddrLocal      28.0
+    4106  Load           Int
+    4108  AddrIndex      0, 1, 40
+    4121  PushI          0
+    4130  Store          Bool
+    4132  AddrLocal      28.0
+    4137  AddrLocal      28.0
+    4142  Load           Int
+    4144  PushI          1
+    4153  AddI           
+    4154  Dup            
+    4155  Wrap           Int
+    4157  EqI            
+    4158  Jz             -> 4193
+    4163  AddrLocal      28.0
+    4168  AddrLocal      28.0
+    4173  Load           Int
+    4175  PushI          1
+    4184  AddI           
+    4185  Store          Int
+    4187  Drop           
+    4188  Jmp            -> 4067
+    4193  Ret            
+    4194  Jmp            -> 5
+
+; ===== [9] OB1 "Main" (14_OB1_Main.scl) =====
+; line table: 11@5 
+       0  Jmp            -> 18
+       5  PushAddr       %DB1.DBX0.0
+      14  CallFB         8 ; FB_FluffSilo
+      17  Ret            
+      18  Jmp            -> 5
+
+; ===== [10] OB100 "Startup" (15_OB100_Startup.scl) =====
+; line table: 23@5 24@30 25@60 26@90 27@120 28@150 29@202 32@308 33@374 35@388 
+       0  Jmp            -> 398
+       5  PushAddr       %DB10.DBX0.0
+      14  AddrAdd        12.0
+      19  PushI          0
+      28  Store          Bool
+      30  PushAddr       %DB10.DBX0.0
+      39  AddrAdd        12.0
+      44  AddrAdd        0.1
+      49  PushI          0
+      58  Store          Bool
+      60  PushAddr       %DB10.DBX0.0
+      69  AddrAdd        12.0
+      74  AddrAdd        0.2
+      79  PushI          0
+      88  Store          Bool
+      90  PushAddr       %DB10.DBX0.0
+      99  AddrAdd        12.0
+     104  AddrAdd        0.3
+     109  PushI          0
+     118  Store          Bool
+     120  PushAddr       %DB10.DBX0.0
+     129  AddrAdd        12.0
+     134  AddrAdd        0.4
+     139  PushI          0
+     148  Store          Bool
+     150  AddrLocal      2.0
+     155  PushI          0
+     164  Store          Int
+     166  AddrLocal      4.0
+     171  PushI          39
+     180  Store          LInt
+     182  AddrLocal      2.0
+     187  Load           Int
+     189  AddrLocal      4.0
+     194  Load           LInt
+     196  GtI            
+     197  Jnz            -> 308
+     202  PushAddr       %DB10.DBX0.0
+     211  AddrAdd        14.0
+     216  AddrLocal      2.0
+     221  Load           Int
+     223  AddrIndex      0, 1, 40
+     236  PushI          0
+     245  Store          Bool
+     247  AddrLocal      2.0
+     252  AddrLocal      2.0
+     257  Load           Int
+     259  PushI          1
+     268  AddI           
+     269  Dup            
+     270  Wrap           Int
+     272  EqI            
+     273  Jz             -> 308
+     278  AddrLocal      2.0
+     283  AddrLocal      2.0
+     288  Load           Int
+     290  PushI          1
+     299  AddI           
+     300  Store          Int
+     302  Drop           
+     303  Jmp            -> 182
+     308  AddrLocal      0.0
+     313  Load           Bool
+     315  PushAddr       %DB10.DBX0.0
+     324  AddrAdd        40.0
+     329  Load           Int
+     331  PushI          0
+     340  EqI            
+     341  PushAddr       %DB10.DBX0.0
+     350  AddrAdd        20.0
+     355  Load           Int
+     357  PushI          0
+     366  EqI            
+     367  And            
+     368  Or             
+     369  Jz             -> 388
+     374  FrameAlloc     0
+     379  Call           3 ; FC_LoadDefaults
+     382  FrameFree      
+     383  Jmp            -> 388
+     388  FrameAlloc     0
+     393  Call           2 ; FC_ValidateParams
+     396  FrameFree      
+     397  Ret            
+     398  Jmp            -> 5
+
+; ===== memory map =====
+PLC tags
+    %I0.5          Blower01_FB              Bool     Blower01 running feedback (contactor aux NO)
+    %I0.6          Blower01_OL              Bool     Blower01 overload relay OK (NC, 0 = tripped)
+    %Q0.0          Blower01_Run             Bool     Blower01 contactor K1
+    %I0.0          EStop_OK                 Bool     Safety relay: E-Stop chain healthy (1 = OK, NC chain)
+    %I0.4          ExtRequest_In            Bool     External Request from consumer (1 = material requested)
+    %Q1.0          Fill_Request             Bool     Request raw material for the silo (level < 25 %, off at 90 %)
+    %Q0.5          Lamp_AutoRun             Bool     Pilot lamp Auto Start mode (green)
+    %Q0.7          Lamp_EStop               Bool     Pilot lamp E-Stop active (yellow)
+    %Q0.6          Lamp_Fault               Bool     Pilot lamp fault (red)
+    %I1.1          Paddle01_FB              Bool     Paddle01 running feedback (contactor aux NO)
+    %I1.2          Paddle01_OL              Bool     Paddle01 overload relay OK (NC, 0 = tripped)
+    %Q0.2          Paddle01_Run             Bool     Paddle01 contactor K3
+    %I1.3          Paddle02_FB              Bool     Paddle02 running feedback (contactor aux NO)
+    %I1.4          Paddle02_OL              Bool     Paddle02 overload relay OK (NC, 0 = tripped)
+    %Q0.3          Paddle02_Run             Bool     Paddle02 contactor K4
+    %I1.5          Paddle03_FB              Bool     Paddle03 running feedback (contactor aux NO)
+    %I8.0          Paddle03_OL              Bool     Paddle03 overload relay OK (NC, 0 = tripped) - SM 1221 DI8
+    %Q0.4          Paddle03_Run             Bool     Paddle03 contactor K5
+    %I0.1          PB_AutoStart             Bool     Panel push button Auto Start (NO)
+    %I0.2          PB_AutoStop              Bool     Panel push button Auto Stop (NC, 0 = stop)
+    %I0.3          PB_Reset                 Bool     Panel push button Reset E-Stop / faults (NO)
+    %I0.7          Screw01_FB               Bool     Screw01 running feedback (contactor aux NO)
+    %I1.0          Screw01_OL               Bool     Screw01 overload relay OK (NC, 0 = tripped)
+    %Q0.1          Screw01_Run              Bool     Screw01 contactor K2
+    %I64.0         Silo_Level_AI            Int      Silo level sensor 0..10 V = 0..100 % (CPU AI0)
+
+DB10 "DB_HMI"  82 bytes  standard access
+    DBB0       Static   Dev                                      Array[0..4] of "typeDevStatus"   [retain]
+    DBB0       Static   Dev[0]                                   "typeDevStatus"              [retain]
+    DBX0.0     Static   Dev[0].AutoStart                         Bool                       FALSE  [retain]
+    DBX0.1     Static   Dev[0].AutoStop                          Bool                       FALSE  [retain]
+    DBX0.2     Static   Dev[0].Interlock                         Bool                       FALSE  [retain]
+    DBX0.3     Static   Dev[0].ManualStart                       Bool                       FALSE  [retain]
+    DBX0.4     Static   Dev[0].ManualStop                        Bool                       FALSE  [retain]
+    DBX0.5     Static   Dev[0].Enable                            Bool                       FALSE  [retain]
+    DBX0.6     Static   Dev[0].Disable                           Bool                       FALSE  [retain]
+    DBX0.7     Static   Dev[0].Fault                             Bool                       FALSE  [retain]
+    DBX1.0     Static   Dev[0].EStop                             Bool                       FALSE  [retain]
+    DBX1.1     Static   Dev[0].Running                           Bool                       FALSE  [retain]
+    DBB2       Static   Dev[1]                                   "typeDevStatus"              [retain]
+    DBX2.0     Static   Dev[1].AutoStart                         Bool                       FALSE  [retain]
+    DBX2.1     Static   Dev[1].AutoStop                          Bool                       FALSE  [retain]
+    DBX2.2     Static   Dev[1].Interlock                         Bool                       FALSE  [retain]
+    DBX2.3     Static   Dev[1].ManualStart                       Bool                       FALSE  [retain]
+    DBX2.4     Static   Dev[1].ManualStop                        Bool                       FALSE  [retain]
+    DBX2.5     Static   Dev[1].Enable                            Bool                       FALSE  [retain]
+    DBX2.6     Static   Dev[1].Disable                           Bool                       FALSE  [retain]
+    DBX2.7     Static   Dev[1].Fault                             Bool                       FALSE  [retain]
+    DBX3.0     Static   Dev[1].EStop                             Bool                       FALSE  [retain]
+    DBX3.1     Static   Dev[1].Running                           Bool                       FALSE  [retain]
+    DBB4       Static   Dev[2]                                   "typeDevStatus"              [retain]
+    DBX4.0     Static   Dev[2].AutoStart                         Bool                       FALSE  [retain]
+    DBX4.1     Static   Dev[2].AutoStop                          Bool                       FALSE  [retain]
+    DBX4.2     Static   Dev[2].Interlock                         Bool                       FALSE  [retain]
+    DBX4.3     Static   Dev[2].ManualStart                       Bool                       FALSE  [retain]
+    DBX4.4     Static   Dev[2].ManualStop                        Bool                       FALSE  [retain]
+    DBX4.5     Static   Dev[2].Enable                            Bool                       FALSE  [retain]
+    DBX4.6     Static   Dev[2].Disable                           Bool                       FALSE  [retain]
+    DBX4.7     Static   Dev[2].Fault                             Bool                       FALSE  [retain]
+    DBX5.0     Static   Dev[2].EStop                             Bool                       FALSE  [retain]
+    DBX5.1     Static   Dev[2].Running                           Bool                       FALSE  [retain]
+    DBB6       Static   Dev[3]                                   "typeDevStatus"              [retain]
+    DBX6.0     Static   Dev[3].AutoStart                         Bool                       FALSE  [retain]
+    DBX6.1     Static   Dev[3].AutoStop                          Bool                       FALSE  [retain]
+    DBX6.2     Static   Dev[3].Interlock                         Bool                       FALSE  [retain]
+    DBX6.3     Static   Dev[3].ManualStart                       Bool                       FALSE  [retain]
+    DBX6.4     Static   Dev[3].ManualStop                        Bool                       FALSE  [retain]
+    DBX6.5     Static   Dev[3].Enable                            Bool                       FALSE  [retain]
+    DBX6.6     Static   Dev[3].Disable                           Bool                       FALSE  [retain]
+    DBX6.7     Static   Dev[3].Fault                             Bool                       FALSE  [retain]
+    DBX7.0     Static   Dev[3].EStop                             Bool                       FALSE  [retain]
+    DBX7.1     Static   Dev[3].Running                           Bool                       FALSE  [retain]
+    DBB8       Static   Dev[4]                                   "typeDevStatus"              [retain]
+    DBX8.0     Static   Dev[4].AutoStart                         Bool                       FALSE  [retain]
+    DBX8.1     Static   Dev[4].AutoStop                          Bool                       FALSE  [retain]
+    DBX8.2     Static   Dev[4].Interlock                         Bool                       FALSE  [retain]
+    DBX8.3     Static   Dev[4].ManualStart                       Bool                       FALSE  [retain]
+    DBX8.4     Static   Dev[4].ManualStop                        Bool                       FALSE  [retain]
+    DBX8.5     Static   Dev[4].Enable                            Bool                       FALSE  [retain]
+    DBX8.6     Static   Dev[4].Disable                           Bool                       FALSE  [retain]
+    DBX8.7     Static   Dev[4].Fault                             Bool                       FALSE  [retain]
+    DBX9.0     Static   Dev[4].EStop                             Bool                       FALSE  [retain]
+    DBX9.1     Static   Dev[4].Running                           Bool                       FALSE  [retain]
+    DBB10      Static   Sys                                      Struct                       [retain]
+    DBX10.0    Static   Sys.AutoMode                             Bool                       FALSE  [retain]
+    DBX10.1    Static   Sys.ExtRequest                           Bool                       FALSE  [retain]
+    DBX10.2    Static   Sys.PatternActive                        Bool                       FALSE  [retain]
+    DBX10.3    Static   Sys.EStop                                Bool                       FALSE  [retain]
+    DBB12      Static   Cmd                                      Struct                       [retain]
+    DBX12.0    Static   Cmd.AutoStart                            Bool                       FALSE  [retain]
+    DBX12.1    Static   Cmd.AutoStop                             Bool                       FALSE  [retain]
+    DBX12.2    Static   Cmd.EStop                                Bool                       FALSE  [retain]
+    DBX12.3    Static   Cmd.ResetEStop                           Bool                       FALSE  [retain]
+    DBX12.4    Static   Cmd.ExtRequest                           Bool                       FALSE  [retain]
+    DBB14      Static   DevCmd                                   Array[0..39] of Bool         [retain]
+    DBX14.0    Static   DevCmd[0]                                Bool                       FALSE  [retain]
+    DBX14.1    Static   DevCmd[1]                                Bool                       FALSE  [retain]
+    DBX14.2    Static   DevCmd[2]                                Bool                       FALSE  [retain]
+    DBX14.3    Static   DevCmd[3]                                Bool                       FALSE  [retain]
+    DBX14.4    Static   DevCmd[4]                                Bool                       FALSE  [retain]
+    DBX14.5    Static   DevCmd[5]                                Bool                       FALSE  [retain]
+    DBX14.6    Static   DevCmd[6]                                Bool                       FALSE  [retain]
+    DBX14.7    Static   DevCmd[7]                                Bool                       FALSE  [retain]
+    DBX15.0    Static   DevCmd[8]                                Bool                       FALSE  [retain]
+    DBX15.1    Static   DevCmd[9]                                Bool                       FALSE  [retain]
+    DBX15.2    Static   DevCmd[10]                               Bool                       FALSE  [retain]
+    DBX15.3    Static   DevCmd[11]                               Bool                       FALSE  [retain]
+    DBX15.4    Static   DevCmd[12]                               Bool                       FALSE  [retain]
+    DBX15.5    Static   DevCmd[13]                               Bool                       FALSE  [retain]
+    DBX15.6    Static   DevCmd[14]                               Bool                       FALSE  [retain]
+    DBX15.7    Static   DevCmd[15]                               Bool                       FALSE  [retain]
+    DBX16.0    Static   DevCmd[16]                               Bool                       FALSE  [retain]
+    DBX16.1    Static   DevCmd[17]                               Bool                       FALSE  [retain]
+    DBX16.2    Static   DevCmd[18]                               Bool                       FALSE  [retain]
+    DBX16.3    Static   DevCmd[19]                               Bool                       FALSE  [retain]
+    DBX16.4    Static   DevCmd[20]                               Bool                       FALSE  [retain]
+    DBX16.5    Static   DevCmd[21]                               Bool                       FALSE  [retain]
+    DBX16.6    Static   DevCmd[22]                               Bool                       FALSE  [retain]
+    DBX16.7    Static   DevCmd[23]                               Bool                       FALSE  [retain]
+    DBX17.0    Static   DevCmd[24]                               Bool                       FALSE  [retain]
+    DBX17.1    Static   DevCmd[25]                               Bool                       FALSE  [retain]
+    DBX17.2    Static   DevCmd[26]                               Bool                       FALSE  [retain]
+    DBX17.3    Static   DevCmd[27]                               Bool                       FALSE  [retain]
+    DBX17.4    Static   DevCmd[28]                               Bool                       FALSE  [retain]
+    DBX17.5    Static   DevCmd[29]                               Bool                       FALSE  [retain]
+    DBX17.6    Static   DevCmd[30]                               Bool                       FALSE  [retain]
+    DBX17.7    Static   DevCmd[31]                               Bool                       FALSE  [retain]
+    DBX18.0    Static   DevCmd[32]                               Bool                       FALSE  [retain]
+    DBX18.1    Static   DevCmd[33]                               Bool                       FALSE  [retain]
+    DBX18.2    Static   DevCmd[34]                               Bool                       FALSE  [retain]
+    DBX18.3    Static   DevCmd[35]                               Bool                       FALSE  [retain]
+    DBX18.4    Static   DevCmd[36]                               Bool                       FALSE  [retain]
+    DBX18.5    Static   DevCmd[37]                               Bool                       FALSE  [retain]
+    DBX18.6    Static   DevCmd[38]                               Bool                       FALSE  [retain]
+    DBX18.7    Static   DevCmd[39]                               Bool                       FALSE  [retain]
+    DBB20      Static   Delay                                    Array[0..5] of Int           [retain]
+    DBW20      Static   Delay[0]                                 Int                        70  [retain]
+    DBW22      Static   Delay[1]                                 Int                        30  [retain]
+    DBW24      Static   Delay[2]                                 Int                        30  [retain]
+    DBW26      Static   Delay[3]                                 Int                        30  [retain]
+    DBW28      Static   Delay[4]                                 Int                        50  [retain]
+    DBW30      Static   Delay[5]                                 Int                        50  [retain]
+    DBB32      Static   Proc                                     Struct                       [retain]
+    DBW32      Static   Proc.CurrentStep                         Int                        0  [retain]
+    DBW34      Static   Proc.StepElapsed                         Int                        0  [retain]
+    DBW36      Static   Proc.SiloLevel                           Int                        0  [retain]
+    DBW38      Static   Proc.Spare                               Int                        0  [retain]
+    DBB40      Static   Pattern                                  Struct                       [retain]
+    DBW40      Static   Pattern.StepCount                        Int                        6  [retain]
+    DBB42      Static   Pattern.Mask                             Array[0..9] of Int           [retain]
+    DBW42      Static   Pattern.Mask[0]                          Int                        1  [retain]
+    DBW44      Static   Pattern.Mask[1]                          Int                        0  [retain]
+    DBW46      Static   Pattern.Mask[2]                          Int                        2  [retain]
+    DBW48      Static   Pattern.Mask[3]                          Int                        0  [retain]
+    DBW50      Static   Pattern.Mask[4]                          Int                        4  [retain]
+    DBW52      Static   Pattern.Mask[5]                          Int                        0  [retain]
+    DBW54      Static   Pattern.Mask[6]                          Int                        0  [retain]
+    DBW56      Static   Pattern.Mask[7]                          Int                        0  [retain]
+    DBW58      Static   Pattern.Mask[8]                          Int                        0  [retain]
+    DBW60      Static   Pattern.Mask[9]                          Int                        0  [retain]
+    DBB62      Static   Pattern.StepTime                         Array[0..9] of Int           [retain]
+    DBW62      Static   Pattern.StepTime[0]                      Int                        80  [retain]
+    DBW64      Static   Pattern.StepTime[1]                      Int                        20  [retain]
+    DBW66      Static   Pattern.StepTime[2]                      Int                        80  [retain]
+    DBW68      Static   Pattern.StepTime[3]                      Int                        20  [retain]
+    DBW70      Static   Pattern.StepTime[4]                      Int                        80  [retain]
+    DBW72      Static   Pattern.StepTime[5]                      Int                        20  [retain]
+    DBW74      Static   Pattern.StepTime[6]                      Int                        50  [retain]
+    DBW76      Static   Pattern.StepTime[7]                      Int                        50  [retain]
+    DBW78      Static   Pattern.StepTime[8]                      Int                        50  [retain]
+    DBW80      Static   Pattern.StepTime[9]                      Int                        50  [retain]
+
+DB1 "iDB_FluffSilo"  582 bytes  instance of "FB_FluffSilo"  optimized
+    0.0        Static   FbTimeout                                Time                       T#3S
+    4.0        Static   SafeInterlock                            Bool                       FALSE
+    4.1        Static   RestartAfterBlowerTrip                   Bool                       TRUE
+    6.0        Static   FillOnLevel                              Real                       25
+    10.0       Static   FillOffLevel                             Real                       90
+    14.0       Static   EStopLatch                               Bool                       FALSE
+    14.1       Static   FillReq                                  Bool                       FALSE
+    16.0       Static   LevelPct                                 Real                       0
+    20.0       Static   LevelSensorFault                         Bool                       FALSE
+    20.1       Static   AnyFault                                 Bool                       FALSE
+    22.0       Static   rtReset                                  R_TRIG                     
+    22.0       Static   rtReset.CLK                              Bool                       FALSE
+    22.1       Static   rtReset.Q                                Bool                       FALSE
+    24.0       Static   Seq                                      "FB_Sequencer"             
+    24.0       Static   Seq.CmdAutoStart                         Bool                       FALSE
+    24.1       Static   Seq.CmdAutoStop                          Bool                       FALSE
+    24.2       Static   Seq.EStopActive                          Bool                       FALSE
+    24.3       Static   Seq.ExtRequest                           Bool                       FALSE
+    24.4       Static   Seq.BlowerRunning                        Bool                       FALSE
+    24.5       Static   Seq.ScrewRunning                         Bool                       FALSE
+    26.0       Static   Seq.TBlowerToScrew                       Time                       T#7S
+    30.0       Static   Seq.TReqHold                             Time                       T#3S
+    34.0       Static   Seq.TScrewToPaddle                       Time                       T#3S
+    38.0       Static   Seq.TReqOffScrewStop                     Time                       T#3S
+    42.0       Static   Seq.TScrewTripBlower                     Time                       T#5S
+    46.0       Static   Seq.TAutoStopBlower                      Time                       T#5S
+    50.0       Static   Seq.RestartAfterBlowerTrip               Bool                       TRUE
+    50.1       Static   Seq.AutoMode                             Bool                       FALSE
+    50.2       Static   Seq.BlowerAutoStart                      Bool                       FALSE
+    50.3       Static   Seq.BlowerAutoStop                       Bool                       FALSE
+    50.4       Static   Seq.ScrewAutoStart                       Bool                       FALSE
+    50.5       Static   Seq.ScrewAutoStop                        Bool                       FALSE
+    50.6       Static   Seq.ScrewInterlock                       Bool                       FALSE
+    50.7       Static   Seq.PaddleAutoStop                       Bool                       FALSE
+    51.0       Static   Seq.PaddleInterlock                      Bool                       FALSE
+    51.1       Static   Seq.PatternCmd                           Bool                       FALSE
+    51.2       Static   Seq.BlowerStopPending                    Bool                       FALSE
+    52.0       Static   Seq.BlowerStopRemaining                  Time                       T#0S
+    56.0       Static   Seq.BlowerCmd                            Bool                       FALSE
+    56.1       Static   Seq.ScrewCmd                             Bool                       FALSE
+    56.2       Static   Seq.PrevBlowerRun                        Bool                       FALSE
+    56.3       Static   Seq.PrevScrewRun                         Bool                       FALSE
+    58.0       Static   Seq.StopDelay                            Time                       T#0S
+    62.0       Static   Seq.rtStart                              R_TRIG                     
+    62.0       Static   Seq.rtStart.CLK                          Bool                       FALSE
+    62.1       Static   Seq.rtStart.Q                            Bool                       FALSE
+    64.0       Static   Seq.tmReqOn                              TON_TIME                   
+    64.0       Static   Seq.tmReqOn.IN                           Bool                       FALSE
+    64.1       Static   Seq.tmReqOn.R                            Bool                       FALSE
+    66.0       Static   Seq.tmReqOn.PT                           Time                       T#0S
+    70.0       Static   Seq.tmReqOn.Q                            Bool                       FALSE
+    72.0       Static   Seq.tmReqOn.ET                           Time                       T#0S
+    86.0       Static   Seq.tmReqOff                             TON_TIME                   
+    86.0       Static   Seq.tmReqOff.IN                          Bool                       FALSE
+    86.1       Static   Seq.tmReqOff.R                           Bool                       FALSE
+    88.0       Static   Seq.tmReqOff.PT                          Time                       T#0S
+    92.0       Static   Seq.tmReqOff.Q                           Bool                       FALSE
+    94.0       Static   Seq.tmReqOff.ET                          Time                       T#0S
+    108.0      Static   Seq.tmBlowerReady                        TON_TIME                   
+    108.0      Static   Seq.tmBlowerReady.IN                     Bool                       FALSE
+    108.1      Static   Seq.tmBlowerReady.R                      Bool                       FALSE
+    110.0      Static   Seq.tmBlowerReady.PT                     Time                       T#0S
+    114.0      Static   Seq.tmBlowerReady.Q                      Bool                       FALSE
+    116.0      Static   Seq.tmBlowerReady.ET                     Time                       T#0S
+    130.0      Static   Seq.tmScrewReady                         TON_TIME                   
+    130.0      Static   Seq.tmScrewReady.IN                      Bool                       FALSE
+    130.1      Static   Seq.tmScrewReady.R                       Bool                       FALSE
+    132.0      Static   Seq.tmScrewReady.PT                      Time                       T#0S
+    136.0      Static   Seq.tmScrewReady.Q                       Bool                       FALSE
+    138.0      Static   Seq.tmScrewReady.ET                      Time                       T#0S
+    152.0      Static   Seq.tmBlowerStop                         TON_TIME                   
+    152.0      Static   Seq.tmBlowerStop.IN                      Bool                       FALSE
+    152.1      Static   Seq.tmBlowerStop.R                       Bool                       FALSE
+    154.0      Static   Seq.tmBlowerStop.PT                      Time                       T#0S
+    158.0      Static   Seq.tmBlowerStop.Q                       Bool                       FALSE
+    160.0      Static   Seq.tmBlowerStop.ET                      Time                       T#0S
+    174.0      Static   Pattern                                  "FB_PaddlePattern"         
+    174.0      Static   Pattern.Enable                           Bool                       FALSE
+    176.0      Static   Pattern.Available                        Array[0..2] of Bool        
+    176.0      Static   Pattern.Available[0]                     Bool                       FALSE
+    176.1      Static   Pattern.Available[1]                     Bool                       FALSE
+    176.2      Static   Pattern.Available[2]                     Bool                       FALSE
+    178.0      Static   Pattern.StepCount                        Int                        0
+    180.0      Static   Pattern.Mask                             Array[0..9] of Int         
+    180.0      Static   Pattern.Mask[0]                          Int                        0
+    182.0      Static   Pattern.Mask[1]                          Int                        0
+    184.0      Static   Pattern.Mask[2]                          Int                        0
+    186.0      Static   Pattern.Mask[3]                          Int                        0
+    188.0      Static   Pattern.Mask[4]                          Int                        0
+    190.0      Static   Pattern.Mask[5]                          Int                        0
+    192.0      Static   Pattern.Mask[6]                          Int                        0
+    194.0      Static   Pattern.Mask[7]                          Int                        0
+    196.0      Static   Pattern.Mask[8]                          Int                        0
+    198.0      Static   Pattern.Mask[9]                          Int                        0
+    200.0      Static   Pattern.StepTime                         Array[0..9] of Int         
+    200.0      Static   Pattern.StepTime[0]                      Int                        0
+    202.0      Static   Pattern.StepTime[1]                      Int                        0
+    204.0      Static   Pattern.StepTime[2]                      Int                        0
+    206.0      Static   Pattern.StepTime[3]                      Int                        0
+    208.0      Static   Pattern.StepTime[4]                      Int                        0
+    210.0      Static   Pattern.StepTime[5]                      Int                        0
+    212.0      Static   Pattern.StepTime[6]                      Int                        0
+    214.0      Static   Pattern.StepTime[7]                      Int                        0
+    216.0      Static   Pattern.StepTime[8]                      Int                        0
+    218.0      Static   Pattern.StepTime[9]                      Int                        0
+    220.0      Static   Pattern.PaddleCmd                        Array[0..2] of Bool        
+    220.0      Static   Pattern.PaddleCmd[0]                     Bool                       FALSE
+    220.1      Static   Pattern.PaddleCmd[1]                     Bool                       FALSE
+    220.2      Static   Pattern.PaddleCmd[2]                     Bool                       FALSE
+    221.0      Static   Pattern.Active                           Bool                       FALSE
+    222.0      Static   Pattern.CurrentStep                      Int                        0
+    224.0      Static   Pattern.ElapsedTenths                    Int                        0
+    226.0      Static   Pattern.Step                             Int                        0
+    228.0      Static   Pattern.Restart                          Bool                       FALSE
+    230.0      Static   Pattern.tmStep                           TON_TIME                   
+    230.0      Static   Pattern.tmStep.IN                        Bool                       FALSE
+    230.1      Static   Pattern.tmStep.R                         Bool                       FALSE
+    232.0      Static   Pattern.tmStep.PT                        Time                       T#0S
+    236.0      Static   Pattern.tmStep.Q                         Bool                       FALSE
+    238.0      Static   Pattern.tmStep.ET                        Time                       T#0S
+    252.0      Static   Blower01                                 "FB_Motor"                 
+    252.0      Static   Blower01.AutoStart                       Bool                       FALSE
+    252.1      Static   Blower01.AutoStop                        Bool                       FALSE
+    252.2      Static   Blower01.Interlock                       Bool                       FALSE
+    252.3      Static   Blower01.EStop                           Bool                       FALSE
+    252.4      Static   Blower01.CmdManStart                     Bool                       FALSE
+    252.5      Static   Blower01.CmdManStop                      Bool                       FALSE
+    252.6      Static   Blower01.CmdReturnAuto                   Bool                       FALSE
+    252.7      Static   Blower01.CmdEnable                       Bool                       FALSE
+    253.0      Static   Blower01.CmdDisable                      Bool                       FALSE
+    253.1      Static   Blower01.CmdResetFault                   Bool                       FALSE
+    253.2      Static   Blower01.Feedback                        Bool                       FALSE
+    253.3      Static   Blower01.OverloadOK                      Bool                       FALSE
+    254.0      Static   Blower01.FbTimeout                       Time                       T#3S
+    258.0      Static   Blower01.SafeInterlock                   Bool                       FALSE
+    258.1      Static   Blower01.Run                             Bool                       FALSE
+    258.2      Static   Blower01.Available                       Bool                       FALSE
+    260.0      Static   Blower01.Status                          "typeDevStatus"            
+    260.0      Static   Blower01.Status.AutoStart                Bool                       FALSE
+    260.1      Static   Blower01.Status.AutoStop                 Bool                       FALSE
+    260.2      Static   Blower01.Status.Interlock                Bool                       FALSE
+    260.3      Static   Blower01.Status.ManualStart              Bool                       FALSE
+    260.4      Static   Blower01.Status.ManualStop               Bool                       FALSE
+    260.5      Static   Blower01.Status.Enable                   Bool                       FALSE
+    260.6      Static   Blower01.Status.Disable                  Bool                       FALSE
+    260.7      Static   Blower01.Status.Fault                    Bool                       FALSE
+    261.0      Static   Blower01.Status.EStop                    Bool                       FALSE
+    261.1      Static   Blower01.Status.Running                  Bool                       FALSE
+    262.0      Static   Blower01.CtrlLevel                       Int                        0
+    264.0      Static   Blower01.FaultCode                       Int                        0
+    266.0      Static   Blower01.StartCount                      DInt                       0
+    270.0      Static   Blower01.ManStart                        Bool                       FALSE
+    270.1      Static   Blower01.ManStop                         Bool                       FALSE
+    270.2      Static   Blower01.Disabled                        Bool                       FALSE
+    270.3      Static   Blower01.Faulted                         Bool                       FALSE
+    272.0      Static   Blower01.tmNoFb                          TON_TIME                   
+    272.0      Static   Blower01.tmNoFb.IN                       Bool                       FALSE
+    272.1      Static   Blower01.tmNoFb.R                        Bool                       FALSE
+    274.0      Static   Blower01.tmNoFb.PT                       Time                       T#0S
+    278.0      Static   Blower01.tmNoFb.Q                        Bool                       FALSE
+    280.0      Static   Blower01.tmNoFb.ET                       Time                       T#0S
+    294.0      Static   Blower01.tmFbNoCmd                       TON_TIME                   
+    294.0      Static   Blower01.tmFbNoCmd.IN                    Bool                       FALSE
+    294.1      Static   Blower01.tmFbNoCmd.R                     Bool                       FALSE
+    296.0      Static   Blower01.tmFbNoCmd.PT                    Time                       T#0S
+    300.0      Static   Blower01.tmFbNoCmd.Q                     Bool                       FALSE
+    302.0      Static   Blower01.tmFbNoCmd.ET                    Time                       T#0S
+    316.0      Static   Blower01.rtFb                            R_TRIG                     
+    316.0      Static   Blower01.rtFb.CLK                        Bool                       FALSE
+    316.1      Static   Blower01.rtFb.Q                          Bool                       FALSE
+    318.0      Static   Screw01                                  "FB_Motor"                 
+    318.0      Static   Screw01.AutoStart                        Bool                       FALSE
+    318.1      Static   Screw01.AutoStop                         Bool                       FALSE
+    318.2      Static   Screw01.Interlock                        Bool                       FALSE
+    318.3      Static   Screw01.EStop                            Bool                       FALSE
+    318.4      Static   Screw01.CmdManStart                      Bool                       FALSE
+    318.5      Static   Screw01.CmdManStop                       Bool                       FALSE
+    318.6      Static   Screw01.CmdReturnAuto                    Bool                       FALSE
+    318.7      Static   Screw01.CmdEnable                        Bool                       FALSE
+    319.0      Static   Screw01.CmdDisable                       Bool                       FALSE
+    319.1      Static   Screw01.CmdResetFault                    Bool                       FALSE
+    319.2      Static   Screw01.Feedback                         Bool                       FALSE
+    319.3      Static   Screw01.OverloadOK                       Bool                       FALSE
+    320.0      Static   Screw01.FbTimeout                        Time                       T#3S
+    324.0      Static   Screw01.SafeInterlock                    Bool                       FALSE
+    324.1      Static   Screw01.Run                              Bool                       FALSE
+    324.2      Static   Screw01.Available                        Bool                       FALSE
+    326.0      Static   Screw01.Status                           "typeDevStatus"            
+    326.0      Static   Screw01.Status.AutoStart                 Bool                       FALSE
+    326.1      Static   Screw01.Status.AutoStop                  Bool                       FALSE
+    326.2      Static   Screw01.Status.Interlock                 Bool                       FALSE
+    326.3      Static   Screw01.Status.ManualStart               Bool                       FALSE
+    326.4      Static   Screw01.Status.ManualStop                Bool                       FALSE
+    326.5      Static   Screw01.Status.Enable                    Bool                       FALSE
+    326.6      Static   Screw01.Status.Disable                   Bool                       FALSE
+    326.7      Static   Screw01.Status.Fault                     Bool                       FALSE
+    327.0      Static   Screw01.Status.EStop                     Bool                       FALSE
+    327.1      Static   Screw01.Status.Running                   Bool                       FALSE
+    328.0      Static   Screw01.CtrlLevel                        Int                        0
+    330.0      Static   Screw01.FaultCode                        Int                        0
+    332.0      Static   Screw01.StartCount                       DInt                       0
+    336.0      Static   Screw01.ManStart                         Bool                       FALSE
+    336.1      Static   Screw01.ManStop                          Bool                       FALSE
+    336.2      Static   Screw01.Disabled                         Bool                       FALSE
+    336.3      Static   Screw01.Faulted                          Bool                       FALSE
+    338.0      Static   Screw01.tmNoFb                           TON_TIME                   
+    338.0      Static   Screw01.tmNoFb.IN                        Bool                       FALSE
+    338.1      Static   Screw01.tmNoFb.R                         Bool                       FALSE
+    340.0      Static   Screw01.tmNoFb.PT                        Time                       T#0S
+    344.0      Static   Screw01.tmNoFb.Q                         Bool                       FALSE
+    346.0      Static   Screw01.tmNoFb.ET                        Time                       T#0S
+    360.0      Static   Screw01.tmFbNoCmd                        TON_TIME                   
+    360.0      Static   Screw01.tmFbNoCmd.IN                     Bool                       FALSE
+    360.1      Static   Screw01.tmFbNoCmd.R                      Bool                       FALSE
+    362.0      Static   Screw01.tmFbNoCmd.PT                     Time                       T#0S
+    366.0      Static   Screw01.tmFbNoCmd.Q                      Bool                       FALSE
+    368.0      Static   Screw01.tmFbNoCmd.ET                     Time                       T#0S
+    382.0      Static   Screw01.rtFb                             R_TRIG                     
+    382.0      Static   Screw01.rtFb.CLK                         Bool                       FALSE
+    382.1      Static   Screw01.rtFb.Q                           Bool                       FALSE
+    384.0      Static   Paddle01                                 "FB_Motor"                 
+    384.0      Static   Paddle01.AutoStart                       Bool                       FALSE
+    384.1      Static   Paddle01.AutoStop                        Bool                       FALSE
+    384.2      Static   Paddle01.Interlock                       Bool                       FALSE
+    384.3      Static   Paddle01.EStop                           Bool                       FALSE
+    384.4      Static   Paddle01.CmdManStart                     Bool                       FALSE
+    384.5      Static   Paddle01.CmdManStop                      Bool                       FALSE
+    384.6      Static   Paddle01.CmdReturnAuto                   Bool                       FALSE
+    384.7      Static   Paddle01.CmdEnable                       Bool                       FALSE
+    385.0      Static   Paddle01.CmdDisable                      Bool                       FALSE
+    385.1      Static   Paddle01.CmdResetFault                   Bool                       FALSE
+    385.2      Static   Paddle01.Feedback                        Bool                       FALSE
+    385.3      Static   Paddle01.OverloadOK                      Bool                       FALSE
+    386.0      Static   Paddle01.FbTimeout                       Time                       T#3S
+    390.0      Static   Paddle01.SafeInterlock                   Bool                       FALSE
+    390.1      Static   Paddle01.Run                             Bool                       FALSE
+    390.2      Static   Paddle01.Available                       Bool                       FALSE
+    392.0      Static   Paddle01.Status                          "typeDevStatus"            
+    392.0      Static   Paddle01.Status.AutoStart                Bool                       FALSE
+    392.1      Static   Paddle01.Status.AutoStop                 Bool                       FALSE
+    392.2      Static   Paddle01.Status.Interlock                Bool                       FALSE
+    392.3      Static   Paddle01.Status.ManualStart              Bool                       FALSE
+    392.4      Static   Paddle01.Status.ManualStop               Bool                       FALSE
+    392.5      Static   Paddle01.Status.Enable                   Bool                       FALSE
+    392.6      Static   Paddle01.Status.Disable                  Bool                       FALSE
+    392.7      Static   Paddle01.Status.Fault                    Bool                       FALSE
+    393.0      Static   Paddle01.Status.EStop                    Bool                       FALSE
+    393.1      Static   Paddle01.Status.Running                  Bool                       FALSE
+    394.0      Static   Paddle01.CtrlLevel                       Int                        0
+    396.0      Static   Paddle01.FaultCode                       Int                        0
+    398.0      Static   Paddle01.StartCount                      DInt                       0
+    402.0      Static   Paddle01.ManStart                        Bool                       FALSE
+    402.1      Static   Paddle01.ManStop                         Bool                       FALSE
+    402.2      Static   Paddle01.Disabled                        Bool                       FALSE
+    402.3      Static   Paddle01.Faulted                         Bool                       FALSE
+    404.0      Static   Paddle01.tmNoFb                          TON_TIME                   
+    404.0      Static   Paddle01.tmNoFb.IN                       Bool                       FALSE
+    404.1      Static   Paddle01.tmNoFb.R                        Bool                       FALSE
+    406.0      Static   Paddle01.tmNoFb.PT                       Time                       T#0S
+    410.0      Static   Paddle01.tmNoFb.Q                        Bool                       FALSE
+    412.0      Static   Paddle01.tmNoFb.ET                       Time                       T#0S
+    426.0      Static   Paddle01.tmFbNoCmd                       TON_TIME                   
+    426.0      Static   Paddle01.tmFbNoCmd.IN                    Bool                       FALSE
+    426.1      Static   Paddle01.tmFbNoCmd.R                     Bool                       FALSE
+    428.0      Static   Paddle01.tmFbNoCmd.PT                    Time                       T#0S
+    432.0      Static   Paddle01.tmFbNoCmd.Q                     Bool                       FALSE
+    434.0      Static   Paddle01.tmFbNoCmd.ET                    Time                       T#0S
+    448.0      Static   Paddle01.rtFb                            R_TRIG                     
+    448.0      Static   Paddle01.rtFb.CLK                        Bool                       FALSE
+    448.1      Static   Paddle01.rtFb.Q                          Bool                       FALSE
+    450.0      Static   Paddle02                                 "FB_Motor"                 
+    450.0      Static   Paddle02.AutoStart                       Bool                       FALSE
+    450.1      Static   Paddle02.AutoStop                        Bool                       FALSE
+    450.2      Static   Paddle02.Interlock                       Bool                       FALSE
+    450.3      Static   Paddle02.EStop                           Bool                       FALSE
+    450.4      Static   Paddle02.CmdManStart                     Bool                       FALSE
+    450.5      Static   Paddle02.CmdManStop                      Bool                       FALSE
+    450.6      Static   Paddle02.CmdReturnAuto                   Bool                       FALSE
+    450.7      Static   Paddle02.CmdEnable                       Bool                       FALSE
+    451.0      Static   Paddle02.CmdDisable                      Bool                       FALSE
+    451.1      Static   Paddle02.CmdResetFault                   Bool                       FALSE
+    451.2      Static   Paddle02.Feedback                        Bool                       FALSE
+    451.3      Static   Paddle02.OverloadOK                      Bool                       FALSE
+    452.0      Static   Paddle02.FbTimeout                       Time                       T#3S
+    456.0      Static   Paddle02.SafeInterlock                   Bool                       FALSE
+    456.1      Static   Paddle02.Run                             Bool                       FALSE
+    456.2      Static   Paddle02.Available                       Bool                       FALSE
+    458.0      Static   Paddle02.Status                          "typeDevStatus"            
+    458.0      Static   Paddle02.Status.AutoStart                Bool                       FALSE
+    458.1      Static   Paddle02.Status.AutoStop                 Bool                       FALSE
+    458.2      Static   Paddle02.Status.Interlock                Bool                       FALSE
+    458.3      Static   Paddle02.Status.ManualStart              Bool                       FALSE
+    458.4      Static   Paddle02.Status.ManualStop               Bool                       FALSE
+    458.5      Static   Paddle02.Status.Enable                   Bool                       FALSE
+    458.6      Static   Paddle02.Status.Disable                  Bool                       FALSE
+    458.7      Static   Paddle02.Status.Fault                    Bool                       FALSE
+    459.0      Static   Paddle02.Status.EStop                    Bool                       FALSE
+    459.1      Static   Paddle02.Status.Running                  Bool                       FALSE
+    460.0      Static   Paddle02.CtrlLevel                       Int                        0
+    462.0      Static   Paddle02.FaultCode                       Int                        0
+    464.0      Static   Paddle02.StartCount                      DInt                       0
+    468.0      Static   Paddle02.ManStart                        Bool                       FALSE
+    468.1      Static   Paddle02.ManStop                         Bool                       FALSE
+    468.2      Static   Paddle02.Disabled                        Bool                       FALSE
+    468.3      Static   Paddle02.Faulted                         Bool                       FALSE
+    470.0      Static   Paddle02.tmNoFb                          TON_TIME                   
+    470.0      Static   Paddle02.tmNoFb.IN                       Bool                       FALSE
+    470.1      Static   Paddle02.tmNoFb.R                        Bool                       FALSE
+    472.0      Static   Paddle02.tmNoFb.PT                       Time                       T#0S
+    476.0      Static   Paddle02.tmNoFb.Q                        Bool                       FALSE
+    478.0      Static   Paddle02.tmNoFb.ET                       Time                       T#0S
+    492.0      Static   Paddle02.tmFbNoCmd                       TON_TIME                   
+    492.0      Static   Paddle02.tmFbNoCmd.IN                    Bool                       FALSE
+    492.1      Static   Paddle02.tmFbNoCmd.R                     Bool                       FALSE
+    494.0      Static   Paddle02.tmFbNoCmd.PT                    Time                       T#0S
+    498.0      Static   Paddle02.tmFbNoCmd.Q                     Bool                       FALSE
+    500.0      Static   Paddle02.tmFbNoCmd.ET                    Time                       T#0S
+    514.0      Static   Paddle02.rtFb                            R_TRIG                     
+    514.0      Static   Paddle02.rtFb.CLK                        Bool                       FALSE
+    514.1      Static   Paddle02.rtFb.Q                          Bool                       FALSE
+    516.0      Static   Paddle03                                 "FB_Motor"                 
+    516.0      Static   Paddle03.AutoStart                       Bool                       FALSE
+    516.1      Static   Paddle03.AutoStop                        Bool                       FALSE
+    516.2      Static   Paddle03.Interlock                       Bool                       FALSE
+    516.3      Static   Paddle03.EStop                           Bool                       FALSE
+    516.4      Static   Paddle03.CmdManStart                     Bool                       FALSE
+    516.5      Static   Paddle03.CmdManStop                      Bool                       FALSE
+    516.6      Static   Paddle03.CmdReturnAuto                   Bool                       FALSE
+    516.7      Static   Paddle03.CmdEnable                       Bool                       FALSE
+    517.0      Static   Paddle03.CmdDisable                      Bool                       FALSE
+    517.1      Static   Paddle03.CmdResetFault                   Bool                       FALSE
+    517.2      Static   Paddle03.Feedback                        Bool                       FALSE
+    517.3      Static   Paddle03.OverloadOK                      Bool                       FALSE
+    518.0      Static   Paddle03.FbTimeout                       Time                       T#3S
+    522.0      Static   Paddle03.SafeInterlock                   Bool                       FALSE
+    522.1      Static   Paddle03.Run                             Bool                       FALSE
+    522.2      Static   Paddle03.Available                       Bool                       FALSE
+    524.0      Static   Paddle03.Status                          "typeDevStatus"            
+    524.0      Static   Paddle03.Status.AutoStart                Bool                       FALSE
+    524.1      Static   Paddle03.Status.AutoStop                 Bool                       FALSE
+    524.2      Static   Paddle03.Status.Interlock                Bool                       FALSE
+    524.3      Static   Paddle03.Status.ManualStart              Bool                       FALSE
+    524.4      Static   Paddle03.Status.ManualStop               Bool                       FALSE
+    524.5      Static   Paddle03.Status.Enable                   Bool                       FALSE
+    524.6      Static   Paddle03.Status.Disable                  Bool                       FALSE
+    524.7      Static   Paddle03.Status.Fault                    Bool                       FALSE
+    525.0      Static   Paddle03.Status.EStop                    Bool                       FALSE
+    525.1      Static   Paddle03.Status.Running                  Bool                       FALSE
+    526.0      Static   Paddle03.CtrlLevel                       Int                        0
+    528.0      Static   Paddle03.FaultCode                       Int                        0
+    530.0      Static   Paddle03.StartCount                      DInt                       0
+    534.0      Static   Paddle03.ManStart                        Bool                       FALSE
+    534.1      Static   Paddle03.ManStop                         Bool                       FALSE
+    534.2      Static   Paddle03.Disabled                        Bool                       FALSE
+    534.3      Static   Paddle03.Faulted                         Bool                       FALSE
+    536.0      Static   Paddle03.tmNoFb                          TON_TIME                   
+    536.0      Static   Paddle03.tmNoFb.IN                       Bool                       FALSE
+    536.1      Static   Paddle03.tmNoFb.R                        Bool                       FALSE
+    538.0      Static   Paddle03.tmNoFb.PT                       Time                       T#0S
+    542.0      Static   Paddle03.tmNoFb.Q                        Bool                       FALSE
+    544.0      Static   Paddle03.tmNoFb.ET                       Time                       T#0S
+    558.0      Static   Paddle03.tmFbNoCmd                       TON_TIME                   
+    558.0      Static   Paddle03.tmFbNoCmd.IN                    Bool                       FALSE
+    558.1      Static   Paddle03.tmFbNoCmd.R                     Bool                       FALSE
+    560.0      Static   Paddle03.tmFbNoCmd.PT                    Time                       T#0S
+    564.0      Static   Paddle03.tmFbNoCmd.Q                     Bool                       FALSE
+    566.0      Static   Paddle03.tmFbNoCmd.ET                    Time                       T#0S
+    580.0      Static   Paddle03.rtFb                            R_TRIG                     
+    580.0      Static   Paddle03.rtFb.CLK                        Bool                       FALSE
+    580.1      Static   Paddle03.rtFb.Q                          Bool                       FALSE
+
+FC1 "FC_TenthsToTime"  parameters 6 bytes  temp 0 bytes  code 51 bytes
+    0.0        Return   RET_VAL                                  Time                       
+    4.0        Input    Tenths                                   Int                        
+
+FC2 "FC_ScaleAnalog"  parameters 16 bytes  temp 4 bytes  code 172 bytes
+    0.0        Return   RET_VAL                                  Real                       
+    4.0        Input    Raw                                      Int                        
+    6.0        Input    EngLow                                   Real                       
+    10.0       Input    EngHigh                                  Real                       
+    14.0       Output   Fault                                    Bool                       
+    16.0       Temp     norm                                     Real                       
+
+FC3 "FC_ValidateParams"  parameters 0 bytes  temp 18 bytes  code 585 bytes
+    0.0        Temp     i                                        Int                        
+
+FC4 "FC_LoadDefaults"  parameters 0 bytes  temp 10 bytes  code 729 bytes
+    0.0        Temp     i                                        Int                        
+
+FC5 "FC_StepBlocked"  parameters 12 bytes  temp 2 bytes  code 168 bytes
+    0.0        Return   RET_VAL                                  Bool                       
+    2.0        Input    Mask                                     Int                        
+    4.0        Input    Available                                Array[0..2] of Bool          [pointer]
+    12.0       Temp     w                                        Word                       
+
+FB1 "FB_Motor"  instance 66 bytes  temp 4 bytes  code 1427 bytes
+    0.0        Input    AutoStart                                Bool                       
+    0.1        Input    AutoStop                                 Bool                       
+    0.2        Input    Interlock                                Bool                       
+    0.3        Input    EStop                                    Bool                       
+    0.4        Input    CmdManStart                              Bool                       
+    0.5        Input    CmdManStop                               Bool                       
+    0.6        Input    CmdReturnAuto                            Bool                       
+    0.7        Input    CmdEnable                                Bool                       
+    1.0        Input    CmdDisable                               Bool                       
+    1.1        Input    CmdResetFault                            Bool                       
+    1.2        Input    Feedback                                 Bool                       
+    1.3        Input    OverloadOK                               Bool                       
+    2.0        Input    FbTimeout                                Time                       T#3S
+    6.0        Input    SafeInterlock                            Bool                       
+    6.1        Output   Run                                      Bool                       
+    6.2        Output   Available                                Bool                       
+    8.0        Output   Status                                   "typeDevStatus"            
+    8.0        Output   Status.AutoStart                         Bool                       
+    8.1        Output   Status.AutoStop                          Bool                       
+    8.2        Output   Status.Interlock                         Bool                       
+    8.3        Output   Status.ManualStart                       Bool                       
+    8.4        Output   Status.ManualStop                        Bool                       
+    8.5        Output   Status.Enable                            Bool                       
+    8.6        Output   Status.Disable                           Bool                       
+    8.7        Output   Status.Fault                             Bool                       
+    9.0        Output   Status.EStop                             Bool                       
+    9.1        Output   Status.Running                           Bool                       
+    10.0       Output   CtrlLevel                                Int                        
+    12.0       Output   FaultCode                                Int                        
+    14.0       Output   StartCount                               DInt                       
+    18.0       Static   ManStart                                 Bool                       
+    18.1       Static   ManStop                                  Bool                       
+    18.2       Static   Disabled                                 Bool                       
+    18.3       Static   Faulted                                  Bool                       
+    20.0       Static   tmNoFb                                   TON_TIME                   
+    20.0       Static   tmNoFb.IN                                Bool                       
+    20.1       Static   tmNoFb.R                                 Bool                       
+    22.0       Static   tmNoFb.PT                                Time                       
+    26.0       Static   tmNoFb.Q                                 Bool                       
+    28.0       Static   tmNoFb.ET                                Time                       
+    42.0       Static   tmFbNoCmd                                TON_TIME                   
+    42.0       Static   tmFbNoCmd.IN                             Bool                       
+    42.1       Static   tmFbNoCmd.R                              Bool                       
+    44.0       Static   tmFbNoCmd.PT                             Time                       
+    48.0       Static   tmFbNoCmd.Q                              Bool                       
+    50.0       Static   tmFbNoCmd.ET                             Time                       
+    64.0       Static   rtFb                                     R_TRIG                     
+    64.0       Static   rtFb.CLK                                 Bool                       
+    64.1       Static   rtFb.Q                                   Bool                       
+    0.0        Temp     doRun                                    Bool                       
+    2.0        Temp     lvl                                      Int                        
+
+FB2 "FB_Sequencer"  instance 150 bytes  temp 0 bytes  code 1400 bytes
+    0.0        Input    CmdAutoStart                             Bool                       
+    0.1        Input    CmdAutoStop                              Bool                       
+    0.2        Input    EStopActive                              Bool                       
+    0.3        Input    ExtRequest                               Bool                       
+    0.4        Input    BlowerRunning                            Bool                       
+    0.5        Input    ScrewRunning                             Bool                       
+    2.0        Input    TBlowerToScrew                           Time                       T#7S
+    6.0        Input    TReqHold                                 Time                       T#3S
+    10.0       Input    TScrewToPaddle                           Time                       T#3S
+    14.0       Input    TReqOffScrewStop                         Time                       T#3S
+    18.0       Input    TScrewTripBlower                         Time                       T#5S
+    22.0       Input    TAutoStopBlower                          Time                       T#5S
+    26.0       Input    RestartAfterBlowerTrip                   Bool                       TRUE
+    26.1       Output   AutoMode                                 Bool                       
+    26.2       Output   BlowerAutoStart                          Bool                       
+    26.3       Output   BlowerAutoStop                           Bool                       
+    26.4       Output   ScrewAutoStart                           Bool                       
+    26.5       Output   ScrewAutoStop                            Bool                       
+    26.6       Output   ScrewInterlock                           Bool                       
+    26.7       Output   PaddleAutoStop                           Bool                       
+    27.0       Output   PaddleInterlock                          Bool                       
+    27.1       Output   PatternCmd                               Bool                       
+    27.2       Output   BlowerStopPending                        Bool                       
+    28.0       Output   BlowerStopRemaining                      Time                       
+    32.0       Static   BlowerCmd                                Bool                       
+    32.1       Static   ScrewCmd                                 Bool                       
+    32.2       Static   PrevBlowerRun                            Bool                       
+    32.3       Static   PrevScrewRun                             Bool                       
+    34.0       Static   StopDelay                                Time                       
+    38.0       Static   rtStart                                  R_TRIG                     
+    38.0       Static   rtStart.CLK                              Bool                       
+    38.1       Static   rtStart.Q                                Bool                       
+    40.0       Static   tmReqOn                                  TON_TIME                   
+    40.0       Static   tmReqOn.IN                               Bool                       
+    40.1       Static   tmReqOn.R                                Bool                       
+    42.0       Static   tmReqOn.PT                               Time                       
+    46.0       Static   tmReqOn.Q                                Bool                       
+    48.0       Static   tmReqOn.ET                               Time                       
+    62.0       Static   tmReqOff                                 TON_TIME                   
+    62.0       Static   tmReqOff.IN                              Bool                       
+    62.1       Static   tmReqOff.R                               Bool                       
+    64.0       Static   tmReqOff.PT                              Time                       
+    68.0       Static   tmReqOff.Q                               Bool                       
+    70.0       Static   tmReqOff.ET                              Time                       
+    84.0       Static   tmBlowerReady                            TON_TIME                   
+    84.0       Static   tmBlowerReady.IN                         Bool                       
+    84.1       Static   tmBlowerReady.R                          Bool                       
+    86.0       Static   tmBlowerReady.PT                         Time                       
+    90.0       Static   tmBlowerReady.Q                          Bool                       
+    92.0       Static   tmBlowerReady.ET                         Time                       
+    106.0      Static   tmScrewReady                             TON_TIME                   
+    106.0      Static   tmScrewReady.IN                          Bool                       
+    106.1      Static   tmScrewReady.R                           Bool                       
+    108.0      Static   tmScrewReady.PT                          Time                       
+    112.0      Static   tmScrewReady.Q                           Bool                       
+    114.0      Static   tmScrewReady.ET                          Time                       
+    128.0      Static   tmBlowerStop                             TON_TIME                   
+    128.0      Static   tmBlowerStop.IN                          Bool                       
+    128.1      Static   tmBlowerStop.R                           Bool                       
+    130.0      Static   tmBlowerStop.PT                          Time                       
+    134.0      Static   tmBlowerStop.Q                           Bool                       
+    136.0      Static   tmBlowerStop.ET                          Time                       
+
+FB3 "FB_PaddlePattern"  instance 78 bytes  temp 34 bytes  code 1607 bytes
+    0.0        Input    Enable                                   Bool                       
+    2.0        Input    Available                                Array[0..2] of Bool        
+    2.0        Input    Available[0]                             Bool                       
+    2.1        Input    Available[1]                             Bool                       
+    2.2        Input    Available[2]                             Bool                       
+    4.0        Input    StepCount                                Int                        
+    6.0        Input    Mask                                     Array[0..9] of Int         
+    6.0        Input    Mask[0]                                  Int                        
+    8.0        Input    Mask[1]                                  Int                        
+    10.0       Input    Mask[2]                                  Int                        
+    12.0       Input    Mask[3]                                  Int                        
+    14.0       Input    Mask[4]                                  Int                        
+    16.0       Input    Mask[5]                                  Int                        
+    18.0       Input    Mask[6]                                  Int                        
+    20.0       Input    Mask[7]                                  Int                        
+    22.0       Input    Mask[8]                                  Int                        
+    24.0       Input    Mask[9]                                  Int                        
+    26.0       Input    StepTime                                 Array[0..9] of Int         
+    26.0       Input    StepTime[0]                              Int                        
+    28.0       Input    StepTime[1]                              Int                        
+    30.0       Input    StepTime[2]                              Int                        
+    32.0       Input    StepTime[3]                              Int                        
+    34.0       Input    StepTime[4]                              Int                        
+    36.0       Input    StepTime[5]                              Int                        
+    38.0       Input    StepTime[6]                              Int                        
+    40.0       Input    StepTime[7]                              Int                        
+    42.0       Input    StepTime[8]                              Int                        
+    44.0       Input    StepTime[9]                              Int                        
+    46.0       Output   PaddleCmd                                Array[0..2] of Bool        
+    46.0       Output   PaddleCmd[0]                             Bool                       
+    46.1       Output   PaddleCmd[1]                             Bool                       
+    46.2       Output   PaddleCmd[2]                             Bool                       
+    47.0       Output   Active                                   Bool                       
+    48.0       Output   CurrentStep                              Int                        
+    50.0       Output   ElapsedTenths                            Int                        
+    52.0       Static   Step                                     Int                        
+    54.0       Static   Restart                                  Bool                       
+    56.0       Static   tmStep                                   TON_TIME                   
+    56.0       Static   tmStep.IN                                Bool                       
+    56.1       Static   tmStep.R                                 Bool                       
+    58.0       Static   tmStep.PT                                Time                       
+    62.0       Static   tmStep.Q                                 Bool                       
+    64.0       Static   tmStep.ET                                Time                       
+    0.0        Temp     n                                        Int                        
+    2.0        Temp     k                                        Int                        
+    4.0        Temp     s                                        Int                        
+    6.0        Temp     pass                                     Int                        
+    8.0        Temp     nextStep                                 Int                        
+    10.0       Temp     search                                   Bool                       
+    10.1       Temp     skipPauses                               Bool                       
+    10.2       Temp     starting                                 Bool                       
+    12.0       Temp     w                                        Word                       
+    14.0       Temp     stepT                                    Time                       
+
+FB4 "FB_FluffSilo"  instance 582 bytes  temp 38 bytes  code 4199 bytes
+    0.0        Static   FbTimeout                                Time                       T#3S
+    4.0        Static   SafeInterlock                            Bool                       FALSE
+    4.1        Static   RestartAfterBlowerTrip                   Bool                       TRUE
+    6.0        Static   FillOnLevel                              Real                       25
+    10.0       Static   FillOffLevel                             Real                       90
+    14.0       Static   EStopLatch                               Bool                       
+    14.1       Static   FillReq                                  Bool                       
+    16.0       Static   LevelPct                                 Real                       
+    20.0       Static   LevelSensorFault                         Bool                       
+    20.1       Static   AnyFault                                 Bool                       
+    22.0       Static   rtReset                                  R_TRIG                     
+    22.0       Static   rtReset.CLK                              Bool                       
+    22.1       Static   rtReset.Q                                Bool                       
+    24.0       Static   Seq                                      "FB_Sequencer"             
+    24.0       Static   Seq.CmdAutoStart                         Bool                       
+    24.1       Static   Seq.CmdAutoStop                          Bool                       
+    24.2       Static   Seq.EStopActive                          Bool                       
+    24.3       Static   Seq.ExtRequest                           Bool                       
+    24.4       Static   Seq.BlowerRunning                        Bool                       
+    24.5       Static   Seq.ScrewRunning                         Bool                       
+    26.0       Static   Seq.TBlowerToScrew                       Time                       T#7S
+    30.0       Static   Seq.TReqHold                             Time                       T#3S
+    34.0       Static   Seq.TScrewToPaddle                       Time                       T#3S
+    38.0       Static   Seq.TReqOffScrewStop                     Time                       T#3S
+    42.0       Static   Seq.TScrewTripBlower                     Time                       T#5S
+    46.0       Static   Seq.TAutoStopBlower                      Time                       T#5S
+    50.0       Static   Seq.RestartAfterBlowerTrip               Bool                       TRUE
+    50.1       Static   Seq.AutoMode                             Bool                       
+    50.2       Static   Seq.BlowerAutoStart                      Bool                       
+    50.3       Static   Seq.BlowerAutoStop                       Bool                       
+    50.4       Static   Seq.ScrewAutoStart                       Bool                       
+    50.5       Static   Seq.ScrewAutoStop                        Bool                       
+    50.6       Static   Seq.ScrewInterlock                       Bool                       
+    50.7       Static   Seq.PaddleAutoStop                       Bool                       
+    51.0       Static   Seq.PaddleInterlock                      Bool                       
+    51.1       Static   Seq.PatternCmd                           Bool                       
+    51.2       Static   Seq.BlowerStopPending                    Bool                       
+    52.0       Static   Seq.BlowerStopRemaining                  Time                       
+    56.0       Static   Seq.BlowerCmd                            Bool                       
+    56.1       Static   Seq.ScrewCmd                             Bool                       
+    56.2       Static   Seq.PrevBlowerRun                        Bool                       
+    56.3       Static   Seq.PrevScrewRun                         Bool                       
+    58.0       Static   Seq.StopDelay                            Time                       
+    62.0       Static   Seq.rtStart                              R_TRIG                     
+    62.0       Static   Seq.rtStart.CLK                          Bool                       
+    62.1       Static   Seq.rtStart.Q                            Bool                       
+    64.0       Static   Seq.tmReqOn                              TON_TIME                   
+    64.0       Static   Seq.tmReqOn.IN                           Bool                       
+    64.1       Static   Seq.tmReqOn.R                            Bool                       
+    66.0       Static   Seq.tmReqOn.PT                           Time                       
+    70.0       Static   Seq.tmReqOn.Q                            Bool                       
+    72.0       Static   Seq.tmReqOn.ET                           Time                       
+    86.0       Static   Seq.tmReqOff                             TON_TIME                   
+    86.0       Static   Seq.tmReqOff.IN                          Bool                       
+    86.1       Static   Seq.tmReqOff.R                           Bool                       
+    88.0       Static   Seq.tmReqOff.PT                          Time                       
+    92.0       Static   Seq.tmReqOff.Q                           Bool                       
+    94.0       Static   Seq.tmReqOff.ET                          Time                       
+    108.0      Static   Seq.tmBlowerReady                        TON_TIME                   
+    108.0      Static   Seq.tmBlowerReady.IN                     Bool                       
+    108.1      Static   Seq.tmBlowerReady.R                      Bool                       
+    110.0      Static   Seq.tmBlowerReady.PT                     Time                       
+    114.0      Static   Seq.tmBlowerReady.Q                      Bool                       
+    116.0      Static   Seq.tmBlowerReady.ET                     Time                       
+    130.0      Static   Seq.tmScrewReady                         TON_TIME                   
+    130.0      Static   Seq.tmScrewReady.IN                      Bool                       
+    130.1      Static   Seq.tmScrewReady.R                       Bool                       
+    132.0      Static   Seq.tmScrewReady.PT                      Time                       
+    136.0      Static   Seq.tmScrewReady.Q                       Bool                       
+    138.0      Static   Seq.tmScrewReady.ET                      Time                       
+    152.0      Static   Seq.tmBlowerStop                         TON_TIME                   
+    152.0      Static   Seq.tmBlowerStop.IN                      Bool                       
+    152.1      Static   Seq.tmBlowerStop.R                       Bool                       
+    154.0      Static   Seq.tmBlowerStop.PT                      Time                       
+    158.0      Static   Seq.tmBlowerStop.Q                       Bool                       
+    160.0      Static   Seq.tmBlowerStop.ET                      Time                       
+    174.0      Static   Pattern                                  "FB_PaddlePattern"         
+    174.0      Static   Pattern.Enable                           Bool                       
+    176.0      Static   Pattern.Available                        Array[0..2] of Bool        
+    176.0      Static   Pattern.Available[0]                     Bool                       
+    176.1      Static   Pattern.Available[1]                     Bool                       
+    176.2      Static   Pattern.Available[2]                     Bool                       
+    178.0      Static   Pattern.StepCount                        Int                        
+    180.0      Static   Pattern.Mask                             Array[0..9] of Int         
+    180.0      Static   Pattern.Mask[0]                          Int                        
+    182.0      Static   Pattern.Mask[1]                          Int                        
+    184.0      Static   Pattern.Mask[2]                          Int                        
+    186.0      Static   Pattern.Mask[3]                          Int                        
+    188.0      Static   Pattern.Mask[4]                          Int                        
+    190.0      Static   Pattern.Mask[5]                          Int                        
+    192.0      Static   Pattern.Mask[6]                          Int                        
+    194.0      Static   Pattern.Mask[7]                          Int                        
+    196.0      Static   Pattern.Mask[8]                          Int                        
+    198.0      Static   Pattern.Mask[9]                          Int                        
+    200.0      Static   Pattern.StepTime                         Array[0..9] of Int         
+    200.0      Static   Pattern.StepTime[0]                      Int                        
+    202.0      Static   Pattern.StepTime[1]                      Int                        
+    204.0      Static   Pattern.StepTime[2]                      Int                        
+    206.0      Static   Pattern.StepTime[3]                      Int                        
+    208.0      Static   Pattern.StepTime[4]                      Int                        
+    210.0      Static   Pattern.StepTime[5]                      Int                        
+    212.0      Static   Pattern.StepTime[6]                      Int                        
+    214.0      Static   Pattern.StepTime[7]                      Int                        
+    216.0      Static   Pattern.StepTime[8]                      Int                        
+    218.0      Static   Pattern.StepTime[9]                      Int                        
+    220.0      Static   Pattern.PaddleCmd                        Array[0..2] of Bool        
+    220.0      Static   Pattern.PaddleCmd[0]                     Bool                       
+    220.1      Static   Pattern.PaddleCmd[1]                     Bool                       
+    220.2      Static   Pattern.PaddleCmd[2]                     Bool                       
+    221.0      Static   Pattern.Active                           Bool                       
+    222.0      Static   Pattern.CurrentStep                      Int                        
+    224.0      Static   Pattern.ElapsedTenths                    Int                        
+    226.0      Static   Pattern.Step                             Int                        
+    228.0      Static   Pattern.Restart                          Bool                       
+    230.0      Static   Pattern.tmStep                           TON_TIME                   
+    230.0      Static   Pattern.tmStep.IN                        Bool                       
+    230.1      Static   Pattern.tmStep.R                         Bool                       
+    232.0      Static   Pattern.tmStep.PT                        Time                       
+    236.0      Static   Pattern.tmStep.Q                         Bool                       
+    238.0      Static   Pattern.tmStep.ET                        Time                       
+    252.0      Static   Blower01                                 "FB_Motor"                 
+    252.0      Static   Blower01.AutoStart                       Bool                       
+    252.1      Static   Blower01.AutoStop                        Bool                       
+    252.2      Static   Blower01.Interlock                       Bool                       
+    252.3      Static   Blower01.EStop                           Bool                       
+    252.4      Static   Blower01.CmdManStart                     Bool                       
+    252.5      Static   Blower01.CmdManStop                      Bool                       
+    252.6      Static   Blower01.CmdReturnAuto                   Bool                       
+    252.7      Static   Blower01.CmdEnable                       Bool                       
+    253.0      Static   Blower01.CmdDisable                      Bool                       
+    253.1      Static   Blower01.CmdResetFault                   Bool                       
+    253.2      Static   Blower01.Feedback                        Bool                       
+    253.3      Static   Blower01.OverloadOK                      Bool                       
+    254.0      Static   Blower01.FbTimeout                       Time                       T#3S
+    258.0      Static   Blower01.SafeInterlock                   Bool                       
+    258.1      Static   Blower01.Run                             Bool                       
+    258.2      Static   Blower01.Available                       Bool                       
+    260.0      Static   Blower01.Status                          "typeDevStatus"            
+    260.0      Static   Blower01.Status.AutoStart                Bool                       
+    260.1      Static   Blower01.Status.AutoStop                 Bool                       
+    260.2      Static   Blower01.Status.Interlock                Bool                       
+    260.3      Static   Blower01.Status.ManualStart              Bool                       
+    260.4      Static   Blower01.Status.ManualStop               Bool                       
+    260.5      Static   Blower01.Status.Enable                   Bool                       
+    260.6      Static   Blower01.Status.Disable                  Bool                       
+    260.7      Static   Blower01.Status.Fault                    Bool                       
+    261.0      Static   Blower01.Status.EStop                    Bool                       
+    261.1      Static   Blower01.Status.Running                  Bool                       
+    262.0      Static   Blower01.CtrlLevel                       Int                        
+    264.0      Static   Blower01.FaultCode                       Int                        
+    266.0      Static   Blower01.StartCount                      DInt                       
+    270.0      Static   Blower01.ManStart                        Bool                       
+    270.1      Static   Blower01.ManStop                         Bool                       
+    270.2      Static   Blower01.Disabled                        Bool                       
+    270.3      Static   Blower01.Faulted                         Bool                       
+    272.0      Static   Blower01.tmNoFb                          TON_TIME                   
+    272.0      Static   Blower01.tmNoFb.IN                       Bool                       
+    272.1      Static   Blower01.tmNoFb.R                        Bool                       
+    274.0      Static   Blower01.tmNoFb.PT                       Time                       
+    278.0      Static   Blower01.tmNoFb.Q                        Bool                       
+    280.0      Static   Blower01.tmNoFb.ET                       Time                       
+    294.0      Static   Blower01.tmFbNoCmd                       TON_TIME                   
+    294.0      Static   Blower01.tmFbNoCmd.IN                    Bool                       
+    294.1      Static   Blower01.tmFbNoCmd.R                     Bool                       
+    296.0      Static   Blower01.tmFbNoCmd.PT                    Time                       
+    300.0      Static   Blower01.tmFbNoCmd.Q                     Bool                       
+    302.0      Static   Blower01.tmFbNoCmd.ET                    Time                       
+    316.0      Static   Blower01.rtFb                            R_TRIG                     
+    316.0      Static   Blower01.rtFb.CLK                        Bool                       
+    316.1      Static   Blower01.rtFb.Q                          Bool                       
+    318.0      Static   Screw01                                  "FB_Motor"                 
+    318.0      Static   Screw01.AutoStart                        Bool                       
+    318.1      Static   Screw01.AutoStop                         Bool                       
+    318.2      Static   Screw01.Interlock                        Bool                       
+    318.3      Static   Screw01.EStop                            Bool                       
+    318.4      Static   Screw01.CmdManStart                      Bool                       
+    318.5      Static   Screw01.CmdManStop                       Bool                       
+    318.6      Static   Screw01.CmdReturnAuto                    Bool                       
+    318.7      Static   Screw01.CmdEnable                        Bool                       
+    319.0      Static   Screw01.CmdDisable                       Bool                       
+    319.1      Static   Screw01.CmdResetFault                    Bool                       
+    319.2      Static   Screw01.Feedback                         Bool                       
+    319.3      Static   Screw01.OverloadOK                       Bool                       
+    320.0      Static   Screw01.FbTimeout                        Time                       T#3S
+    324.0      Static   Screw01.SafeInterlock                    Bool                       
+    324.1      Static   Screw01.Run                              Bool                       
+    324.2      Static   Screw01.Available                        Bool                       
+    326.0      Static   Screw01.Status                           "typeDevStatus"            
+    326.0      Static   Screw01.Status.AutoStart                 Bool                       
+    326.1      Static   Screw01.Status.AutoStop                  Bool                       
+    326.2      Static   Screw01.Status.Interlock                 Bool                       
+    326.3      Static   Screw01.Status.ManualStart               Bool                       
+    326.4      Static   Screw01.Status.ManualStop                Bool                       
+    326.5      Static   Screw01.Status.Enable                    Bool                       
+    326.6      Static   Screw01.Status.Disable                   Bool                       
+    326.7      Static   Screw01.Status.Fault                     Bool                       
+    327.0      Static   Screw01.Status.EStop                     Bool                       
+    327.1      Static   Screw01.Status.Running                   Bool                       
+    328.0      Static   Screw01.CtrlLevel                        Int                        
+    330.0      Static   Screw01.FaultCode                        Int                        
+    332.0      Static   Screw01.StartCount                       DInt                       
+    336.0      Static   Screw01.ManStart                         Bool                       
+    336.1      Static   Screw01.ManStop                          Bool                       
+    336.2      Static   Screw01.Disabled                         Bool                       
+    336.3      Static   Screw01.Faulted                          Bool                       
+    338.0      Static   Screw01.tmNoFb                           TON_TIME                   
+    338.0      Static   Screw01.tmNoFb.IN                        Bool                       
+    338.1      Static   Screw01.tmNoFb.R                         Bool                       
+    340.0      Static   Screw01.tmNoFb.PT                        Time                       
+    344.0      Static   Screw01.tmNoFb.Q                         Bool                       
+    346.0      Static   Screw01.tmNoFb.ET                        Time                       
+    360.0      Static   Screw01.tmFbNoCmd                        TON_TIME                   
+    360.0      Static   Screw01.tmFbNoCmd.IN                     Bool                       
+    360.1      Static   Screw01.tmFbNoCmd.R                      Bool                       
+    362.0      Static   Screw01.tmFbNoCmd.PT                     Time                       
+    366.0      Static   Screw01.tmFbNoCmd.Q                      Bool                       
+    368.0      Static   Screw01.tmFbNoCmd.ET                     Time                       
+    382.0      Static   Screw01.rtFb                             R_TRIG                     
+    382.0      Static   Screw01.rtFb.CLK                         Bool                       
+    382.1      Static   Screw01.rtFb.Q                           Bool                       
+    384.0      Static   Paddle01                                 "FB_Motor"                 
+    384.0      Static   Paddle01.AutoStart                       Bool                       
+    384.1      Static   Paddle01.AutoStop                        Bool                       
+    384.2      Static   Paddle01.Interlock                       Bool                       
+    384.3      Static   Paddle01.EStop                           Bool                       
+    384.4      Static   Paddle01.CmdManStart                     Bool                       
+    384.5      Static   Paddle01.CmdManStop                      Bool                       
+    384.6      Static   Paddle01.CmdReturnAuto                   Bool                       
+    384.7      Static   Paddle01.CmdEnable                       Bool                       
+    385.0      Static   Paddle01.CmdDisable                      Bool                       
+    385.1      Static   Paddle01.CmdResetFault                   Bool                       
+    385.2      Static   Paddle01.Feedback                        Bool                       
+    385.3      Static   Paddle01.OverloadOK                      Bool                       
+    386.0      Static   Paddle01.FbTimeout                       Time                       T#3S
+    390.0      Static   Paddle01.SafeInterlock                   Bool                       
+    390.1      Static   Paddle01.Run                             Bool                       
+    390.2      Static   Paddle01.Available                       Bool                       
+    392.0      Static   Paddle01.Status                          "typeDevStatus"            
+    392.0      Static   Paddle01.Status.AutoStart                Bool                       
+    392.1      Static   Paddle01.Status.AutoStop                 Bool                       
+    392.2      Static   Paddle01.Status.Interlock                Bool                       
+    392.3      Static   Paddle01.Status.ManualStart              Bool                       
+    392.4      Static   Paddle01.Status.ManualStop               Bool                       
+    392.5      Static   Paddle01.Status.Enable                   Bool                       
+    392.6      Static   Paddle01.Status.Disable                  Bool                       
+    392.7      Static   Paddle01.Status.Fault                    Bool                       
+    393.0      Static   Paddle01.Status.EStop                    Bool                       
+    393.1      Static   Paddle01.Status.Running                  Bool                       
+    394.0      Static   Paddle01.CtrlLevel                       Int                        
+    396.0      Static   Paddle01.FaultCode                       Int                        
+    398.0      Static   Paddle01.StartCount                      DInt                       
+    402.0      Static   Paddle01.ManStart                        Bool                       
+    402.1      Static   Paddle01.ManStop                         Bool                       
+    402.2      Static   Paddle01.Disabled                        Bool                       
+    402.3      Static   Paddle01.Faulted                         Bool                       
+    404.0      Static   Paddle01.tmNoFb                          TON_TIME                   
+    404.0      Static   Paddle01.tmNoFb.IN                       Bool                       
+    404.1      Static   Paddle01.tmNoFb.R                        Bool                       
+    406.0      Static   Paddle01.tmNoFb.PT                       Time                       
+    410.0      Static   Paddle01.tmNoFb.Q                        Bool                       
+    412.0      Static   Paddle01.tmNoFb.ET                       Time                       
+    426.0      Static   Paddle01.tmFbNoCmd                       TON_TIME                   
+    426.0      Static   Paddle01.tmFbNoCmd.IN                    Bool                       
+    426.1      Static   Paddle01.tmFbNoCmd.R                     Bool                       
+    428.0      Static   Paddle01.tmFbNoCmd.PT                    Time                       
+    432.0      Static   Paddle01.tmFbNoCmd.Q                     Bool                       
+    434.0      Static   Paddle01.tmFbNoCmd.ET                    Time                       
+    448.0      Static   Paddle01.rtFb                            R_TRIG                     
+    448.0      Static   Paddle01.rtFb.CLK                        Bool                       
+    448.1      Static   Paddle01.rtFb.Q                          Bool                       
+    450.0      Static   Paddle02                                 "FB_Motor"                 
+    450.0      Static   Paddle02.AutoStart                       Bool                       
+    450.1      Static   Paddle02.AutoStop                        Bool                       
+    450.2      Static   Paddle02.Interlock                       Bool                       
+    450.3      Static   Paddle02.EStop                           Bool                       
+    450.4      Static   Paddle02.CmdManStart                     Bool                       
+    450.5      Static   Paddle02.CmdManStop                      Bool                       
+    450.6      Static   Paddle02.CmdReturnAuto                   Bool                       
+    450.7      Static   Paddle02.CmdEnable                       Bool                       
+    451.0      Static   Paddle02.CmdDisable                      Bool                       
+    451.1      Static   Paddle02.CmdResetFault                   Bool                       
+    451.2      Static   Paddle02.Feedback                        Bool                       
+    451.3      Static   Paddle02.OverloadOK                      Bool                       
+    452.0      Static   Paddle02.FbTimeout                       Time                       T#3S
+    456.0      Static   Paddle02.SafeInterlock                   Bool                       
+    456.1      Static   Paddle02.Run                             Bool                       
+    456.2      Static   Paddle02.Available                       Bool                       
+    458.0      Static   Paddle02.Status                          "typeDevStatus"            
+    458.0      Static   Paddle02.Status.AutoStart                Bool                       
+    458.1      Static   Paddle02.Status.AutoStop                 Bool                       
+    458.2      Static   Paddle02.Status.Interlock                Bool                       
+    458.3      Static   Paddle02.Status.ManualStart              Bool                       
+    458.4      Static   Paddle02.Status.ManualStop               Bool                       
+    458.5      Static   Paddle02.Status.Enable                   Bool                       
+    458.6      Static   Paddle02.Status.Disable                  Bool                       
+    458.7      Static   Paddle02.Status.Fault                    Bool                       
+    459.0      Static   Paddle02.Status.EStop                    Bool                       
+    459.1      Static   Paddle02.Status.Running                  Bool                       
+    460.0      Static   Paddle02.CtrlLevel                       Int                        
+    462.0      Static   Paddle02.FaultCode                       Int                        
+    464.0      Static   Paddle02.StartCount                      DInt                       
+    468.0      Static   Paddle02.ManStart                        Bool                       
+    468.1      Static   Paddle02.ManStop                         Bool                       
+    468.2      Static   Paddle02.Disabled                        Bool                       
+    468.3      Static   Paddle02.Faulted                         Bool                       
+    470.0      Static   Paddle02.tmNoFb                          TON_TIME                   
+    470.0      Static   Paddle02.tmNoFb.IN                       Bool                       
+    470.1      Static   Paddle02.tmNoFb.R                        Bool                       
+    472.0      Static   Paddle02.tmNoFb.PT                       Time                       
+    476.0      Static   Paddle02.tmNoFb.Q                        Bool                       
+    478.0      Static   Paddle02.tmNoFb.ET                       Time                       
+    492.0      Static   Paddle02.tmFbNoCmd                       TON_TIME                   
+    492.0      Static   Paddle02.tmFbNoCmd.IN                    Bool                       
+    492.1      Static   Paddle02.tmFbNoCmd.R                     Bool                       
+    494.0      Static   Paddle02.tmFbNoCmd.PT                    Time                       
+    498.0      Static   Paddle02.tmFbNoCmd.Q                     Bool                       
+    500.0      Static   Paddle02.tmFbNoCmd.ET                    Time                       
+    514.0      Static   Paddle02.rtFb                            R_TRIG                     
+    514.0      Static   Paddle02.rtFb.CLK                        Bool                       
+    514.1      Static   Paddle02.rtFb.Q                          Bool                       
+    516.0      Static   Paddle03                                 "FB_Motor"                 
+    516.0      Static   Paddle03.AutoStart                       Bool                       
+    516.1      Static   Paddle03.AutoStop                        Bool                       
+    516.2      Static   Paddle03.Interlock                       Bool                       
+    516.3      Static   Paddle03.EStop                           Bool                       
+    516.4      Static   Paddle03.CmdManStart                     Bool                       
+    516.5      Static   Paddle03.CmdManStop                      Bool                       
+    516.6      Static   Paddle03.CmdReturnAuto                   Bool                       
+    516.7      Static   Paddle03.CmdEnable                       Bool                       
+    517.0      Static   Paddle03.CmdDisable                      Bool                       
+    517.1      Static   Paddle03.CmdResetFault                   Bool                       
+    517.2      Static   Paddle03.Feedback                        Bool                       
+    517.3      Static   Paddle03.OverloadOK                      Bool                       
+    518.0      Static   Paddle03.FbTimeout                       Time                       T#3S
+    522.0      Static   Paddle03.SafeInterlock                   Bool                       
+    522.1      Static   Paddle03.Run                             Bool                       
+    522.2      Static   Paddle03.Available                       Bool                       
+    524.0      Static   Paddle03.Status                          "typeDevStatus"            
+    524.0      Static   Paddle03.Status.AutoStart                Bool                       
+    524.1      Static   Paddle03.Status.AutoStop                 Bool                       
+    524.2      Static   Paddle03.Status.Interlock                Bool                       
+    524.3      Static   Paddle03.Status.ManualStart              Bool                       
+    524.4      Static   Paddle03.Status.ManualStop               Bool                       
+    524.5      Static   Paddle03.Status.Enable                   Bool                       
+    524.6      Static   Paddle03.Status.Disable                  Bool                       
+    524.7      Static   Paddle03.Status.Fault                    Bool                       
+    525.0      Static   Paddle03.Status.EStop                    Bool                       
+    525.1      Static   Paddle03.Status.Running                  Bool                       
+    526.0      Static   Paddle03.CtrlLevel                       Int                        
+    528.0      Static   Paddle03.FaultCode                       Int                        
+    530.0      Static   Paddle03.StartCount                      DInt                       
+    534.0      Static   Paddle03.ManStart                        Bool                       
+    534.1      Static   Paddle03.ManStop                         Bool                       
+    534.2      Static   Paddle03.Disabled                        Bool                       
+    534.3      Static   Paddle03.Faulted                         Bool                       
+    536.0      Static   Paddle03.tmNoFb                          TON_TIME                   
+    536.0      Static   Paddle03.tmNoFb.IN                       Bool                       
+    536.1      Static   Paddle03.tmNoFb.R                        Bool                       
+    538.0      Static   Paddle03.tmNoFb.PT                       Time                       
+    542.0      Static   Paddle03.tmNoFb.Q                        Bool                       
+    544.0      Static   Paddle03.tmNoFb.ET                       Time                       
+    558.0      Static   Paddle03.tmFbNoCmd                       TON_TIME                   
+    558.0      Static   Paddle03.tmFbNoCmd.IN                    Bool                       
+    558.1      Static   Paddle03.tmFbNoCmd.R                     Bool                       
+    560.0      Static   Paddle03.tmFbNoCmd.PT                    Time                       
+    564.0      Static   Paddle03.tmFbNoCmd.Q                     Bool                       
+    566.0      Static   Paddle03.tmFbNoCmd.ET                    Time                       
+    580.0      Static   Paddle03.rtFb                            R_TRIG                     
+    580.0      Static   Paddle03.rtFb.CLK                        Bool                       
+    580.1      Static   Paddle03.rtFb.Q                          Bool                       
+    0.0        Temp     resetPulse                               Bool                       
+    0.1        Temp     extReq                                   Bool                       
+    0.2        Temp     cmdStart                                 Bool                       
+    0.3        Temp     cmdStop                                  Bool                       
+    2.0        Temp     avail                                    Array[0..2] of Bool        
+    2.0        Temp     avail[0]                                 Bool                       
+    2.1        Temp     avail[1]                                 Bool                       
+    2.2        Temp     avail[2]                                 Bool                       
+    4.0        Temp     tBlowerToScrew                           Time                       
+    8.0        Temp     tReqHold                                 Time                       
+    12.0       Temp     tScrewToPaddle                           Time                       
+    16.0       Temp     tReqOffScrewStop                         Time                       
+    20.0       Temp     tScrewTripBlower                         Time                       
+    24.0       Temp     tAutoStopBlower                          Time                       
+    28.0       Temp     i                                        Int                        
+
+OB1 "Main"  event class 1  temp 0 bytes  code 23 bytes
+
+OB100 "Startup"  event class 100  temp 12 bytes  code 403 bytes
+    0.0        Temp     LostRetentive                            Bool                       
+    0.1        Temp     LostRTC                                  Bool                       
+    2.0        Temp     i                                        Int                        

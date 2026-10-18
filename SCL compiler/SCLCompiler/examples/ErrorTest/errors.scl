@@ -1,0 +1,26 @@
+// Deliberate errors - every marked line must produce a diagnostic
+FUNCTION_BLOCK "FB_Err"
+VERSION : 0.1
+   VAR_INPUT
+      a : Int;
+   END_VAR
+   VAR
+      b : DInt;
+      arr : Array[0..3] of Int;
+      t : TON_TIME;
+   END_VAR
+BEGIN
+   #a := #b;                    // E: DInt -> Int narrowing
+   #a := 70000;                 // E: constant out of range
+   #c := 1;                     // E: unknown local
+   #arr[4] := 0;                // E: index out of range
+   IF #a THEN                   // E: condition not Bool
+      #a := 1;
+   END_IF;
+   #t(IN := TRUE, PT := 5);     // E: Int literal is not Time
+   #a := "NoSuchFC"(x := 1);    // E: unknown function
+   #a := 1                      // E: missing ;
+   #b := 2;
+   EXIT;                        // E: EXIT outside loop
+   #a := SHL(IN := 1.5, N := 1);  // E: SHL on real
+END_FUNCTION_BLOCK

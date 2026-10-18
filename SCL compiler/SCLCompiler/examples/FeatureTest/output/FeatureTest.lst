@@ -1,0 +1,919 @@
+; SCL Compiler 1.0.0 listing - project FeatureTest - S7-1500
+
+; ===== [0] FC1 "AddMul" (features.scl) =====
+; line table: 78@5 79@29 80@57 
+       0  Jmp            -> 82
+       5  AddrLocal      6.0
+      10  AddrLocal      2.0
+      15  Load           Int
+      17  AddrLocal      4.0
+      22  Load           Int
+      24  MulI           
+      25  Wrap           Int
+      27  Store          Int
+      29  AddrLocal      8.0
+      34  LoadPtr        
+      35  AddrLocal      8.0
+      40  LoadPtr        
+      41  Load           Int
+      43  PushI          1
+      52  AddI           
+      53  Wrap           Int
+      55  Store          Int
+      57  AddrLocal      0.0
+      62  AddrLocal      2.0
+      67  Load           Int
+      69  AddrLocal      4.0
+      74  Load           Int
+      76  AddI           
+      77  Wrap           Int
+      79  Store          Int
+      81  Ret            
+      82  Jmp            -> 5
+
+; ===== [1] FC2 "Twice" (features.scl) =====
+; line table: 89@5 
+       0  Jmp            -> 83
+       5  AddrLocal      0.0
+      10  FrameAlloc     16
+      15  AddrNewFrame   2.0
+      20  AddrLocal      2.0
+      25  Load           Int
+      27  Store          Int
+      29  AddrNewFrame   4.0
+      34  AddrLocal      2.0
+      39  Load           Int
+      41  Store          Int
+      43  AddrNewFrame   8.0
+      48  AddrLocal      2.0
+      53  Store          Ptr
+      55  Call           0 ; AddMul
+      58  AddrLocal      2.0
+      63  AddrNewFrame   6.0
+      68  Load           Int
+      70  Store          Int
+      72  AddrNewFrame   0.0
+      77  Load           Int
+      79  FrameFree      
+      80  Store          Int
+      82  Ret            
+      83  Jmp            -> 5
+
+; ===== [2] FC3 "SumPts" (features.scl) =====
+; line table: 102@5 103@21 104@73 106@215 
+       0  Jmp            -> 230
+       5  AddrLocal      12.0
+      10  PushI          0
+      19  Store          Int
+      21  AddrLocal      10.0
+      26  PushI          1
+      35  Store          Int
+      37  AddrLocal      14.0
+      42  PushI          3
+      51  Store          LInt
+      53  AddrLocal      10.0
+      58  Load           Int
+      60  AddrLocal      14.0
+      65  Load           LInt
+      67  GtI            
+      68  Jnz            -> 215
+      73  AddrLocal      12.0
+      78  AddrLocal      12.0
+      83  Load           Int
+      85  AddrLocal      2.0
+      90  LoadPtr        
+      91  AddrLocal      10.0
+      96  Load           Int
+      98  AddrIndex      1, 128, 3
+     111  Load           Int
+     113  AddI           
+     114  Wrap           Int
+     116  AddrLocal      2.0
+     121  LoadPtr        
+     122  AddrLocal      10.0
+     127  Load           Int
+     129  AddrIndex      1, 128, 3
+     142  AddrAdd        2.0
+     147  Load           Int
+     149  AddI           
+     150  Wrap           Int
+     152  Store          Int
+     154  AddrLocal      10.0
+     159  AddrLocal      10.0
+     164  Load           Int
+     166  PushI          1
+     175  AddI           
+     176  Dup            
+     177  Wrap           Int
+     179  EqI            
+     180  Jz             -> 215
+     185  AddrLocal      10.0
+     190  AddrLocal      10.0
+     195  Load           Int
+     197  PushI          1
+     206  AddI           
+     207  Store          Int
+     209  Drop           
+     210  Jmp            -> 53
+     215  AddrLocal      0.0
+     220  AddrLocal      12.0
+     225  Load           Int
+     227  Store          Int
+     229  Ret            
+     230  Jmp            -> 5
+
+; ===== [3] FB1 "FB_Features" (features.scl) =====
+; line table: 131@5 136@125 132@150 133@175 134@200 139@225 140@241 141@257 142@279 143@305 145@334 147@357 149@373 152@421 154@444 155@469 156@521 159@624 160@676 161@698 164@769 166@792 167@817 168@869 169@903 171@913 174@1016 175@1062 176@1094 177@1145 179@1186 180@1216 182@1269 183@1301 184@1431 185@1512 187@1565 188@1619 189@1664 190@1702 191@1740 192@1765 193@1793 194@1821 195@1869 197@1996 198@2048 199@2100 202@2307 204@2373 205@2439 206@2474 207@2504 208@2529 209@2554 210@2579 211@2604 212@2629 213@2654 214@2698 215@2778 216@2803 217@2828 218@2844 
+       0  Jmp            -> 2883
+       5  AddrLocal      12.0
+      10  AddrInst       0.0
+      15  Load           Int
+      17  Store          Int
+      19  AddrLocal      12.0
+      24  Load           Int
+      26  PushI          1
+      35  EqI            
+      36  Jnz            -> 150
+      41  AddrLocal      12.0
+      46  Load           Int
+      48  PushI          2
+      57  EqI            
+      58  Jnz            -> 175
+      63  AddrLocal      12.0
+      68  Load           Int
+      70  PushI          3
+      79  EqI            
+      80  Jnz            -> 175
+      85  AddrLocal      12.0
+      90  Load           Int
+      92  PushI          4
+     101  GeI            
+     102  AddrLocal      12.0
+     107  Load           Int
+     109  PushI          6
+     118  LeI            
+     119  And            
+     120  Jnz            -> 200
+     125  PushAddr       %DB1.DBX0.0
+     134  PushI          -1
+     143  Store          Int
+     145  Jmp            -> 225
+     150  PushAddr       %DB1.DBX0.0
+     159  PushI          10
+     168  Store          Int
+     170  Jmp            -> 225
+     175  PushAddr       %DB1.DBX0.0
+     184  PushI          20
+     193  Store          Int
+     195  Jmp            -> 225
+     200  PushAddr       %DB1.DBX0.0
+     209  PushI          30
+     218  Store          Int
+     220  Jmp            -> 225
+     225  AddrLocal      4.0
+     230  PushI          0
+     239  Store          DInt
+     241  AddrLocal      0.0
+     246  PushI          0
+     255  Store          Int
+     257  AddrLocal      0.0
+     262  Load           Int
+     264  PushI          100
+     273  LtI            
+     274  Jz             -> 334
+     279  AddrLocal      0.0
+     284  AddrLocal      0.0
+     289  Load           Int
+     291  PushI          1
+     300  AddI           
+     301  Wrap           Int
+     303  Store          Int
+     305  AddrLocal      4.0
+     310  AddrLocal      4.0
+     315  Load           DInt
+     317  AddrLocal      0.0
+     322  Load           Int
+     324  AddI           
+     325  Wrap           DInt
+     327  Store          DInt
+     329  Jmp            -> 257
+     334  PushAddr       %DB1.DBX0.0
+     343  AddrAdd        2.0
+     348  AddrLocal      4.0
+     353  Load           DInt
+     355  Store          DInt
+     357  AddrLocal      0.0
+     362  PushI          0
+     371  Store          Int
+     373  AddrLocal      0.0
+     378  AddrLocal      0.0
+     383  Load           Int
+     385  PushI          2
+     394  AddI           
+     395  Wrap           Int
+     397  Store          Int
+     399  AddrLocal      0.0
+     404  Load           Int
+     406  PushI          9
+     415  GeI            
+     416  Jz             -> 373
+     421  PushAddr       %DB1.DBX0.0
+     430  AddrAdd        6.0
+     435  AddrLocal      0.0
+     440  Load           Int
+     442  Store          Int
+     444  PushAddr       %DB1.DBX0.0
+     453  AddrAdd        8.0
+     458  PushI          0
+     467  Store          Int
+     469  AddrLocal      0.0
+     474  PushI          10
+     483  Store          Int
+     485  AddrLocal      14.0
+     490  PushI          1
+     499  Store          LInt
+     501  AddrLocal      0.0
+     506  Load           Int
+     508  AddrLocal      14.0
+     513  Load           LInt
+     515  LtI            
+     516  Jnz            -> 624
+     521  PushAddr       %DB1.DBX0.0
+     530  AddrAdd        8.0
+     535  PushAddr       %DB1.DBX0.0
+     544  AddrAdd        8.0
+     549  Load           Int
+     551  AddrLocal      0.0
+     556  Load           Int
+     558  AddI           
+     559  Wrap           Int
+     561  Store          Int
+     563  AddrLocal      0.0
+     568  AddrLocal      0.0
+     573  Load           Int
+     575  PushI          -3
+     584  AddI           
+     585  Dup            
+     586  Wrap           Int
+     588  EqI            
+     589  Jz             -> 624
+     594  AddrLocal      0.0
+     599  AddrLocal      0.0
+     604  Load           Int
+     606  PushI          -3
+     615  AddI           
+     616  Store          Int
+     618  Drop           
+     619  Jmp            -> 501
+     624  AddrLocal      0.0
+     629  PushI          0
+     638  Store          Int
+     640  AddrLocal      22.0
+     645  PushI          100
+     654  Store          LInt
+     656  AddrLocal      0.0
+     661  Load           Int
+     663  AddrLocal      22.0
+     668  Load           LInt
+     670  GtI            
+     671  Jnz            -> 769
+     676  AddrLocal      0.0
+     681  Load           Int
+     683  PushI          42
+     692  EqI            
+     693  Jz             -> 708
+     698  Jmp            -> 769
+     703  Jmp            -> 708
+     708  AddrLocal      0.0
+     713  AddrLocal      0.0
+     718  Load           Int
+     720  PushI          1
+     729  AddI           
+     730  Dup            
+     731  Wrap           Int
+     733  EqI            
+     734  Jz             -> 769
+     739  AddrLocal      0.0
+     744  AddrLocal      0.0
+     749  Load           Int
+     751  PushI          1
+     760  AddI           
+     761  Store          Int
+     763  Drop           
+     764  Jmp            -> 656
+     769  PushAddr       %DB1.DBX0.0
+     778  AddrAdd        10.0
+     783  AddrLocal      0.0
+     788  Load           Int
+     790  Store          Int
+     792  PushAddr       %DB1.DBX0.0
+     801  AddrAdd        12.0
+     806  PushI          0
+     815  Store          Int
+     817  AddrLocal      0.0
+     822  PushI          1
+     831  Store          Int
+     833  AddrLocal      30.0
+     838  PushI          10
+     847  Store          LInt
+     849  AddrLocal      0.0
+     854  Load           Int
+     856  AddrLocal      30.0
+     861  Load           LInt
+     863  GtI            
+     864  Jnz            -> 1016
+     869  AddrLocal      0.0
+     874  Load           Int
+     876  PushI          2
+     885  ModI           
+     886  Wrap           Int
+     888  PushI          0
+     897  EqI            
+     898  Jz             -> 913
+     903  Jmp            -> 955
+     908  Jmp            -> 913
+     913  PushAddr       %DB1.DBX0.0
+     922  AddrAdd        12.0
+     927  PushAddr       %DB1.DBX0.0
+     936  AddrAdd        12.0
+     941  Load           Int
+     943  AddrLocal      0.0
+     948  Load           Int
+     950  AddI           
+     951  Wrap           Int
+     953  Store          Int
+     955  AddrLocal      0.0
+     960  AddrLocal      0.0
+     965  Load           Int
+     967  PushI          1
+     976  AddI           
+     977  Dup            
+     978  Wrap           Int
+     980  EqI            
+     981  Jz             -> 1016
+     986  AddrLocal      0.0
+     991  AddrLocal      0.0
+     996  Load           Int
+     998  PushI          1
+    1007  AddI           
+    1008  Store          Int
+    1010  Drop           
+    1011  Jmp            -> 849
+    1016  PushAddr       %DB1.DBX0.0
+    1025  AddrAdd        36.0
+    1030  AddrLocal      38.0
+    1035  PushAddr       %DB1.DBX0.0
+    1044  AddrAdd        14.0
+    1049  PushAddr       C0
+    1058  StrConcat      0
+    1060  StrCpy         0
+    1062  PushAddr       %DB1.DBX0.0
+    1071  AddrAdd        58.0
+    1076  PushAddr       %DB1.DBX0.0
+    1085  AddrAdd        36.0
+    1090  StrLen         0
+    1092  Store          Int
+    1094  PushAddr       %DB1.DBX0.0
+    1103  AddrAdd        60.0
+    1108  PushAddr       %DB1.DBX0.0
+    1117  AddrAdd        36.0
+    1122  PushAddr       C8
+    1131  StrCmp         0
+    1133  PushI          0
+    1142  EqI            
+    1143  Store          Bool
+    1145  PushAddr       %DB1.DBX0.0
+    1154  AddrAdd        62.0
+    1159  PushAddr       %DB1.DBX0.0
+    1168  AddrAdd        36.0
+    1173  PushAddr       C22
+    1182  StrFind        0
+    1184  Store          Int
+    1186  PushAddr       %DB1.DBX0.0
+    1195  AddrAdd        64.0
+    1200  AddrAdd        16.0
+    1205  PushI          10
+    1214  Store          Int
+    1216  PushAddr       %DB1.DBX0.0
+    1225  AddrAdd        112.0
+    1230  FrameAlloc     10
+    1235  AddrNewFrame   2.0
+    1240  PushAddr       %DB1.DBX0.0
+    1249  AddrAdd        64.0
+    1254  Store          Ptr
+    1256  Call           2 ; SumPts
+    1259  AddrNewFrame   0.0
+    1264  Load           Int
+    1266  FrameFree      
+    1267  Store          Int
+    1269  AddrInst       52.0
+    1274  PushAddr       %DB1.DBX0.0
+    1283  AddrAdd        204.0
+    1288  Load           Bool
+    1290  Store          Bool
+    1292  AddrInst       52.0
+    1297  SysFB          30, 0
+    1301  AddrInst       2.0
+    1306  PushAddr       %DB1.DBX0.0
+    1315  AddrAdd        204.0
+    1320  Load           Bool
+    1322  Store          Bool
+    1324  AddrInst       2.0
+    1329  AddrAdd        0.2
+    1334  PushI          0
+    1343  Store          Bool
+    1345  AddrInst       2.0
+    1350  AddrAdd        2.0
+    1355  PushI          3
+    1364  Store          Int
+    1366  AddrInst       2.0
+    1371  SysFB          20, 7
+    1375  PushAddr       %DB1.DBX0.0
+    1384  AddrAdd        116.0
+    1389  AddrInst       2.0
+    1394  AddrAdd        0.4
+    1399  Load           Bool
+    1401  Store          Bool
+    1403  PushAddr       %DB1.DBX0.0
+    1412  AddrAdd        114.0
+    1417  AddrInst       2.0
+    1422  AddrAdd        4.0
+    1427  Load           Int
+    1429  Store          Int
+    1431  AddrInst       8.0
+    1436  PushAddr       %DB1.DBX0.0
+    1445  AddrAdd        204.1
+    1450  Load           Bool
+    1452  Store          Bool
+    1454  AddrInst       8.0
+    1459  AddrAdd        2.0
+    1464  PushI          500
+    1473  Store          Time
+    1475  AddrInst       8.0
+    1480  SysFB          1, 0
+    1484  PushAddr       %DB1.DBX0.0
+    1493  AddrAdd        116.1
+    1498  AddrInst       8.0
+    1503  AddrAdd        6.0
+    1508  Load           Bool
+    1510  Store          Bool
+    1512  AddrInst       30.0
+    1517  PushAddr       %DB1.DBX0.0
+    1526  AddrAdd        204.1
+    1531  Load           Bool
+    1533  Store          Bool
+    1535  AddrInst       30.0
+    1540  AddrAdd        2.0
+    1545  PushI          1000
+    1554  Store          Time
+    1556  AddrInst       30.0
+    1561  SysFB          2, 0
+    1565  PushAddr       %DB1.DBX0.0
+    1574  AddrAdd        118.0
+    1579  PushI          100
+    1588  PushI          200
+    1597  PushI          300
+    1606  PushI          2
+    1615  MuxPick        3
+    1617  Store          Int
+    1619  PushAddr       %DB1.DBX0.0
+    1628  AddrAdd        120.0
+    1633  PushAddr       %DB1.DBX0.0
+    1642  AddrAdd        182.0
+    1647  Load           Word
+    1649  PushI          4
+    1658  Shl            16
+    1660  Wrap           Word
+    1662  Store          Word
+    1664  PushAddr       %DB1.DBX0.0
+    1673  AddrAdd        122.0
+    1678  PushI          129
+    1687  PushI          1
+    1696  Rol            8
+    1698  Wrap           Byte
+    1700  Store          Byte
+    1702  PushAddr       %DB1.DBX0.0
+    1711  AddrAdd        124.0
+    1716  PushI          7
+    1725  I2F            
+    1726  F2F32          
+    1727  PushF          2
+    1736  DivF           
+    1737  F2F32          
+    1738  Store          Real
+    1740  PushAddr       %DB1.DBX0.0
+    1749  AddrAdd        128.0
+    1754  PushF          0.333333333333333
+    1763  Store          LReal
+    1765  PushAddr       %DB1.DBX0.0
+    1774  AddrAdd        136.0
+    1779  PushF          -2.7
+    1788  F2ITrunc       
+    1789  Wrap           DInt
+    1791  Store          DInt
+    1793  PushAddr       %DB1.DBX0.0
+    1802  AddrAdd        140.0
+    1807  PushF          2.5
+    1816  F2IRound       
+    1817  Wrap           DInt
+    1819  Store          DInt
+    1821  PushAddr       %DB1.DBX0.0
+    1830  AddrAdd        144.0
+    1835  FrameAlloc     4
+    1840  AddrNewFrame   2.0
+    1845  PushI          21
+    1854  Store          Int
+    1856  Call           1 ; Twice
+    1859  AddrNewFrame   0.0
+    1864  Load           Int
+    1866  FrameFree      
+    1867  Store          Int
+    1869  PushAddr       %DB1.DBX0.0
+    1878  AddrAdd        144.0
+    1883  PushAddr       %DB1.DBX0.0
+    1892  AddrAdd        144.0
+    1897  Load           Int
+    1899  FrameAlloc     16
+    1904  AddrNewFrame   2.0
+    1909  PushI          2
+    1918  Store          Int
+    1920  AddrNewFrame   4.0
+    1925  PushI          3
+    1934  Store          Int
+    1936  AddrNewFrame   8.0
+    1941  PushAddr       %DB1.DBX0.0
+    1950  AddrAdd        148.0
+    1955  Store          Ptr
+    1957  Call           0 ; AddMul
+    1960  PushAddr       %DB1.DBX0.0
+    1969  AddrAdd        146.0
+    1974  AddrNewFrame   6.0
+    1979  Load           Int
+    1981  Store          Int
+    1983  AddrNewFrame   0.0
+    1988  Load           Int
+    1990  FrameFree      
+    1991  AddI           
+    1992  Wrap           Int
+    1994  Store          Int
+    1996  AddrLocal      0.0
+    2001  PushI          0
+    2010  Store          Int
+    2012  AddrLocal      294.0
+    2017  PushI          2
+    2026  Store          LInt
+    2028  AddrLocal      0.0
+    2033  Load           Int
+    2035  AddrLocal      294.0
+    2040  Load           LInt
+    2042  GtI            
+    2043  Jnz            -> 2307
+    2048  AddrLocal      2.0
+    2053  PushI          0
+    2062  Store          Int
+    2064  AddrLocal      302.0
+    2069  PushI          3
+    2078  Store          LInt
+    2080  AddrLocal      2.0
+    2085  Load           Int
+    2087  AddrLocal      302.0
+    2092  Load           LInt
+    2094  GtI            
+    2095  Jnz            -> 2246
+    2100  PushAddr       %DB1.DBX0.0
+    2109  AddrAdd        150.0
+    2114  AddrLocal      0.0
+    2119  Load           Int
+    2121  AddrIndex      0, 64, 3
+    2134  AddrLocal      2.0
+    2139  Load           Int
+    2141  AddrIndex      0, 16, 4
+    2154  AddrLocal      0.0
+    2159  Load           Int
+    2161  PushI          10
+    2170  MulI           
+    2171  Wrap           Int
+    2173  AddrLocal      2.0
+    2178  Load           Int
+    2180  AddI           
+    2181  Wrap           Int
+    2183  Store          Int
+    2185  AddrLocal      2.0
+    2190  AddrLocal      2.0
+    2195  Load           Int
+    2197  PushI          1
+    2206  AddI           
+    2207  Dup            
+    2208  Wrap           Int
+    2210  EqI            
+    2211  Jz             -> 2246
+    2216  AddrLocal      2.0
+    2221  AddrLocal      2.0
+    2226  Load           Int
+    2228  PushI          1
+    2237  AddI           
+    2238  Store          Int
+    2240  Drop           
+    2241  Jmp            -> 2080
+    2246  AddrLocal      0.0
+    2251  AddrLocal      0.0
+    2256  Load           Int
+    2258  PushI          1
+    2267  AddI           
+    2268  Dup            
+    2269  Wrap           Int
+    2271  EqI            
+    2272  Jz             -> 2307
+    2277  AddrLocal      0.0
+    2282  AddrLocal      0.0
+    2287  Load           Int
+    2289  PushI          1
+    2298  AddI           
+    2299  Store          Int
+    2301  Drop           
+    2302  Jmp            -> 2028
+    2307  PushAddr       %DB1.DBX0.0
+    2316  AddrAdd        174.0
+    2321  PushAddr       %DB1.DBX0.0
+    2330  AddrAdd        150.0
+    2335  AddrAdd        16.0
+    2340  AddrAdd        6.0
+    2345  Load           Int
+    2347  PushAddr       %DB1.DBX0.0
+    2356  AddrAdd        150.0
+    2361  AddrAdd        8.0
+    2366  Load           Int
+    2368  AddI           
+    2369  Wrap           Int
+    2371  Store          Int
+    2373  PushAddr       %DB1.DBX0.0
+    2382  AddrAdd        176.0
+    2387  PushAddr       %DB1.DBX0.0
+    2396  AddrAdd        150.0
+    2401  AddrAdd        2.0
+    2406  Load           Int
+    2408  PushI          1
+    2417  EqI            
+    2418  PushF          1.5
+    2427  PushF          2.5
+    2436  Sel            
+    2437  Store          Real
+    2439  PushAddr       %DB1.DBX0.0
+    2448  AddrAdd        180.0
+    2453  PushAddr       %DB1.DBX0.0
+    2462  AddrAdd        182.0
+    2467  Load           Word
+    2469  GetField       8, 8
+    2472  Store          Byte
+    2474  PushAddr       %DB1.DBX0.0
+    2483  AddrAdd        182.0
+    2488  Dup            
+    2489  Load           Word
+    2491  PushI          1
+    2500  SetBit         0
+    2502  Store          Word
+    2504  PushAddr       %DB1.DBX0.0
+    2513  AddrAdd        184.0
+    2518  PushI          5500
+    2527  Store          Time
+    2529  PushAddr       %DB1.DBX0.0
+    2538  AddrAdd        188.0
+    2543  PushI          1000005
+    2552  Store          LTime
+    2554  PushAddr       %DB1.DBX0.0
+    2563  AddrAdd        196.0
+    2568  PushI          5
+    2577  Store          Int
+    2579  PushAddr       %DB1.DBX0.0
+    2588  AddrAdd        198.0
+    2593  PushI          -1
+    2602  Store          Int
+    2604  PushAddr       %DB1.DBX0.0
+    2613  AddrAdd        200.0
+    2618  PushI          -3
+    2627  Store          Int
+    2629  PushAddr       %DB1.DBX0.0
+    2638  AddrAdd        202.0
+    2643  PushI          32767
+    2652  Store          Int
+    2654  PushAddr       %DB1.DBX0.0
+    2663  AddrAdd        202.0
+    2668  PushAddr       %DB1.DBX0.0
+    2677  AddrAdd        202.0
+    2682  Load           Int
+    2684  PushI          1
+    2693  AddI           
+    2694  Wrap           Int
+    2696  Store          Int
+    2698  PushAddr       %DB1.DBX0.0
+    2707  AddrAdd        216.0
+    2712  PushAddr       %DB1.DBX0.0
+    2721  AddrAdd        206.0
+    2726  Load           Int
+    2728  PushAddr       %DB1.DBX0.0
+    2737  AddrAdd        206.0
+    2742  AddrAdd        2.0
+    2747  Load           Int
+    2749  AddI           
+    2750  Wrap           Int
+    2752  PushAddr       %DB1.DBX0.0
+    2761  AddrAdd        206.0
+    2766  AddrAdd        8.0
+    2771  Load           Int
+    2773  AddI           
+    2774  Wrap           Int
+    2776  Store          Int
+    2778  PushAddr       %DB1.DBX0.0
+    2787  AddrAdd        218.0
+    2792  PushI          20
+    2801  Store          Int
+    2803  PushAddr       %DB1.DBX0.0
+    2812  AddrAdd        220.0
+    2817  PushI          1
+    2826  Store          Bool
+    2828  AddrLocal      8.0
+    2833  PushF          2
+    2842  Store          Real
+    2844  PushAddr       %DB1.DBX0.0
+    2853  AddrAdd        222.0
+    2858  AddrLocal      8.0
+    2863  Load           Real
+    2865  PushF          8
+    2874  MulF           
+    2875  F2F32          
+    2876  Builtin        1
+    2879  F2F32          
+    2880  Store          Real
+    2882  Ret            
+    2883  AddrLocal      38.0
+    2888  PushI          254
+    2897  Store          Byte
+    2899  Jmp            -> 5
+
+; ===== [4] OB1 "Main" (features.scl) =====
+; line table: 232@5 
+       0  Jmp            -> 18
+       5  PushAddr       %DB2.DBX0.0
+      14  CallFB         3 ; FB_Features
+      17  Ret            
+      18  Jmp            -> 5
+
+; ===== memory map =====
+PLC tags
+
+DB1 "Data"  226 bytes  optimized
+    0.0        Static   CaseOut                                  Int                        0  [retain]
+    2.0        Static   WhileSum                                 DInt                       0  [retain]
+    6.0        Static   RepeatCnt                                Int                        0  [retain]
+    8.0        Static   ForDown                                  Int                        0  [retain]
+    10.0       Static   ExitAt                                   Int                        0  [retain]
+    12.0       Static   ContSum                                  Int                        0  [retain]
+    14.0       Static   Str1                                     String[20]                 'Hello'  [retain]
+    36.0       Static   Str2                                     String[20]                 'abc'  [retain]
+    58.0       Static   StrLen                                   Int                        0  [retain]
+    60.0       Static   StrEq                                    Bool                       FALSE  [retain]
+    62.0       Static   FindPos                                  Int                        0  [retain]
+    64.0       Static   Pts                                      Array[1..3] of "typePoint"   [retain]
+    64.0       Static   Pts[1]                                   "typePoint"                  [retain]
+    64.0       Static   Pts[1].X                                 Int                        1  [retain]
+    66.0       Static   Pts[1].Y                                 Int                        2  [retain]
+    68.0       Static   Pts[1].Name                              String[10]                 'pt'  [retain]
+    80.0       Static   Pts[2]                                   "typePoint"                  [retain]
+    80.0       Static   Pts[2].X                                 Int                        1  [retain]
+    82.0       Static   Pts[2].Y                                 Int                        2  [retain]
+    84.0       Static   Pts[2].Name                              String[10]                 'pt'  [retain]
+    96.0       Static   Pts[3]                                   "typePoint"                  [retain]
+    96.0       Static   Pts[3].X                                 Int                        1  [retain]
+    98.0       Static   Pts[3].Y                                 Int                        2  [retain]
+    100.0      Static   Pts[3].Name                              String[10]                 'pt'  [retain]
+    112.0      Static   PtSum                                    Int                        0  [retain]
+    114.0      Static   Counter                                  Int                        0  [retain]
+    116.0      Static   CountQ                                   Bool                       FALSE  [retain]
+    116.1      Static   PulseQ                                   Bool                       FALSE  [retain]
+    118.0      Static   MuxOut                                   Int                        0  [retain]
+    120.0      Static   ShlOut                                   Word                       16#0000  [retain]
+    122.0      Static   RolOut                                   Byte                       16#00  [retain]
+    124.0      Static   RealOut                                  Real                       0  [retain]
+    128.0      Static   LRealOut                                 LReal                      0  [retain]
+    136.0      Static   TruncOut                                 DInt                       0  [retain]
+    140.0      Static   RoundOut                                 DInt                       0  [retain]
+    144.0      Static   Fc2Out                                   Int                        0  [retain]
+    146.0      Static   OutParam                                 Int                        0  [retain]
+    148.0      Static   InOutVal                                 Int                        5  [retain]
+    150.0      Static   Matrix                                   Array[0..2] of Array[0..3] of Int   [retain]
+    150.0      Static   Matrix[0]                                Array[0..3] of Int           [retain]
+    150.0      Static   Matrix[0][0]                             Int                        0  [retain]
+    152.0      Static   Matrix[0][1]                             Int                        0  [retain]
+    154.0      Static   Matrix[0][2]                             Int                        0  [retain]
+    156.0      Static   Matrix[0][3]                             Int                        0  [retain]
+    158.0      Static   Matrix[1]                                Array[0..3] of Int           [retain]
+    158.0      Static   Matrix[1][0]                             Int                        0  [retain]
+    160.0      Static   Matrix[1][1]                             Int                        0  [retain]
+    162.0      Static   Matrix[1][2]                             Int                        0  [retain]
+    164.0      Static   Matrix[1][3]                             Int                        0  [retain]
+    166.0      Static   Matrix[2]                                Array[0..3] of Int           [retain]
+    166.0      Static   Matrix[2][0]                             Int                        0  [retain]
+    168.0      Static   Matrix[2][1]                             Int                        0  [retain]
+    170.0      Static   Matrix[2][2]                             Int                        0  [retain]
+    172.0      Static   Matrix[2][3]                             Int                        0  [retain]
+    174.0      Static   MatrixSum                                Int                        0  [retain]
+    176.0      Static   SelOut                                   Real                       0  [retain]
+    180.0      Static   ByteSlice                                Byte                       16#00  [retain]
+    182.0      Static   Wd                                       Word                       16#1234  [retain]
+    184.0      Static   TimeOut                                  Time                       T#0S  [retain]
+    188.0      Static   LTimeOut                                 LTime                      LT#0S  [retain]
+    196.0      Static   Neg                                      Int                        0  [retain]
+    198.0      Static   ModOut                                   Int                        0  [retain]
+    200.0      Static   DivOut                                   Int                        0  [retain]
+    202.0      Static   Overflow                                 Int                        0  [retain]
+    204.0      Static   CntIn                                    Bool                       FALSE  [retain]
+    204.1      Static   PulseIn                                  Bool                       FALSE  [retain]
+    206.0      Static   Init                                     Array[0..4] of Int           [retain]
+    206.0      Static   Init[0]                                  Int                        1  [retain]
+    208.0      Static   Init[1]                                  Int                        2  [retain]
+    210.0      Static   Init[2]                                  Int                        7  [retain]
+    212.0      Static   Init[3]                                  Int                        7  [retain]
+    214.0      Static   Init[4]                                  Int                        7  [retain]
+    216.0      Static   InitSum                                  Int                        0  [retain]
+    218.0      Static   ConstUse                                 Int                        0  [retain]
+    220.0      Static   Cmp                                      Bool                       FALSE  [retain]
+    222.0      Static   SqrtOut                                  Real                       0  [retain]
+
+DB2 "iFeatures"  54 bytes  instance of "FB_Features"  optimized
+    0.0        Input    Sel                                      Int                        3
+    2.0        Static   cnt                                      CTU_INT                    
+    2.0        Static   cnt.CU                                   Bool                       FALSE
+    2.1        Static   cnt.CD                                   Bool                       FALSE
+    2.2        Static   cnt.R                                    Bool                       FALSE
+    2.3        Static   cnt.LD                                   Bool                       FALSE
+    2.4        Static   cnt.Q                                    Bool                       FALSE
+    2.5        Static   cnt.QU                                   Bool                       FALSE
+    2.6        Static   cnt.QD                                   Bool                       FALSE
+    4.0        Static   cnt.PV                                   Int                        0
+    6.0        Static   cnt.CV                                   Int                        0
+    8.0        Static   pulse                                    TP_TIME                    
+    8.0        Static   pulse.IN                                 Bool                       FALSE
+    8.1        Static   pulse.R                                  Bool                       FALSE
+    10.0       Static   pulse.PT                                 Time                       T#0S
+    14.0       Static   pulse.Q                                  Bool                       FALSE
+    16.0       Static   pulse.ET                                 Time                       T#0S
+    30.0       Static   tmr                                      IEC_TIMER                  
+    30.0       Static   tmr.IN                                   Bool                       FALSE
+    30.1       Static   tmr.R                                    Bool                       FALSE
+    32.0       Static   tmr.PT                                   Time                       T#0S
+    36.0       Static   tmr.Q                                    Bool                       FALSE
+    38.0       Static   tmr.ET                                   Time                       T#0S
+    52.0       Static   edge                                     R_TRIG                     
+    52.0       Static   edge.CLK                                 Bool                       FALSE
+    52.1       Static   edge.Q                                   Bool                       FALSE
+
+FC1 "AddMul"  parameters 16 bytes  temp 0 bytes  code 87 bytes
+    0.0        Return   RET_VAL                                  Int                        
+    2.0        Input    A                                        Int                        
+    4.0        Input    B                                        Int                        
+    6.0        Output   Prod                                     Int                        
+    8.0        InOut    Acc                                      Int                          [pointer]
+
+FC2 "Twice"  parameters 4 bytes  temp 0 bytes  code 88 bytes
+    0.0        Return   RET_VAL                                  Int                        
+    2.0        Input    V                                        Int                        
+
+FC3 "SumPts"  parameters 10 bytes  temp 12 bytes  code 235 bytes
+    0.0        Return   RET_VAL                                  Int                        
+    2.0        Input    P                                        Array[1..3] of "typePoint"   [pointer]
+    10.0       Temp     i                                        Int                        
+    12.0       Temp     s                                        Int                        
+
+FB1 "FB_Features"  instance 54 bytes  temp 310 bytes  code 2904 bytes
+    0.0        Input    Sel                                      Int                        
+    2.0        Static   cnt                                      CTU_INT                    
+    2.0        Static   cnt.CU                                   Bool                       
+    2.1        Static   cnt.CD                                   Bool                       
+    2.2        Static   cnt.R                                    Bool                       
+    2.3        Static   cnt.LD                                   Bool                       
+    2.4        Static   cnt.Q                                    Bool                       
+    2.5        Static   cnt.QU                                   Bool                       
+    2.6        Static   cnt.QD                                   Bool                       
+    4.0        Static   cnt.PV                                   Int                        
+    6.0        Static   cnt.CV                                   Int                        
+    8.0        Static   pulse                                    TP_TIME                    
+    8.0        Static   pulse.IN                                 Bool                       
+    8.1        Static   pulse.R                                  Bool                       
+    10.0       Static   pulse.PT                                 Time                       
+    14.0       Static   pulse.Q                                  Bool                       
+    16.0       Static   pulse.ET                                 Time                       
+    30.0       Static   tmr                                      IEC_TIMER                  
+    30.0       Static   tmr.IN                                   Bool                       
+    30.1       Static   tmr.R                                    Bool                       
+    32.0       Static   tmr.PT                                   Time                       
+    36.0       Static   tmr.Q                                    Bool                       
+    38.0       Static   tmr.ET                                   Time                       
+    52.0       Static   edge                                     R_TRIG                     
+    52.0       Static   edge.CLK                                 Bool                       
+    52.1       Static   edge.Q                                   Bool                       
+    0.0        Temp     i                                        Int                        
+    2.0        Temp     j                                        Int                        
+    4.0        Temp     d                                        DInt                       
+    8.0        Temp     r                                        Real                       
+
+OB1 "Main"  event class 1  temp 0 bytes  code 23 bytes
