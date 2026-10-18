@@ -1,0 +1,13 @@
+[Project]
+Name=RT1200
+CPU=S7-1200
+OutputDir=output
+
+[Sources]
+File1=runtime.scl
+
+[Tags]
+
+[BlockNumbers]
+
+[CyclicInterval]

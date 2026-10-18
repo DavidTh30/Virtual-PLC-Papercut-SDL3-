@@ -56,6 +56,11 @@ VERSION : 0.1
       ConstUse : Int;
       Cmp : Bool;
       SqrtOut : Real;
+      PowNeg : Real;
+      PowNegLit : Real;
+      PowSignedExp : Real;
+      PowChain : Real;
+      MinInt : Int;
    END_VAR
 BEGIN
    Str2 := 'abc';
@@ -216,6 +221,12 @@ BEGIN
    "Data".Cmp := (5 > 3) AND NOT (2.0 > 3.0) XOR FALSE;
    #r := 2.0;
    "Data".SqrtOut := SQRT(#r * 8.0);
+   // ** binds tighter than the unary minus: -x ** 2 = -(x ** 2); from left to right; a signed exponent
+   "Data".PowNeg := -"Data".RealOut ** 2.0;      // -(3.5 ** 2) = -12.25
+   "Data".PowNegLit := -2.0 ** 2.0;              // -4
+   "Data".PowSignedExp := 2.0 ** -1.0;           // 0.5
+   "Data".PowChain := 2.0 ** 3.0 ** 2.0;         // (2 ** 3) ** 2 = 64
+   "Data".MinInt := -32768;                      // a negative literal still fits Int
 END_FUNCTION_BLOCK
 
 DATA_BLOCK "iFeatures"

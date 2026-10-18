@@ -62,3 +62,14 @@ expect "iFeatures".tmr.Q FALSE
 run 500ms
 expect "iFeatures".tmr.Q TRUE
 expect "iFeatures".pulse.ET T#500MS
+# ** and the unary minus
+expect "Data".PowNeg -12.25
+expect "Data".PowNegLit -4
+expect "Data".PowSignedExp 0.5
+expect "Data".PowChain 64
+expect "Data".MinInt -32768
+# String values in the script: print / expect / set (spaces in quotes)
+expect "Data".Str2 'Hello World'
+print "Data".Str2
+set "Data".Str1 'It''s'
+expect "Data".Str1 'It''s'

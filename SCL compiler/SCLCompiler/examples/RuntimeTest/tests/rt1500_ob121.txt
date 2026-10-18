@@ -1,0 +1,7 @@
+# S7-1500 with OB121: OB121 runs for the error, the CPU stays in RUN, the program goes on
+cycle-ms 10
+run 5 cycles
+expect-mode RUN
+expect "R".After 5
+expect "R".Ob121Count 5
+expect "R".Got 0

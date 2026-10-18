@@ -1,0 +1,14 @@
+[Project]
+Name=RT1500_OB121
+CPU=S7-1500
+OutputDir=output
+
+[Sources]
+File1=runtime.scl
+File2=ob121.scl
+
+[Tags]
+
+[BlockNumbers]
+
+[CyclicInterval]

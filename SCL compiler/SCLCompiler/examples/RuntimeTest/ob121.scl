@@ -1,0 +1,6 @@
+// OB121 "Programming error": called for every run-time error of the program
+ORGANIZATION_BLOCK "Programming error"
+VERSION : 0.1
+BEGIN
+   "R".Ob121Count := "R".Ob121Count + 1;
+END_ORGANIZATION_BLOCK

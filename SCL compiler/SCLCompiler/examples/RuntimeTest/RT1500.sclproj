@@ -1,0 +1,13 @@
+[Project]
+Name=RT1500
+CPU=S7-1500
+OutputDir=output
+
+[Sources]
+File1=runtime.scl
+
+[Tags]
+
+[BlockNumbers]
+
+[CyclicInterval]

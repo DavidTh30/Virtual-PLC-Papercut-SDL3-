@@ -1,0 +1,6 @@
+# S7-1500 without OB121: STOP at the first error (the rest of OB1 is not done)
+cycle-ms 10
+run 5 cycles
+expect-mode STOP
+expect "R".Before 1
+expect "R".After 0

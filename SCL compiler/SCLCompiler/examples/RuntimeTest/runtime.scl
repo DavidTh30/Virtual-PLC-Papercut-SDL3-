@@ -1,0 +1,26 @@
+// Run-time errors of the program: an array index out of range every cycle.
+// S7-1200 (and every CPU with OB121): the faulty read gives 0, the faulty write is not done,
+// the program goes on. S7-300/400/1500 without OB121: the CPU goes to STOP.
+DATA_BLOCK "R"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR
+      Arr : Array[0..3] of Int := [1, 2, 3, 4];
+      Idx : Int := 10;
+      Before : Int;
+      After : Int;
+      Got : Int := -1;
+      Ob121Count : Int;
+      Short : String[3] := 'abcdef';   // too long: a warning, 'abc' is kept
+   END_VAR
+BEGIN
+END_DATA_BLOCK
+
+ORGANIZATION_BLOCK "Main"
+VERSION : 0.1
+BEGIN
+   "R".Before := "R".Before + 1;
+   "R".Got := "R".Arr["R".Idx];      // read: 0
+   "R".Arr["R".Idx] := 99;            // write: not done
+   "R".After := "R".After + 1;
+END_ORGANIZATION_BLOCK

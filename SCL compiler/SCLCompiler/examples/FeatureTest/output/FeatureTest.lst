@@ -1,7 +1,7 @@
 ; SCL Compiler 1.0.0 listing - project FeatureTest - S7-1500
 
 ; ===== [0] FC1 "AddMul" (features.scl) =====
-; line table: 78@5 79@29 80@57 
+; line table: 83@5 84@29 85@57 
        0  Jmp            -> 82
        5  AddrLocal      6.0
       10  AddrLocal      2.0
@@ -32,7 +32,7 @@
       82  Jmp            -> 5
 
 ; ===== [1] FC2 "Twice" (features.scl) =====
-; line table: 89@5 
+; line table: 94@5 
        0  Jmp            -> 83
        5  AddrLocal      0.0
       10  FrameAlloc     16
@@ -60,7 +60,7 @@
       83  Jmp            -> 5
 
 ; ===== [2] FC3 "SumPts" (features.scl) =====
-; line table: 102@5 103@21 104@73 106@215 
+; line table: 107@5 108@21 109@73 111@215 
        0  Jmp            -> 230
        5  AddrLocal      12.0
       10  PushI          0
@@ -123,8 +123,8 @@
      230  Jmp            -> 5
 
 ; ===== [3] FB1 "FB_Features" (features.scl) =====
-; line table: 131@5 136@125 132@150 133@175 134@200 139@225 140@241 141@257 142@279 143@305 145@334 147@357 149@373 152@421 154@444 155@469 156@521 159@624 160@676 161@698 164@769 166@792 167@817 168@869 169@903 171@913 174@1016 175@1062 176@1094 177@1145 179@1186 180@1216 182@1269 183@1301 184@1431 185@1512 187@1565 188@1619 189@1664 190@1702 191@1740 192@1765 193@1793 194@1821 195@1869 197@1996 198@2048 199@2100 202@2307 204@2373 205@2439 206@2474 207@2504 208@2529 209@2554 210@2579 211@2604 212@2629 213@2654 214@2698 215@2778 216@2803 217@2828 218@2844 
-       0  Jmp            -> 2883
+; line table: 136@5 141@125 137@150 138@175 139@200 144@225 145@241 146@257 147@279 148@305 150@334 152@357 154@373 157@421 159@444 160@469 161@521 164@624 165@676 166@698 169@769 171@792 172@817 173@869 174@903 176@913 179@1016 180@1062 181@1094 182@1145 184@1186 185@1216 187@1269 188@1301 189@1431 190@1512 192@1565 193@1619 194@1664 195@1702 196@1740 197@1765 198@1793 199@1821 200@1869 202@1996 203@2048 204@2100 207@2307 209@2373 210@2439 211@2474 212@2504 213@2529 214@2554 215@2579 216@2604 217@2629 218@2654 219@2698 220@2778 221@2803 222@2828 223@2844 225@2882 226@2926 227@2951 228@2976 229@3001 
+       0  Jmp            -> 3027
        5  AddrLocal      12.0
       10  AddrInst       0.0
       15  Load           Int
@@ -744,14 +744,40 @@
     2876  Builtin        1
     2879  F2F32          
     2880  Store          Real
-    2882  Ret            
-    2883  AddrLocal      38.0
-    2888  PushI          254
-    2897  Store          Byte
-    2899  Jmp            -> 5
+    2882  PushAddr       %DB1.DBX0.0
+    2891  AddrAdd        226.0
+    2896  PushAddr       %DB1.DBX0.0
+    2905  AddrAdd        124.0
+    2910  Load           Real
+    2912  PushF          2
+    2921  ExptF          
+    2922  F2F32          
+    2923  NegF           
+    2924  Store          Real
+    2926  PushAddr       %DB1.DBX0.0
+    2935  AddrAdd        230.0
+    2940  PushF          -4
+    2949  Store          Real
+    2951  PushAddr       %DB1.DBX0.0
+    2960  AddrAdd        234.0
+    2965  PushF          0.5
+    2974  Store          Real
+    2976  PushAddr       %DB1.DBX0.0
+    2985  AddrAdd        238.0
+    2990  PushF          64
+    2999  Store          Real
+    3001  PushAddr       %DB1.DBX0.0
+    3010  AddrAdd        242.0
+    3015  PushI          -32768
+    3024  Store          Int
+    3026  Ret            
+    3027  AddrLocal      38.0
+    3032  PushI          254
+    3041  Store          Byte
+    3043  Jmp            -> 5
 
 ; ===== [4] OB1 "Main" (features.scl) =====
-; line table: 232@5 
+; line table: 243@5 
        0  Jmp            -> 18
        5  PushAddr       %DB2.DBX0.0
       14  CallFB         3 ; FB_Features
@@ -761,7 +787,7 @@
 ; ===== memory map =====
 PLC tags
 
-DB1 "Data"  226 bytes  optimized
+DB1 "Data"  244 bytes  optimized
     0.0        Static   CaseOut                                  Int                        0  [retain]
     2.0        Static   WhileSum                                 DInt                       0  [retain]
     6.0        Static   RepeatCnt                                Int                        0  [retain]
@@ -838,6 +864,11 @@ DB1 "Data"  226 bytes  optimized
     218.0      Static   ConstUse                                 Int                        0  [retain]
     220.0      Static   Cmp                                      Bool                       FALSE  [retain]
     222.0      Static   SqrtOut                                  Real                       0  [retain]
+    226.0      Static   PowNeg                                   Real                       0  [retain]
+    230.0      Static   PowNegLit                                Real                       0  [retain]
+    234.0      Static   PowSignedExp                             Real                       0  [retain]
+    238.0      Static   PowChain                                 Real                       0  [retain]
+    242.0      Static   MinInt                                   Int                        0  [retain]
 
 DB2 "iFeatures"  54 bytes  instance of "FB_Features"  optimized
     0.0        Input    Sel                                      Int                        3
@@ -884,7 +915,7 @@ FC3 "SumPts"  parameters 10 bytes  temp 12 bytes  code 235 bytes
     10.0       Temp     i                                        Int                        
     12.0       Temp     s                                        Int                        
 
-FB1 "FB_Features"  instance 54 bytes  temp 310 bytes  code 2904 bytes
+FB1 "FB_Features"  instance 54 bytes  temp 310 bytes  code 3048 bytes
     0.0        Input    Sel                                      Int                        
     2.0        Static   cnt                                      CTU_INT                    
     2.0        Static   cnt.CU                                   Bool                       
