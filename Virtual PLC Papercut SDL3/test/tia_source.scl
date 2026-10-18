@@ -1,0 +1,82 @@
+// a source as TIA writes it
+TYPE "Recipe"
+VERSION : 0.1
+   STRUCT
+      Speed : Int := 100;   // rpm
+      Time1 : Time := T#2S;
+   END_STRUCT;
+END_TYPE
+
+// FB7
+FUNCTION_BLOCK "Mixer"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT
+      Start { ExternalAccessible := 'False' } : Bool;   // the start button
+      Rec : "Recipe";
+   END_VAR
+   VAR_OUTPUT
+      Running : Bool;
+      Count : Int;
+   END_VAR
+   VAR
+      Edge : R_TRIG;
+      State : Struct   // an anonymous struct
+         Step : Int;
+         Busy : Bool;
+      END_STRUCT;
+      Hist : Array[0..2] of Int := [1, 2, 3];
+   END_VAR
+   VAR_TEMP
+      i : Int;
+   END_VAR
+   VAR CONSTANT
+      LIMIT_MAX : Int := 5;
+   END_VAR
+
+BEGIN
+	REGION Edge and count
+		#Edge(CLK := #Start);
+		IF #Edge.Q AND #Count < #LIMIT_MAX THEN
+			#Count := #Count + 1;
+		END_IF;
+	END_REGION
+	REGION State
+		// the step and the history
+		#State.Step := #Count * #Rec.Speed;
+		#State.Busy := #Count > 0;
+		#Running := #State.Busy;
+		FOR #i := 2 TO 1 BY -1 DO
+			#Hist[#i] := #Hist[#i - 1];
+		END_FOR;
+		#Hist[0] := #State.Step;
+	END_REGION
+END_FUNCTION_BLOCK
+
+DATA_BLOCK "Mixer_DB"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+NON_RETAIN
+"Mixer"
+BEGIN
+END_DATA_BLOCK
+
+DATA_BLOCK "Plant"
+VERSION : 0.1
+   VAR
+      Rec : "Recipe";
+      Count : Int;
+      Name : String[10] := 'mixer';
+   END_VAR
+   VAR RETAIN
+      Total : DInt;
+   END_VAR
+BEGIN
+   Count := 3;
+END_DATA_BLOCK
+
+ORGANIZATION_BLOCK "Main"
+VERSION : 0.1
+BEGIN
+    "Mixer_DB"(Start := %I0.0, Rec := "Plant".Rec, Count => "Plant".Count);
+END_ORGANIZATION_BLOCK

@@ -8,7 +8,7 @@ program plctest;
 
 uses
   Classes, SysUtils, Math, fpjson, jsonparser, uPlcTypes, uPlcProject, uPlcCompiler, uPlcRuntime, uPlcServer,
-  uPlcClient, uClaude, uExamples;
+  uPlcClient, uClaude, uExamples, uSclSource;
 
 var
   Fails, Passes: Integer;
@@ -2059,7 +2059,1255 @@ begin
   end;
 end;
 
+{ the SCL elements of the SCL Compiler, phase 1: typed literals, VAR CONSTANT, MUX, slices, arrays of more
+  dimensions, init lists, FC return by name and positional arguments, the system FBs }
+function ParityProject(AModel: Integer; const Main: string): TPlcProject;
+var
+  F: TBlock;
+  D: TDataBlock;
 begin
+  Result := TPlcProject.Create;
+  Result.NewEmpty(AModel);
+  D := Result.AddDB(1, 'D');
+  D.AddVar('k', 'Int', '2', '');
+  D.AddVar('k2', 'Int', '7', '');
+  D.AddVar('u', 'UDInt', '0', '');
+  D.AddVar('u2', 'UDInt', '4000000001', '');
+  D.AddVar('dt', 'Date', 'D#1990-01-01', '');
+  D.AddVar('tod', 'Time_Of_Day', 'TOD#0:0:0', '');
+  D.AddVar('w', 'Word', '0', '');
+  D.AddVar('b', 'Bool', 'FALSE', '');
+  D.AddVar('b2', 'Bool', 'FALSE', '');
+  D.AddVar('y', 'Byte', '0', '');
+  D.AddVar('dw', 'DWord', 'DW#16#11223344', '');
+  D.AddVar('w2', 'Word', '0', '');
+  D.AddVar('i2', 'Int', '0', '');
+  D.AddVar('arrw', 'Array[0..3] of Word', '0', '');
+  D.AddVar('m', 'Array[0..2, 1..3] of Int', '0', '');
+  D.AddVar('a5', 'Array[0..4] of Int', '[1, 2, 3(7)]', '');
+  D.AddVar('ti', 'Int', 'INT#-3', '');
+  D.AddVar('r1', 'Int', '0', '');
+  D.AddVar('o', 'Int', '0', '');
+  D.AddVar('io', 'Int', '0', '');
+  D.AddVar('ft', 'R_TRIG', '', 'a system FB in a global DB');
+  // an FC with a Return value written as #Add2
+  F := Result.AddBlock(bkFC, 1, 'Add2');
+  F.Iface.AddSecVar(vsInput, 'a', 'Int', '', '');
+  F.Iface.AddSecVar(vsInput, 'b', 'Int', '', '');
+  F.Iface.AddSecVar(vsOutput, 'o', 'Int', '', '');
+  F.Iface.AddSecVar(vsInOut, 'io', 'Int', '', '');
+  F.Iface.AddSecVar(vsReturn, 'Ret_Val', 'Int', '', '');
+  F.AddNet(nkSCL).Stl.Text := '#o := #a * #b;' + LineEnding + '#io := #io + 1;' + LineEnding + '#Add2 := #a + #b;';
+  // an FB with the system FBs as statics
+  F := Result.AddBlock(bkFB, 1, 'Sys');
+  F.Iface.AddSecVar(vsInput, 'x', 'Bool', '', '');
+  F.Iface.AddSecVar(vsInput, 'x2', 'Bool', '', '');
+  F.Iface.AddSecVar(vsStatic, 't', 'TON_TIME', '', '');
+  F.Iface.AddSecVar(vsStatic, 'tp', 'TP_TIME', '', '');
+  F.Iface.AddSecVar(vsStatic, 'c', 'CTU_INT', '', '');
+  F.Iface.AddSecVar(vsStatic, 'cd', 'CTD_INT', '', '');
+  F.Iface.AddSecVar(vsStatic, 'r', 'R_TRIG', '', '');
+  F.Iface.AddSecVar(vsStatic, 'f', 'F_TRIG', '', '');
+  F.Iface.AddSecVar(vsStatic, 'rs', 'RS', '', '');
+  F.Iface.AddSecVar(vsStatic, 'sr', 'SR', '', '');
+  F.Iface.AddSecVar(vsStatic, 'edges', 'Int', '0', '');
+  F.Iface.AddSecVar(vsStatic, 'fedges', 'Int', '0', '');
+  F.AddNet(nkSCL).Stl.Text :=
+    '#t(IN := #x, PT := T#50MS);' + LineEnding +
+    '#tp(IN := #x, PT := T#1S, Q => %M71.4);' + LineEnding +
+    '#r(CLK := #x);' + LineEnding +
+    'IF #r.Q THEN #edges := #edges + 1; END_IF;' + LineEnding +
+    '#f(CLK := #x, Q => %M71.5);' + LineEnding +
+    'IF #f.Q THEN #fedges := #fedges + 1; END_IF;' + LineEnding +
+    '#c(CU := #x, R := FALSE, PV := 3, CV => %MW24);' + LineEnding +
+    '#cd(CD := #x, LD := NOT %M72.0, PV := 5);' + LineEnding +
+    '%M72.0 := TRUE;' + LineEnding +
+    '#rs(S := #x, R1 := #x2, Q1 => %M71.2);' + LineEnding +
+    '#sr(S1 := #x, R := #x2, Q1 => %M71.3);' + LineEnding +
+    '%M71.0 := #t.Q;' + LineEnding +
+    '%M71.1 := #c.Q;' + LineEnding +
+    '%MW20 := #edges;' + LineEnding +
+    '%MW22 := #fedges;' + LineEnding +
+    '%MW26 := #cd.CV;';
+  D := Result.AddDB(2, 'iSys');
+  D.InstanceOf := 1;
+  F := Result.Block(0);
+  F.DeleteNet(0);
+  F.AddNet(nkSCL).Stl.Text := Main;
+end;
+
+procedure TestSclParity;
+const
+  Main =
+    'VAR CONSTANT' + LineEnding +
+    '  K10 : Int := 10;' + LineEnding +
+    '  KR : Real := -1.5;' + LineEnding +
+    '  KT : Time := T#2S;' + LineEnding +
+    'END_VAR' + LineEnding +
+    'VAR_TEMP' + LineEnding +
+    '  j : Int;' + LineEnding +
+    'END_VAR' + LineEnding +
+    '%MW0 := INT#-5 + #K10;' + LineEnding +
+    '%MW2 := 8#17 + 2#1010;' + LineEnding +
+    '"D".u := UDINT#4000000000;' + LineEnding +
+    '%MD30 := 4000000000;' + LineEnding +
+    '"D".dt := D#2024-01-31;' + LineEnding +
+    '"D".tod := TOD#12:30:15.5;' + LineEnding +
+    '%MD34 := TIME_TO_DINT(#KT);' + LineEnding +
+    '%MW38 := REAL_TO_INT(#KR * 4.0);' + LineEnding +
+    '%MW40 := INT#100 + USINT#200 - SINT#-1;' + LineEnding +
+    '%M42.0 := BOOL#1;' + LineEnding +
+    '%MB43 := CHAR_TO_BYTE(CHAR#''A'');' + LineEnding +
+    '// MUX' + LineEnding +
+    '%MW8 := MUX(K := "D".k, IN0 := 10, IN1 := 20, IN2 := 30, INELSE := 99);' + LineEnding +
+    '%MW10 := MUX("D".k2, 1, 2, 3);' + LineEnding +
+    '%MW12 := MUX(K := 1, IN0 := 5, IN1 := MUX(K := 0, IN0 := 6, IN1 := 7));' + LineEnding +
+    '%MW44 := MUX(K := "D".k2, IN0 := 1, IN1 := 2, INELSE := -1);' + LineEnding +
+    '%MW52 := MIN(IN1 := 9, IN2 := 8, IN3 := 7, IN4 := 6, IN5 := 5, IN6 := 11);' + LineEnding +
+    '%MW54 := MAX(1, 2, 3, 4, 5, 6, 7);' + LineEnding +
+    '// slices' + LineEnding +
+    '"D".w := W#16#0;' + LineEnding +
+    '"D".w.%X3 := TRUE;' + LineEnding +
+    '"D".w.%B1 := 16#AB;' + LineEnding +
+    '"D".b := "D".w.%X11;' + LineEnding +
+    '"D".y := "D".dw.%B2;' + LineEnding +
+    '"D".w2 := "D".dw.%W1;' + LineEnding +
+    '"D".i2 := -1;' + LineEnding +
+    '"D".i2.%X15 := FALSE;' + LineEnding +
+    '"D".arrw["D".k].%X0 := TRUE;' + LineEnding +
+    '"D".arrw["D".k].%B1 := 16#C0;' + LineEnding +
+    '"D".b2 := "D".arrw["D".k].%X15;' + LineEnding +
+    '// arrays of two dimensions' + LineEnding +
+    '"D".m[1, 2] := 5;' + LineEnding +
+    '"D".m["D".k, 3] := 7;' + LineEnding +
+    'FOR #j := 1 TO 3 DO "D".m[0, #j] := #j * 100; END_FOR;' + LineEnding +
+    '%MW16 := "D".m[1, 2] + "D".m[2, 3] + "D".m[0, 3];' + LineEnding +
+    '// FC: the Return value as #Add2, positional arguments' + LineEnding +
+    'IF NOT %M60.0 THEN' + LineEnding +
+    '  "D".r1 := "Add2"(2, 3, "D".o, "D".io);' + LineEnding +
+    '  %MW46 := "Add2"(a := 4, b := 5, o => %MW48, io := "D".io);' + LineEnding +
+    '  %M60.0 := TRUE;' + LineEnding +
+    'END_IF;' + LineEnding +
+    '// system FBs' + LineEnding +
+    '"iSys"(x := %I0.0, x2 := %I0.1);' + LineEnding +
+    '"D".ft(CLK := %I0.0);' + LineEnding +
+    'IF "D".ft.Q THEN %MW50 := %MW50 + 1; END_IF;';
+var
+  P: TPlcProject;
+  Pr: TCProgram;
+  Rt: TPlcRuntime;
+  K: Integer;
+
+  procedure Pulse(Bit: Integer; Ms: Integer);
+  begin
+    Rt.SetSimBit(0, Bit, True);
+    Wait(Ms);
+    Rt.SetSimBit(0, Bit, False);
+    Wait(Ms);
+  end;
+
+  function Errs(const Code: string): Integer;
+  var
+    Q: TPlcProject;
+    Cp: TCProgram;
+  begin
+    Q := ParityProject(13, Code);
+    Cp := Compile(Q);
+    Result := Cp.ErrorCount;
+    if Result = 0 then ShowMsgs(Cp);
+    Cp.Free;
+    Q.Free;
+  end;
+
+begin
+  WriteLn('== SCL elements of the SCL Compiler (phase 1)');
+  P := ParityProject(13, Main);
+  try
+    Pr := Compile(P);
+    ShowMsgs(Pr);
+    Check(Pr.ErrorCount = 0, 'phase 1 project compiles');
+    Rt := TPlcRuntime.Create(13);
+    try
+      Rt.CmdDownload(Pr);
+      Rt.CmdRun;
+      Wait(40);
+      Check(Rt.Mode = rmRun, 'RUN');
+      Check(Peek(Rt, P, '%MW0') = 5, Format('INT#-5 + #K10 = 5 (%d)', [Peek(Rt, P, '%MW0')]));
+      Check(Peek(Rt, P, '%MW2') = 25, Format('8#17 + 2#1010 = 25 (%d)', [Peek(Rt, P, '%MW2')]));
+      Check(Peek(Rt, P, '"D".u') = 4000000000, Format('UDINT#4000000000 (%u)', [Peek(Rt, P, '"D".u')]));
+      Check(Peek(Rt, P, '%MD30') = 4000000000, 'a number above the DInt range is a UDInt');
+      Check(Peek(Rt, P, '"D".u2') = 4000000001, 'UDInt start value 4000000001');
+      K := Trunc(EncodeDate(2024, 1, 31) - EncodeDate(1990, 1, 1));
+      Check(Peek(Rt, P, '"D".dt') = LongWord(K), Format('D#2024-01-31 = %d days since 1990 (%d)', [K, Peek(Rt, P, '"D".dt')]));
+      Check(Peek(Rt, P, '"D".tod') = 45015500, Format('TOD#12:30:15.5 = 45015500 ms (%d)', [Peek(Rt, P, '"D".tod')]));
+      Check(Peek(Rt, P, '%MD34') = 2000, 'VAR CONSTANT KT : Time := T#2S');
+      Check(Peek(Rt, P, '%MW38') = $FFFA, Format('VAR CONSTANT KR : Real := -1.5, * 4 = -6 (%x)', [Peek(Rt, P, '%MW38')]));
+      Check(Peek(Rt, P, '%MW40') = 301, Format('INT#100 + USINT#200 - SINT#-1 = 301 (%d)', [Peek(Rt, P, '%MW40')]));
+      Check(Peek(Rt, P, '%M42.0') = 1, 'BOOL#1');
+      Check(Peek(Rt, P, '%MB43') = 65, 'CHAR#''A'' = 65');
+      Check(Peek(Rt, P, '%MW8') = 30, Format('MUX(K := 2, ..) = IN2 = 30 (%d)', [Peek(Rt, P, '%MW8')]));
+      Check(Peek(Rt, P, '%MW10') = 0, Format('MUX(7, 1, 2, 3): K outside, no INELSE = 0 (%d)', [Peek(Rt, P, '%MW10')]));
+      Check(Peek(Rt, P, '%MW12') = 6, Format('MUX in MUX = 6 (%d)', [Peek(Rt, P, '%MW12')]));
+      Check(Peek(Rt, P, '%MW44') = $FFFF, 'MUX: K outside -> INELSE = -1');
+      Check(Peek(Rt, P, '%MW52') = 5, Format('MIN of 6 inputs = 5 (%d)', [Peek(Rt, P, '%MW52')]));
+      Check(Peek(Rt, P, '%MW54') = 7, 'MAX of 7 positional inputs = 7');
+      Check(Peek(Rt, P, '"D".w') = $AB08, Format('w.%%X3 := TRUE; w.%%B1 := 16#AB -> 16#AB08 (%x)', [Peek(Rt, P, '"D".w')]));
+      Check(Peek(Rt, P, '"D".b') = 1, 'w.%X11 of 16#AB08 = TRUE');
+      Check(Peek(Rt, P, '"D".y') = $22, Format('DW#16#11223344.%%B2 = 16#22 (%x)', [Peek(Rt, P, '"D".y')]));
+      Check(Peek(Rt, P, '"D".w2') = $1122, Format('DW#16#11223344.%%W1 = 16#1122 (%x)', [Peek(Rt, P, '"D".w2')]));
+      Check(Peek(Rt, P, '"D".i2') = $7FFF, Format('Int -1 with .%%X15 := FALSE = 32767 (%x)', [Peek(Rt, P, '"D".i2')]));
+      Check(Peek(Rt, P, '"D".arrw[2]') = $C001, Format('arrw[#k].%%X0 / .%%B1 with a variable index = 16#C001 (%x)',
+        [Peek(Rt, P, '"D".arrw[2]')]));
+      Check(Peek(Rt, P, '"D".b2') = 1, 'arrw[#k].%X15 = TRUE');
+      Check(Peek(Rt, P, '"D".m[1,2]') = 5, 'm[1, 2] := 5');
+      Check(Peek(Rt, P, '"D".m[2,3]') = 7, 'm["D".k, 3] := 7');
+      Check(Peek(Rt, P, '%MW16') = 312, Format('m[1, 2] + m[2, 3] + m[0, 3] = 312 (%d)', [Peek(Rt, P, '%MW16')]));
+      Check((Peek(Rt, P, '"D".a5[0]') = 1) and (Peek(Rt, P, '"D".a5[1]') = 2) and (Peek(Rt, P, '"D".a5[2]') = 7) and
+        (Peek(Rt, P, '"D".a5[4]') = 7), 'start values [1, 2, 3(7)]');
+      Check(Peek(Rt, P, '"D".ti') = $FFFD, 'start value INT#-3');
+      Check(Peek(Rt, P, '"D".r1') = 5, Format('#Add2 := #a + #b; "Add2"(2, 3, ..) = 5 (%d)', [Peek(Rt, P, '"D".r1')]));
+      Check(Peek(Rt, P, '"D".o') = 6, 'positional Output o = 6');
+      Check(Peek(Rt, P, '"D".io') = 2, Format('positional InOut io: 0 + 1 + 1 = 2 (%d)', [Peek(Rt, P, '"D".io')]));
+      Check((Peek(Rt, P, '%MW46') = 9) and (Peek(Rt, P, '%MW48') = 20), 'named call: Return 9, o 20');
+      // the system FBs
+      Check(Peek(Rt, P, '%MW26') = 5, Format('CTD_INT loaded with PV 5 (%d)', [Peek(Rt, P, '%MW26')]));
+      Rt.SetSimBit(0, 0, True);
+      Wait(120);
+      Check(Peek(Rt, P, '%M71.0') = 1, 'TON_TIME: Q after PT');
+      Check(Peek(Rt, P, '%M71.4') = 1, 'TP_TIME: Q during the pulse');
+      Check(Peek(Rt, P, '%MW20') = 1, Format('R_TRIG: one rising edge (%d)', [Peek(Rt, P, '%MW20')]));
+      Check(Peek(Rt, P, '%MW24') = 1, 'CTU_INT: CV = 1 (CV => %MW24)');
+      Check(Peek(Rt, P, '%MW26') = 4, 'CTD_INT: CV = 4');
+      Check((Peek(Rt, P, '%M71.2') = 1) and (Peek(Rt, P, '%M71.3') = 1), 'RS / SR set');
+      Check(Peek(Rt, P, '%MW50') = 1, 'R_TRIG in a global DB: "D".ft(CLK := ..)');
+      Rt.SetSimBit(0, 1, True);
+      Wait(40);
+      Check(Peek(Rt, P, '%M71.2') = 0, 'RS: reset wins (S and R1)');
+      Check(Peek(Rt, P, '%M71.3') = 1, 'SR: set wins (S1 and R)');
+      Rt.SetSimBit(0, 0, False);
+      Wait(40);
+      Check(Peek(Rt, P, '%MW22') = 1, 'F_TRIG: one falling edge');
+      Check(Peek(Rt, P, '%M71.3') = 0, 'SR: reset when S1 = 0 and R = 1');
+      Check(Peek(Rt, P, '%M71.0') = 0, 'TON_TIME: Q off with IN');
+      Rt.SetSimBit(0, 1, False);
+      Pulse(0, 30);
+      Pulse(0, 30);
+      Check(Peek(Rt, P, '%MW20') = 3, Format('R_TRIG: 3 rising edges (%d)', [Peek(Rt, P, '%MW20')]));
+      Check(Peek(Rt, P, '%M71.1') = 1, 'CTU_INT: Q at CV >= PV');
+      Check(Peek(Rt, P, '%MW24') = 3, 'CTU_INT: CV = 3');
+      Check(Peek(Rt, P, '%MW50') = 3, 'R_TRIG in a DB: 3 edges');
+    finally
+      Rt.Free;
+    end;
+  finally
+    P.Free;
+  end;
+  // errors
+  Check(Errs('VAR CONSTANT C : Int := 1; END_VAR' + LineEnding + '#C := 2;') > 0, 'a constant cannot be written');
+  Check(Errs('VAR CONSTANT C : Int; END_VAR') > 0, 'VAR CONSTANT needs a value');
+  Check(Errs('VAR CONSTANT C : Int := 1.5; END_VAR') > 0, 'VAR CONSTANT Int := 1.5: type mismatch');
+  Check(Errs('"D".w.%X16 := TRUE;') > 0, 'no .%X16 in a Word');
+  Check(Errs('"D".y.%W0 := 0;') > 0, 'no .%W0 in a Byte');
+  Check(Errs('"D".b := "D".tod.%X0;') > 0, 'no slice of a Time_Of_Day');
+  Check(Errs('%MW0 := MUX(K := 1.5, IN0 := 1, IN1 := 2);') > 0, 'MUX: K must be an integer');
+  Check(Errs('%MW0 := MUX(K := 1, IN0 := 1);') > 0, 'MUX needs two inputs');
+  Check(Errs('%MW0 := INT#40000;') > 0, 'INT#40000 is out of range');
+  Check(Errs('"D".dt := D#2024-02-30;') > 0, 'D#2024-02-30 is no date');
+  Check(Errs('"D".m[1] := 0;') > 0, 'm[1]: two indexes expected');
+  Check(Errs('"D".m[3, 1] := 0;') > 0, 'm[3, 1]: outside the array');
+  Check(Errs('"D".r1 := "Add2"(1, 2, 3, "D".io);') > 0, 'positional Output needs a variable');
+  Check(Errs('"D".r1 := "Add2"(1, 2, "D".o, "D".io, 5);') > 0, 'too many positional parameters');
+end;
+
+{ phase 2: String[n], WString[n], Char, WChar, LEN CONCAT LEFT RIGHT MID FIND, comparisons, parameters }
+function PeekStr(Rt: TPlcRuntime; P: TPlcProject; const S: string; Wide: Boolean = False): string;
+var
+  Res: TResolver;
+  O: TOperand;
+  E: string;
+begin
+  Result := '<?>';
+  Res := TResolver.Create(P);
+  try
+    if not Res.Resolve(S, O, E, False) then
+    begin
+      WriteLn('    resolve ', S, ': ', E);
+      Exit;
+    end;
+    if not Rt.PeekString(O, Wide, Result) then Result := '<no>';
+  finally
+    Res.Free;
+  end;
+end;
+
+function StrProject(AModel: Integer; const Main: string): TPlcProject;
+var
+  F: TBlock;
+  D: TDataBlock;
+begin
+  Result := TPlcProject.Create;
+  Result.NewEmpty(AModel);
+  D := Result.AddDB(1, 'S');
+  D.AddVar('s1', 'String[20]', '''Hello''', '');
+  D.AddVar('s2', 'String[10]', '', '');
+  D.AddVar('s3', 'String', '', '');
+  D.AddVar('s4', 'String[10]', '', '');
+  D.AddVar('s5', 'String[10]', '', '');
+  D.AddVar('s6', 'String[10]', '', '');
+  D.AddVar('s7', 'String[10]', '', '');
+  D.AddVar('s8', 'String[10]', '', '');
+  D.AddVar('s9', 'String[10]', '', '');
+  D.AddVar('tr', 'String[4]', '', '');
+  D.AddVar('esc', 'String[20]', '', '');
+  D.AddVar('esc2', 'String[20]', '', '');
+  D.AddVar('w1', 'WString[20]', 'WSTRING#''Gr$00FC$00DFe''', '');
+  D.AddVar('w2', 'WString[20]', '', '');
+  D.AddVar('c', 'Char', '''A''', '');
+  D.AddVar('wc', 'WChar', '', '');
+  D.AddVar('n', 'Int', '0', '');
+  D.AddVar('k', 'Int', '1', '');
+  D.AddVar('b1', 'Bool', 'FALSE', '');
+  D.AddVar('b2', 'Bool', 'FALSE', '');
+  D.AddVar('b3', 'Bool', 'FALSE', '');
+  D.AddVar('b4', 'Bool', 'FALSE', '');
+  D.AddVar('b5', 'Bool', 'FALSE', '');
+  D.AddVar('b6', 'Bool', 'FALSE', '');
+  D.AddVar('arr', 'Array[0..2] of String[8]', '[''ab'', ''cd'', ''ef'']', '');
+  D.AddVar('g', 'String[40]', '', '');
+  D.AddVar('go', 'String[30]', '', '');
+  D.AddVar('after', 'Int', '77', 'after the strings: not overwritten');
+  F := Result.AddBlock(bkFC, 1, 'Greet');
+  F.Iface.AddSecVar(vsInput, 'name', 'String[20]', '', '');
+  F.Iface.AddSecVar(vsOutput, 'o', 'String[30]', '', '');
+  F.Iface.AddSecVar(vsReturn, 'Ret_Val', 'String[40]', '', '');
+  F.AddNet(nkSCL).Stl.Text := '#o := CONCAT(IN1 := ''Hi '', IN2 := #name);' + LineEnding +
+    '#Greet := CONCAT(IN1 := #o, IN2 := ''!'');';
+  F := Result.AddBlock(bkFB, 1, 'Buf');
+  F.Iface.AddSecVar(vsInput, 'txt', 'String[10]', '', '');
+  F.Iface.AddSecVar(vsOutput, 'len', 'Int', '', '');
+  F.Iface.AddSecVar(vsInOut, 'io', 'String[12]', '', '');
+  F.Iface.AddSecVar(vsStatic, 'last', 'String[10]', '''start''', '');
+  F.AddNet(nkSCL).Stl.Text := '#last := #txt;' + LineEnding + '#len := LEN(#last);' + LineEnding +
+    '#io := CONCAT(IN1 := LEFT(IN := #io, L := 3), IN2 := ''-x'');';
+  D := Result.AddDB(2, 'iBuf');
+  D.InstanceOf := 1;
+  F := Result.Block(0);
+  F.DeleteNet(0);
+  F.AddNet(nkSCL).Stl.Text := Main;
+end;
+
+procedure TestSclStrings;
+var
+  Res: TResolver;
+  O: TOperand;
+  Er: string;
+const
+  Main =
+    'VAR_TEMP' + LineEnding +
+    '  t : String[30];' + LineEnding +
+    'END_VAR' + LineEnding +
+    '"S".s2 := "S".s1;' + LineEnding +
+    '"S".s3 := CONCAT(IN1 := "S".s1, IN2 := '' world'');' + LineEnding +
+    '"S".n := LEN("S".s3);' + LineEnding +
+    '%MW0 := FIND(IN1 := "S".s3, IN2 := ''wor'');' + LineEnding +
+    '#t := MID(IN := "S".s3, L := 3, P := 2);' + LineEnding +
+    '"S".s4 := LEFT(IN := "S".s3, L := 5);' + LineEnding +
+    '"S".s5 := RIGHT(IN := "S".s3, L := 5);' + LineEnding +
+    '"S".s6 := #t;' + LineEnding +
+    '"S".tr := "S".s3;' + LineEnding +
+    '"S".b1 := "S".s4 = ''Hello'';' + LineEnding +
+    '"S".b2 := "S".s4 < ''Help'';' + LineEnding +
+    '"S".b3 := "S".c = ''A'';' + LineEnding +
+    '"S".b4 := ''Hello'' > "S".c;' + LineEnding +
+    '"S".b5 := "S".c < "S".s1;' + LineEnding +
+    '"S".b6 := "S".s5 <> ''world'';' + LineEnding +
+    '"S".s7 := "S".c;' + LineEnding +
+    '"S".s8 := CONCAT(IN1 := "S".c, IN2 := ''B'');' + LineEnding +
+    '"S".arr["S".k] := ''zz'';' + LineEnding +
+    '"S".s9 := "S".arr[2];' + LineEnding +
+    '"S".esc := ''it$''s ok'';' + LineEnding +
+    '"S".esc2 := ''a''''b$54'';' + LineEnding +
+    '"S".w2 := CONCAT(IN1 := "S".w1, IN2 := WSTRING#''!'');' + LineEnding +
+    '"S".wc := WCHAR#''$03A9'';' + LineEnding +
+    '%MW2 := WCHAR_TO_INT("S".wc);' + LineEnding +
+    '"S".g := "Greet"(name := "S".s1, o => "S".go);' + LineEnding +
+    'IF NOT %M60.0 THEN' + LineEnding +
+    '  "S".s8 := ''keep'';' + LineEnding +
+    '  %M60.0 := TRUE;' + LineEnding +
+    'END_IF;' + LineEnding +
+    '"iBuf"(txt := ''abcdefghijkl'', len => %MW4, io := "S".s9);';
+var
+  P: TPlcProject;
+  Pr: TCProgram;
+  Rt: TPlcRuntime;
+
+  function Errs(const Code: string): Integer;
+  var
+    Q: TPlcProject;
+    Cp: TCProgram;
+  begin
+    Q := StrProject(13, Code);
+    Cp := Compile(Q);
+    Result := Cp.ErrorCount;
+    if Result = 0 then ShowMsgs(Cp);
+    Cp.Free;
+    Q.Free;
+  end;
+
+begin
+  WriteLn('== SCL strings (phase 2)');
+  P := StrProject(13, Main);
+  try
+    Pr := Compile(P);
+    ShowMsgs(Pr);
+    Check(Pr.ErrorCount = 0, 'string project compiles');
+    Check(P.FindDBByName('S').Vars[0].Udt.Size = 22, 'String[20] takes 22 bytes');
+    Check(P.FindDBByName('S').Vars[2].Udt.Size = 256, 'String takes 256 bytes');
+    Check(P.FindDBByName('S').Vars[12].Udt.Size = 44, 'WString[20] takes 44 bytes');
+    Rt := TPlcRuntime.Create(13);
+    try
+      Rt.CmdDownload(Pr);
+      Rt.CmdRun;
+      Wait(60);
+      Check(Rt.Mode = rmRun, 'RUN');
+      if Rt.Mode <> rmRun then DumpDiag(Rt);
+      Check(Peek(Rt, P, '"S".s1') = 20, 'the head of String[20]: max length 20');
+      Check(PeekStr(Rt, P, '"S".s1') = 'Hello', 'start value ''Hello''');
+      Check(PeekStr(Rt, P, '"S".s2') = 'Hello', 's2 := s1');
+      Check(PeekStr(Rt, P, '"S".s3') = 'Hello world', 'CONCAT = ''Hello world'' (' + PeekStr(Rt, P, '"S".s3') + ')');
+      Check(Peek(Rt, P, '"S".n') = 11, 'LEN = 11');
+      Check(Peek(Rt, P, '%MW0') = 7, Format('FIND(''Hello world'', ''wor'') = 7 (%d)', [Peek(Rt, P, '%MW0')]));
+      Check(PeekStr(Rt, P, '"S".s4') = 'Hello', 'LEFT 5 = ''Hello''');
+      Check(PeekStr(Rt, P, '"S".s5') = 'world', 'RIGHT 5 = ''world''');
+      Check(PeekStr(Rt, P, '"S".s6') = 'ell', 'MID(L := 3, P := 2) through a VAR_TEMP String = ''ell''');
+      Check(PeekStr(Rt, P, '"S".tr') = 'Hell', 'String[4] := ''Hello world'' keeps 4 characters');
+      Check(Peek(Rt, P, '"S".b1') = 1, '''Hello'' = ''Hello''');
+      Check(Peek(Rt, P, '"S".b2') = 1, '''Hello'' < ''Help''');
+      Check(Peek(Rt, P, '"S".b3') = 1, 'Char = ''A''');
+      Check(Peek(Rt, P, '"S".b4') = 1, '''Hello'' > Char ''A''');
+      Check(Peek(Rt, P, '"S".b5') = 1, 'Char ''A'' < ''Hello'' (the Char first)');
+      Check(Peek(Rt, P, '"S".b6') = 0, '''world'' <> ''world'' = FALSE');
+      Check(PeekStr(Rt, P, '"S".s7') = 'A', 'String := Char');
+      Check(PeekStr(Rt, P, '"S".s8') = 'AB', 'CONCAT(Char, ''B'') = ''AB'' (' + PeekStr(Rt, P, '"S".s8') + ')');
+      Check((PeekStr(Rt, P, '"S".arr[0]') = 'ab') and (PeekStr(Rt, P, '"S".arr[1]') = 'zz'),
+        'Array of String: start values, arr["S".k] := ''zz''');
+      Check(PeekStr(Rt, P, '"S".esc') = 'it''s ok', '$'' in a literal');
+      Check(PeekStr(Rt, P, '"S".esc2') = 'a''bT', ''''' and $54 in a literal (' + PeekStr(Rt, P, '"S".esc2') + ')');
+      Check(PeekStr(Rt, P, '"S".w1', True) = 'Grüße', 'WString start value with $00FC$00DF (' +
+        PeekStr(Rt, P, '"S".w1', True) + ')');
+      Check(PeekStr(Rt, P, '"S".w2', True) = 'Grüße!', 'CONCAT of WStrings');
+      Check(Peek(Rt, P, '%MW2') = 937, Format('WCHAR#''$03A9'' = 937 (%d)', [Peek(Rt, P, '%MW2')]));
+      Check(PeekStr(Rt, P, '"S".go') = 'Hi Hello', 'FC String Output: ''Hi Hello''');
+      Check(PeekStr(Rt, P, '"S".g') = 'Hi Hello!', 'FC String Return value as #Greet: ''Hi Hello!''');
+      Check(Peek(Rt, P, '%MW4') = 10, Format('FB String Input into a String[10] Static: LEN = 10 (%d)', [Peek(Rt, P, '%MW4')]));
+      Check(PeekStr(Rt, P, '"iBuf".last') = 'abcdefghij', 'the Static keeps 10 characters');
+      Check(PeekStr(Rt, P, '"S".s9') = 'ef-x', 'FB InOut String: LEFT 3 + ''-x'' (' + PeekStr(Rt, P, '"S".s9') + ')');
+      Check(Peek(Rt, P, '"S".after') = 77, 'the variable after the strings is not overwritten');
+      // the watch table: a new text for a String
+      Res := TResolver.Create(P);
+      try
+        Res.Resolve('"S".s1', O, Er, False);
+      finally
+        Res.Free;
+      end;
+      Rt.CmdModifyStr(O, 'Modified text that is too long');
+      Wait(40);
+      Check(PeekStr(Rt, P, '"S".s1') = 'Modified text that i', 'modify a String[20]: 20 characters kept (' +
+        PeekStr(Rt, P, '"S".s1') + ')');
+      Check(PeekStr(Rt, P, '"S".s2') = 'Modified t', 'the program copies it into a String[10]');
+    finally
+      Rt.Free;
+    end;
+  finally
+    P.Free;
+  end;
+  // errors
+  Check(Errs('"S".n := "S".s1;') > 0, 'Int := String: type mismatch');
+  Check(Errs('"S".s1 := 5;') > 0, 'String := 5: type mismatch');
+  Check(Errs('"S".n := LEN(5);') > 0, 'LEN(5): a String expected');
+  Check(Errs('"S".s1 := LEFT(IN := "S".s1, L := 1.5);') > 0, 'LEFT: L must be an integer');
+  Check(Errs('"S".b1 := "S".s1 = 5;') > 0, 'String = 5 cannot be compared');
+  Check(Errs('"S".s1 := "S".s1 + ''a'';') > 0, 'String + String: not a number operation');
+  Check(Errs('"S".s1 := SEL(G := TRUE, IN0 := ''a'', IN1 := ''bc'');') > 0, 'SEL of strings');
+end;
+
+{ phase 3: LInt ULInt LWord LReal LTime LTOD LDT DT DTL, LT# literals, time arithmetic, TON_LTIME, CTU_DINT }
+function Peek64(Rt: TPlcRuntime; P: TPlcProject; const S: string): QWord;
+var
+  Res: TResolver;
+  O: TOperand;
+  E: string;
+begin
+  Result := $DEADBEEF;
+  Res := TResolver.Create(P);
+  try
+    if not Res.Resolve(S, O, E, False) then
+    begin
+      WriteLn('    resolve ', S, ': ', E);
+      Exit;
+    end;
+    Rt.Peek8(O, Result);
+  finally
+    Res.Free;
+  end;
+end;
+
+function L64Project(AModel: Integer; const Main: string): TPlcProject;
+var
+  F: TBlock;
+  D: TDataBlock;
+begin
+  Result := TPlcProject.Create;
+  Result.NewEmpty(AModel);
+  D := Result.AddDB(1, 'L');
+  D.AddVar('li', 'LInt', '9007199254740993', '2^53 + 1: no Double holds it');
+  D.AddVar('li2', 'LInt', '0', '');
+  D.AddVar('li3', 'LInt', '0', '');
+  D.AddVar('li4', 'LInt', '0', '');
+  D.AddVar('li5', 'LInt', '0', '');
+  D.AddVar('li6', 'LInt', '0', '');
+  D.AddVar('li7', 'LInt', '0', '');
+  D.AddVar('ul', 'ULInt', '18446744073709551615', '');
+  D.AddVar('ul2', 'ULInt', '0', '');
+  D.AddVar('lw', 'LWord', 'LW#16#FFFF0000FFFF0000', '');
+  D.AddVar('dwx', 'DWord', '0', '');
+  D.AddVar('lr', 'LReal', '0.1', '');
+  D.AddVar('lr2', 'LReal', '0.0', '');
+  D.AddVar('lt', 'LTime', 'LT#1D2H3M4S5MS6US7NS', '');
+  D.AddVar('lt2', 'LTime', 'LT#0NS', '');
+  D.AddVar('lt3', 'LTime', 'LT#0NS', '');
+  D.AddVar('ltod', 'LTime_Of_Day', 'LTOD#23:59:59.999999999', '');
+  D.AddVar('ltod2', 'LTOD', '', '');
+  D.AddVar('ldt', 'LDT', 'LDT#2024-01-31-12:00:00.123456789', '');
+  D.AddVar('ldt2', 'LDT', '', '');
+  D.AddVar('dt', 'Date_And_Time', 'DT#2024-01-31-12:00:00.500', '');
+  D.AddVar('dt2', 'DT', '', '');
+  D.AddVar('t', 'Time', 'T#0MS', '');
+  D.AddVar('t2', 'Time', 'T#0MS', '');
+  D.AddVar('tod', 'Time_Of_Day', '', '');
+  D.AddVar('tod2', 'Time_Of_Day', '', '');
+  D.AddVar('d', 'Date', '', '');
+  D.AddVar('i', 'Int', '0', '');
+  D.AddVar('di', 'DInt', '0', '');
+  D.AddVar('k', 'Int', '1', '');
+  D.AddVar('r', 'Real', '0.0', '');
+  D.AddVar('b1', 'Bool', 'FALSE', '');
+  D.AddVar('b2', 'Bool', 'FALSE', '');
+  D.AddVar('dtl', 'DTL', '', '');
+  D.AddVar('sl', 'Array[0..1] of LInt', '0', '');
+  F := Result.AddBlock(bkFB, 1, 'Sys64');
+  F.Iface.AddSecVar(vsInput, 'x', 'Bool', '', '');
+  F.Iface.AddSecVar(vsStatic, 'tl', 'TON_LTIME', '', '');
+  F.Iface.AddSecVar(vsStatic, 'cd', 'CTU_DINT', '', '');
+  F.Iface.AddSecVar(vsStatic, 'cl', 'CTUD_LINT', '', '');
+  F.Iface.AddSecVar(vsStatic, 'et', 'LTime', '', '');
+  F.AddNet(nkSCL).Stl.Text :=
+    '#tl(IN := #x, PT := LT#50MS, ET => #et);' + LineEnding +
+    '%M70.0 := #tl.Q;' + LineEnding +
+    '#cd(CU := #x, R := FALSE, PV := 100000);' + LineEnding +
+    '%MD72 := #cd.CV;' + LineEnding +
+    '%M70.1 := #cd.Q;' + LineEnding +
+    '#cl(CU := #x, CD := FALSE, R := FALSE, LD := NOT %M70.7, PV := LINT#5000000000);' + LineEnding +
+    '%M70.7 := TRUE;' + LineEnding +
+    '"L".li7 := #cl.CV;';
+  D := Result.AddDB(2, 'iSys64');
+  D.InstanceOf := 1;
+  F := Result.Block(0);
+  F.DeleteNet(0);
+  F.AddNet(nkSCL).Stl.Text := Main;
+end;
+
+procedure TestScl64;
+const
+  Main =
+    'VAR CONSTANT' + LineEnding +
+    '  C64 : LInt := 9007199254740993;' + LineEnding +
+    'END_VAR' + LineEnding +
+    '"L".li2 := "L".li + 2;' + LineEnding +
+    '"L".i := LINT_TO_INT("L".li);' + LineEnding +
+    '"L".di := LINT_TO_DINT(5000000000);' + LineEnding +
+    '"L".ul2 := "L".ul - 1;' + LineEnding +
+    '"L".b1 := "L".ul > 9000000000000000000;' + LineEnding +
+    '"L".dwx := "L".lw.%D1;' + LineEnding +
+    '"L".lw.%X0 := TRUE;' + LineEnding +
+    '"L".lr2 := "L".lr * 3.0;' + LineEnding +
+    '"L".lt2 := "L".lt + LT#1NS;' + LineEnding +
+    '"L".t := LTIME_TO_TIME("L".lt);' + LineEnding +
+    '"L".lt3 := TIME_TO_LTIME(T#2S);' + LineEnding +
+    '"L".tod := TOD#23:00:00 + T#2H;' + LineEnding +
+    '"L".t2 := TOD#12:00:00 - TOD#11:30:00;' + LineEnding +
+    '"L".dt2 := "L".dt + T#1D;' + LineEnding +
+    '"L".d := DT_TO_DATE("L".dt2);' + LineEnding +
+    '"L".tod2 := DT_TO_TOD("L".dt2);' + LineEnding +
+    '"L".ltod2 := "L".ltod + LT#1NS;' + LineEnding +
+    '"L".ldt2 := DT_TO_LDT("L".dt);' + LineEnding +
+    '"L".dtl.YEAR := 2025;' + LineEnding +
+    '"L".dtl.MONTH := 7;' + LineEnding +
+    '"L".sl["L".k] := "L".li * 2;' + LineEnding +
+    '"L".li3 := MUX(K := 1, IN0 := LINT#1, IN1 := "L".li);' + LineEnding +
+    '"L".li4 := SEL(G := TRUE, IN0 := LINT#0, IN1 := "L".li2);' + LineEnding +
+    '"L".li5 := MAX(IN1 := "L".li, IN2 := "L".li2);' + LineEnding +
+    '"L".li6 := #C64;' + LineEnding +
+    '"L".r := LREAL_TO_REAL("L".lr);' + LineEnding +
+    '"L".b2 := "L".ldt > LDT#2024-01-31-12:00:00.123456788;' + LineEnding +
+    '"iSys64"(x := %I0.0);';
+var
+  P: TPlcProject;
+  Pr: TCProgram;
+  Rt: TPlcRuntime;
+  Dv: Double;
+  Q: QWord;
+  Ns: Int64;
+
+  function Errs(const Code: string; AModel: Integer = 13): Integer;
+  var
+    Pq: TPlcProject;
+    Cp: TCProgram;
+  begin
+    Pq := L64Project(AModel, Code);
+    Cp := Compile(Pq);
+    Result := Cp.ErrorCount;
+    if Result = 0 then ShowMsgs(Cp);
+    Cp.Free;
+    Pq.Free;
+  end;
+
+begin
+  WriteLn('== SCL 64 bit and the long times / dates (phase 3)');
+  P := L64Project(13, Main);
+  try
+    Pr := Compile(P);
+    ShowMsgs(Pr);
+    Check(Pr.ErrorCount = 0, '64 bit project compiles');
+    Check(P.FindDBByName('L').FindVar('dtl') >= 0, 'DTL variable');
+    Check(P.FindDBByName('L').Vars[P.FindDBByName('L').FindVar('dtl')].Udt.Size = 12, 'DTL takes 12 bytes');
+    Rt := TPlcRuntime.Create(13);
+    try
+      Rt.CmdDownload(Pr);
+      Rt.CmdRun;
+      Wait(60);
+      Check(Rt.Mode = rmRun, 'RUN');
+      if Rt.Mode <> rmRun then DumpDiag(Rt);
+      Check(Peek64(Rt, P, '"L".li') = 9007199254740993, 'LInt start value 2^53 + 1, exact');
+      Check(Peek64(Rt, P, '"L".li2') = 9007199254740995, Format('LInt + 2 exact (%d)', [Int64(Peek64(Rt, P, '"L".li2'))]));
+      Check(Peek(Rt, P, '"L".i') = 1, 'LINT_TO_INT(2^53 + 1) = 1 (the low 16 bits)');
+      Check(Peek(Rt, P, '"L".di') = 705032704, Format('LINT_TO_DINT(5000000000) = 705032704 (%d)', [Peek(Rt, P, '"L".di')]));
+      Check(Peek64(Rt, P, '"L".ul2') = QWord(18446744073709551614), 'ULInt max - 1');
+      Check(Peek(Rt, P, '"L".b1') = 1, 'ULInt compares unsigned');
+      Check(Peek(Rt, P, '"L".dwx') = $FFFF0000, Format('LWord.%%D1 = 16#FFFF0000 (%x)', [Peek(Rt, P, '"L".dwx')]));
+      Check(Peek64(Rt, P, '"L".lw') = QWord($FFFF0000FFFF0001), 'LWord.%X0 := TRUE');
+      Q := Peek64(Rt, P, '"L".lr2');
+      Move(Q, Dv, 8);
+      Check(Dv = 0.1 * 3.0, Format('LReal 0.1 * 3.0 in double precision (%.17g)', [Dv]));
+      Ns := 93784005006007;
+      Check(Int64(Peek64(Rt, P, '"L".lt')) = Ns, 'LT#1D2H3M4S5MS6US7NS in ns');
+      Check(Int64(Peek64(Rt, P, '"L".lt2')) = Ns + 1, 'LTime + LT#1NS');
+      Check(Peek(Rt, P, '"L".t') = 93784005, Format('LTIME_TO_TIME: ms (%d)', [Peek(Rt, P, '"L".t')]));
+      Check(Int64(Peek64(Rt, P, '"L".lt3')) = 2000000000, 'TIME_TO_LTIME(T#2S) = 2e9 ns');
+      Check(Peek(Rt, P, '"L".tod') = 3600000, Format('TOD#23:00 + T#2H = TOD#1:00 (%d)', [Peek(Rt, P, '"L".tod')]));
+      Check(Peek(Rt, P, '"L".t2') = 1800000, 'TOD - TOD = T#30M');
+      Check(Peek64(Rt, P, '"L".dt2') = QWord($2402011200005005), Format('DT + T#1D: the BCD of 2024-02-01 12:00:00.500 (%x)',
+        [Peek64(Rt, P, '"L".dt2')]));
+      Check(Peek(Rt, P, '"L".d') = LongWord(Trunc(EncodeDate(2024, 2, 1) - EncodeDate(1990, 1, 1))), 'DT_TO_DATE');
+      Check(Peek(Rt, P, '"L".tod2') = 43200500, 'DT_TO_TOD = 12:00:00.500');
+      Check(Peek64(Rt, P, '"L".ltod2') = 0, 'LTOD#23:59:59.999999999 + 1 ns = midnight');
+      Ns := Trunc(EncodeDate(2024, 1, 31) - EncodeDate(1970, 1, 1)) * Int64(86400000000000) + 12 * Int64(3600000000000) + 500000000;
+      Check(Int64(Peek64(Rt, P, '"L".ldt2')) = Ns, 'DT_TO_LDT: ns since 1970');
+      Check(Int64(Peek64(Rt, P, '"L".ldt')) = Ns - 500000000 + 123456789, 'LDT start value with ns');
+      Check(Peek(Rt, P, '"L".b2') = 1, 'LDT compare with one ns less');
+      Check(Peek(Rt, P, '"L".dtl.YEAR') = 2025, 'DTL.YEAR := 2025');
+      Check(Peek(Rt, P, '"L".dtl.DAY') = 1, 'DTL start: DAY 1');
+      Check(Peek(Rt, P, '"L".dtl.WEEKDAY') = 5, 'DTL start: a Thursday');
+      Check(Peek64(Rt, P, '"L".sl[1]') = 18014398509481986, 'array of LInt with a variable index: exact');
+      Check(Peek64(Rt, P, '"L".li3') = 9007199254740993, 'MUX of LInt exact');
+      Check(Peek64(Rt, P, '"L".li4') = 9007199254740995, 'SEL of LInt exact');
+      Check(Peek64(Rt, P, '"L".li5') = 9007199254740995, 'MAX of LInt exact');
+      Check(Peek64(Rt, P, '"L".li6') = 9007199254740993, 'VAR CONSTANT LInt exact');
+      Check(Abs(PeekReal(Rt, P, '"L".r') - 0.1) < 1E-7, 'LREAL_TO_REAL');
+      Check(Int64(Peek64(Rt, P, '"L".li7')) = 5000000000, 'CTUD_LINT loaded with PV 5000000000');
+      Rt.SetSimBit(0, 0, True);
+      Wait(120);
+      Check(Peek(Rt, P, '%M70.0') = 1, 'TON_LTIME: Q after LT#50MS');
+      Check(Int64(Peek64(Rt, P, '"iSys64".et')) = 50000000, 'TON_LTIME: ET = PT in ns');
+      Check(Peek(Rt, P, '%MD72') = 1, 'CTU_DINT counts');
+      Check(Int64(Peek64(Rt, P, '"L".li7')) = 5000000001, 'CTUD_LINT counts past 2^32');
+    finally
+      Rt.Free;
+    end;
+  finally
+    P.Free;
+  end;
+  Check(Errs('"L".t := "L".lt;') > 0, 'Time := LTime needs a conversion');
+  Check(Errs('"L".lt2 := "L".t + "L".lt;') > 0, 'TIME + LTIME is not allowed');
+  Check(Errs('"L".r := "L".lr;') > 0, 'Real := LReal needs LREAL_TO_REAL');
+  Check(Errs('"L".tod := TOD#1:0:0 * 2;') > 0, 'TOD * 2 is not allowed');
+  Check(Errs('"L".t := TOD#1:0:0 + TOD#2:0:0;') > 0, 'TOD + TOD is not allowed');
+  Check(Errs('"L".li := LINT#9223372036854775808;') > 0, 'LINT# out of range');
+  Check(Errs('"L".i := 1;', 7) > 0, 'LInt, LTime ... do not exist on the S7-1200');
+end;
+
+{ phase 4: .scl sources (TIA): export, import, the round trip }
+procedure TestSclSource;
+const
+  Src =
+    '// a source as TIA writes it' + LineEnding +
+    'TYPE "Recipe"' + LineEnding +
+    'VERSION : 0.1' + LineEnding +
+    '   STRUCT' + LineEnding +
+    '      Speed : Int := 100;   // rpm' + LineEnding +
+    '      Time1 : Time := T#2S;' + LineEnding +
+    '   END_STRUCT;' + LineEnding +
+    'END_TYPE' + LineEnding +
+    '' + LineEnding +
+    '// FB7' + LineEnding +
+    'FUNCTION_BLOCK "Mixer"' + LineEnding +
+    '{ S7_Optimized_Access := ''TRUE'' }' + LineEnding +
+    'VERSION : 0.1' + LineEnding +
+    '   VAR_INPUT' + LineEnding +
+    '      Start { ExternalAccessible := ''False'' } : Bool;   // the start button' + LineEnding +
+    '      Rec : "Recipe";' + LineEnding +
+    '   END_VAR' + LineEnding +
+    '   VAR_OUTPUT' + LineEnding +
+    '      Running : Bool;' + LineEnding +
+    '      Count : Int;' + LineEnding +
+    '   END_VAR' + LineEnding +
+    '   VAR' + LineEnding +
+    '      Edge : R_TRIG;' + LineEnding +
+    '      State : Struct   // an anonymous struct' + LineEnding +
+    '         Step : Int;' + LineEnding +
+    '         Busy : Bool;' + LineEnding +
+    '      END_STRUCT;' + LineEnding +
+    '      Hist : Array[0..2] of Int := [1, 2, 3];' + LineEnding +
+    '   END_VAR' + LineEnding +
+    '   VAR_TEMP' + LineEnding +
+    '      i : Int;' + LineEnding +
+    '   END_VAR' + LineEnding +
+    '   VAR CONSTANT' + LineEnding +
+    '      LIMIT_MAX : Int := 5;' + LineEnding +
+    '   END_VAR' + LineEnding +
+    '' + LineEnding +
+    'BEGIN' + LineEnding +
+    #9'REGION Edge and count' + LineEnding +
+    #9#9'#Edge(CLK := #Start);' + LineEnding +
+    #9#9'IF #Edge.Q AND #Count < #LIMIT_MAX THEN' + LineEnding +
+    #9#9#9'#Count := #Count + 1;' + LineEnding +
+    #9#9'END_IF;' + LineEnding +
+    #9'END_REGION' + LineEnding +
+    #9'REGION State' + LineEnding +
+    #9#9'// the step and the history' + LineEnding +
+    #9#9'#State.Step := #Count * #Rec.Speed;' + LineEnding +
+    #9#9'#State.Busy := #Count > 0;' + LineEnding +
+    #9#9'#Running := #State.Busy;' + LineEnding +
+    #9#9'FOR #i := 2 TO 1 BY -1 DO' + LineEnding +
+    #9#9#9'#Hist[#i] := #Hist[#i - 1];' + LineEnding +
+    #9#9'END_FOR;' + LineEnding +
+    #9#9'#Hist[0] := #State.Step;' + LineEnding +
+    #9'END_REGION' + LineEnding +
+    'END_FUNCTION_BLOCK' + LineEnding +
+    '' + LineEnding +
+    'DATA_BLOCK "Mixer_DB"' + LineEnding +
+    '{ S7_Optimized_Access := ''TRUE'' }' + LineEnding +
+    'VERSION : 0.1' + LineEnding +
+    'NON_RETAIN' + LineEnding +
+    '"Mixer"' + LineEnding +
+    'BEGIN' + LineEnding +
+    'END_DATA_BLOCK' + LineEnding +
+    '' + LineEnding +
+    'DATA_BLOCK "Plant"' + LineEnding +
+    'VERSION : 0.1' + LineEnding +
+    '   VAR' + LineEnding +
+    '      Rec : "Recipe";' + LineEnding +
+    '      Count : Int;' + LineEnding +
+    '      Name : String[10] := ''mixer'';' + LineEnding +
+    '   END_VAR' + LineEnding +
+    '   VAR RETAIN' + LineEnding +
+    '      Total : DInt;' + LineEnding +
+    '   END_VAR' + LineEnding +
+    'BEGIN' + LineEnding +
+    '   Count := 3;' + LineEnding +
+    'END_DATA_BLOCK' + LineEnding +
+    '' + LineEnding +
+    'ORGANIZATION_BLOCK "Main"' + LineEnding +
+    'VERSION : 0.1' + LineEnding +
+    'BEGIN' + LineEnding +
+    '    "Mixer_DB"(Start := %I0.0, Rec := "Plant".Rec, Count => "Plant".Count);' + LineEnding +
+    'END_ORGANIZATION_BLOCK' + LineEnding;
+var
+  P, P2: TPlcProject;
+  Pr: TCProgram;
+  Rt: TPlcRuntime;
+  Rep, Txt, Txt2: string;
+  B: TBlock;
+  D, U: TDataBlock;
+  I, Ok, Sk: Integer;
+begin
+  WriteLn('== .scl sources: export, import (phase 4)');
+  P := TPlcProject.Create;
+  try
+    P.NewEmpty(13);
+    Ok := Ord(SclImport(P, Src, Rep));
+    Check(Ok = 1, 'the TIA source imports: ' + Rep);
+    U := P.FindUdt('Recipe');
+    Check((U <> nil) and (Length(U.Vars) = 2) and (U.Vars[0].Comment = 'rpm'), 'TYPE "Recipe" with 2 members and a comment');
+    U := P.FindUdt('Mixer_State');
+    Check((U <> nil) and (Length(U.Vars) = 2), 'the anonymous Struct became the PLC data type "Mixer_State"');
+    B := P.FindFB('"Mixer"');
+    Check((B <> nil) and (B.Number = 7), 'FB "Mixer" took the number of its "// FB7" line');
+    if B <> nil then
+    begin
+      Check(B.NetCount = 2, Format('two REGIONs: two networks (%d)', [B.NetCount]));
+      Check((B.NetCount = 2) and (B.Net(0).Title = 'Edge and count') and (B.Net(1).Comment = 'the step and the history'),
+        'the network titles from the REGIONs, the first comment line of a REGION');
+      Check((B.NetCount > 0) and (B.Net(0).Stl.Count > 0) and (B.Net(0).Stl[0] = 'VAR CONSTANT'),
+        'VAR CONSTANT at the top of the first network');
+      Check(B.Iface.Vars[B.Iface.FindVar('Start')].Comment = 'the start button', 'the comment of a declaration');
+      Check(B.Iface.Vars[B.Iface.FindVar('State')].TypeText = '"Mixer_State"', 'State : "Mixer_State"');
+      Check(B.Iface.Vars[B.Iface.FindVar('i')].Section = vsTemp, 'VAR_TEMP into the interface');
+    end;
+    D := P.FindDBByName('Mixer_DB');
+    Check((D <> nil) and (D.InstanceOf = 7), 'the instance DB of FB7');
+    D := P.FindDBByName('Plant');
+    Check((D <> nil) and (D.Vars[D.FindVar('Count')].Start = '3') and D.Vars[D.FindVar('Total')].Retain,
+      'DB "Plant": the BEGIN value as start value, VAR RETAIN');
+    Pr := Compile(P);
+    ShowMsgs(Pr);
+    Check(Pr.ErrorCount = 0, 'the imported project compiles');
+    Rt := TPlcRuntime.Create(13);
+    try
+      Rt.CmdDownload(Pr);
+      Rt.CmdRun;
+      Wait(40);
+      for I := 1 to 7 do
+      begin
+        Rt.SetSimBit(0, 0, True);
+        Wait(25);
+        Rt.SetSimBit(0, 0, False);
+        Wait(25);
+      end;
+      Check(Peek(Rt, P, '"Plant".Count') = 5, Format('it runs: 7 edges, counted to the constant 5 (%d)', [Peek(Rt, P, '"Plant".Count')]));
+      Check(Peek(Rt, P, '"Mixer_DB".Hist[0]') = 500, Format('the anonymous Struct: Step = 5 * 100 (%d)', [Peek(Rt, P, '"Mixer_DB".Hist[0]')]));
+    finally
+      Rt.Free;
+    end;
+    // the export of the imported project and its import: the same text again
+    Txt := SclExportAll(P, Rep);
+    Check(Pos('FUNCTION_BLOCK "Mixer"', Txt) > 0, 'export: FUNCTION_BLOCK "Mixer"');
+    Check(Pos('REGION Edge and count', Txt) > 0, 'export: the networks as REGIONs');
+    Check(Pos('VAR CONSTANT', Txt) > 0, 'export: VAR CONSTANT in the declaration part');
+    Check(Pos('VAR RETAIN', Txt) > 0, 'export: VAR RETAIN of a DB');
+    P2 := TPlcProject.Create;
+    try
+      P2.NewEmpty(13);
+      Ok := Ord(SclImport(P2, Txt, Rep));
+      Check(Ok = 1, 'the export imports again: ' + Rep);
+      Txt2 := SclExportAll(P2, Rep);
+      Check(Txt2 = Txt, 'the round trip gives the same source');
+      if Txt2 <> Txt then
+        with TStringList.Create do
+        try
+          Text := Txt;
+          SaveToFile('rt1.scl');
+          Text := Txt2;
+          SaveToFile('rt2.scl');
+        finally
+          Free;
+        end;
+      Pr := Compile(P2);
+      Check(Pr.ErrorCount = 0, 'the round trip compiles');
+    finally
+      P2.Free;
+    end;
+  finally
+    P.Free;
+  end;
+  // every example: export, import into an empty project (with its tags); one in SCL only compiles again
+  Ok := 0;
+  Rep := '';
+  for I := 0 to ExampleCount - 1 do
+  begin
+    P := TPlcProject.Create;
+    P2 := TPlcProject.Create;
+    try
+      BuildExample(I, P);
+      Txt := SclExportAll(P, Rep);
+      P2.NewEmpty(P.ModelIdx);
+      for Sk := 0 to High(P.Tags) do P2.AddTag(P.Tags[Sk].Name, P.Tags[Sk].TypeText, P.Tags[Sk].Address, P.Tags[Sk].Comment);
+      Sk := Ord(SclImport(P2, Txt, Txt2));
+      if Pos('have no SCL text', Rep) > 0 then
+        Check(Sk = 1, ExampleFile(I) + ': its export (without the LAD / STL networks) imports: ' + Txt2)
+      else
+      begin
+        Check(Sk = 1, ExampleFile(I) + ': its export imports: ' + Txt2);
+        Pr := Compile(P2);
+        if Pr.ErrorCount > 0 then ShowMsgs(Pr);
+        Check(Pr.ErrorCount = 0, ExampleFile(I) + ': SCL only, the import compiles');
+        Inc(Ok);
+      end;
+    finally
+      P.Free;
+      P2.Free;
+    end;
+  end;
+  Check(Ok >= 4, Format('%d examples in SCL only went round', [Ok]));
+  P := TPlcProject.Create;
+  try
+    P.NewEmpty(13);
+    Check(not SclImport(P, 'FUNCTION_BLOCK "X"' + LineEnding + 'VAR_INPUT a : ; END_VAR BEGIN END_FUNCTION_BLOCK', Rep) and
+      (Pos('line 2', Rep) > 0), 'an error: its line, nothing imported (' + Rep + ')');
+    Check(P.FindFB('"X"') = nil, 'nothing imported');
+  finally
+    P.Free;
+  end;
+end;
+
+{ the boxes of the SCL functions in LAD, CALL of them in STL, typed timers / counters in LAD, rename, version }
+function LadSclProject: TPlcProject;
+var
+  B: TBlock;
+  D: TDataBlock;
+  N: TNetwork;
+
+  procedure Rung(AKind: TLadKind; const Inst: string; const Pins: array of string; const En, Eno: string);
+  var
+    Ce: TLadCell;
+    K: Integer;
+  begin
+    N := B.AddNet(nkLAD);
+    N.SetCell(0, 0, NewCell(lkNO, En));
+    Ce := NewCell(AKind, Inst);
+    for K := 0 to High(Pins) do Ce.P[K] := Pins[K];
+    N.SetCell(0, 1, Ce);
+    for K := 2 to 6 do N.SetCell(0, K, NewCell(lkWire, ''));
+    N.SetCell(0, 7, NewCell(lkCoil, Eno));
+  end;
+
+begin
+  Result := TPlcProject.Create;
+  Result.NewEmpty(13);
+  D := Result.AddDB(1, 'L');
+  D.AddVar('g', 'Bool', 'TRUE', '');
+  D.AddVar('r1', 'Real', '0.0', '');
+  D.AddVar('r2', 'Real', '0.0', '');
+  D.AddVar('s', 'String[10]', '', '');
+  D.AddVar('s2', 'String[10]', '', '');
+  D.AddVar('s3', 'String[10]', '', '');
+  D.AddVar('cnt', 'Int', '0', '');
+  D.AddVar('edges', 'Int', '0', '');
+  D.AddVar('edge', 'R_TRIG', '', '');
+  D.AddVar('fall', 'F_TRIG', '', '');
+  D.AddVar('falls', 'Int', '0', '');
+  D.AddVar('rs', 'RS', '', '');
+  D.AddVar('tl', 'TON_LTIME', '', '');
+  D.AddVar('et', 'LTime', '', '');
+  D.AddVar('cd', 'CTU_DINT', '', '');
+  D.AddVar('cdv', 'DInt', '0', '');
+  D.AddVar('t2', 'TON_TIME', '', '');
+  B := Result.Block(0);
+  B.DeleteNet(0);
+  B.AddNet(nkSCL).Stl.Text := '%M1.0 := TRUE;';
+  Rung(lkSel, '', ['"L".g', '1', '2', '%MW20'], '%M1.0', '%M4.0');
+  Rung(lkMux, '', ['2', '10', '20', '30', '%MW22'], '%M1.0', '%M4.1');
+  Rung(lkLimit, '', ['0', '50', '20', '%MW24'], '%M1.0', '%M4.2');
+  Rung(lkMin, '', ['9', '4', '6', '', '%MW26'], '%M1.0', '%M4.3');
+  Rung(lkMax, '', ['9', '4', '6', '', '%MW28'], '%M1.0', '%M4.4');
+  Rung(lkSqrt, '', ['16.0', '"L".r1'], '%M1.0', '%M4.5');
+  Rung(lkExpt, '', ['2.0', '3.0', '"L".r2'], '%M1.0', '%M4.6');
+  Rung(lkMod, '', ['17', '5', '%MW38'], '%M1.0', '%M4.7');
+  Rung(lkShl, '', ['W#16#1', '3', '%MW40'], '%M1.0', '%M5.0');
+  Rung(lkAndW, '', ['W#16#FF0F', 'W#16#0FF0', '%MW42'], '%M1.0', '%M5.1');
+  Rung(lkInvW, '', ['W#16#00FF', '%MW44'], '%M1.0', '%M5.2');
+  Rung(lkConcat, '', ['''ab''', '''cd''', '"L".s'], '%M1.0', '%M5.3');
+  Rung(lkLen, '', ['"L".s', '%MW46'], '%M1.0', '%M5.4');
+  Rung(lkMid, '', ['''Hello''', '3', '2', '"L".s2'], '%M1.0', '%M5.5');
+  Rung(lkSel, '', ['"L".g', '7', '8', '%MW48'], '%M1.1', '%M5.6');   // EN = 0: OUT stays, ENO = 0
+  // an edge: R_TRIG, then INC on its Q
+  N := B.AddNet(nkLAD);
+  N.SetCell(0, 0, NewCell(lkNO, '%I0.0'));
+  N.SetCell(0, 1, NewCell(lkRTrig, '"L".edge'));
+  N.SetCell(0, 3, NewCell(lkInc, ''));
+  N.Cells[0 * N.Cols + 3].P[0] := '"L".edges';
+  N.SetCell(0, 2, NewCell(lkWire, ''));
+  N.SetCell(0, 4, NewCell(lkWire, ''));
+  N.SetCell(0, 5, NewCell(lkWire, ''));
+  N.SetCell(0, 6, NewCell(lkWire, ''));
+  N.SetCell(0, 7, NewCell(lkCoil, '%M6.0'));
+  N := B.AddNet(nkLAD);
+  N.SetCell(0, 0, NewCell(lkNO, '%I0.0'));
+  N.SetCell(0, 1, NewCell(lkFTrig, '"L".fall'));
+  N.SetCell(0, 3, NewCell(lkInc, ''));
+  N.Cells[0 * N.Cols + 3].P[0] := '"L".falls';
+  N.SetCell(0, 2, NewCell(lkWire, ''));
+  N.SetCell(0, 4, NewCell(lkWire, ''));
+  N.SetCell(0, 5, NewCell(lkWire, ''));
+  N.SetCell(0, 6, NewCell(lkWire, ''));
+  N.SetCell(0, 7, NewCell(lkCoil, '%M6.1'));
+  Rung(lkRS, '"L".rs', ['%I0.2'], '%I0.1', '%M6.2');
+  Rung(lkTON, '"L".tl', ['LT#50MS', '"L".et'], '%I0.0', '%M6.3');
+  Rung(lkCTU, '"L".cd', ['100000', 'FALSE', '"L".cdv'], '%I0.0', '%M6.4');
+  // STL
+  B.AddNet(nkSTL).Stl.Text :=
+    'CALL SEL' + LineEnding + '  value_type := Int' + LineEnding + '  G := "L".g' + LineEnding + '  IN0 := 5' + LineEnding +
+    '  IN1 := 6' + LineEnding + '  RET_VAL := %MW60' + LineEnding +
+    'CALL MAX' + LineEnding + '  IN1 := 3' + LineEnding + '  IN2 := 8' + LineEnding + '  IN3 := 5' + LineEnding +
+    '  OUT := %MW62' + LineEnding +
+    'CALL CONCAT' + LineEnding + '  IN1 := ''x''' + LineEnding + '  IN2 := ''yz''' + LineEnding + '  RET_VAL := "L".s3' + LineEnding +
+    'CALL "L".t2' + LineEnding + '  IN := %I0.0' + LineEnding + '  PT := T#50MS' + LineEnding + '  Q := %M7.0' + LineEnding +
+    'CALL LIMIT' + LineEnding + '  MN := 0' + LineEnding + '  IN := 300' + LineEnding + '  MX := 100' + LineEnding +
+    '  RET_VAL := %MW64';
+end;
+
+procedure TestLadStlScl;
+var
+  P: TPlcProject;
+  Pr: TCProgram;
+  Rt: TPlcRuntime;
+  B: TBlock;
+  N: TNetwork;
+  Ce: TLadCell;
+  Q: QWord;
+  I, Cnt: Integer;
+  Txt, Rep: string;
+begin
+  WriteLn('== LAD boxes and STL calls of the SCL functions');
+  P := LadSclProject;
+  try
+    Pr := Compile(P);
+    ShowMsgs(Pr);
+    Check(Pr.ErrorCount = 0, 'the LAD / STL project compiles');
+    Rt := TPlcRuntime.Create(13);
+    try
+      Rt.CmdDownload(Pr);
+      Rt.CmdRun;
+      Wait(60);
+      Check(Rt.Mode = rmRun, 'RUN');
+      if Rt.Mode <> rmRun then DumpDiag(Rt);
+      Check(Peek(Rt, P, '%MW20') = 2, 'LAD SEL(G := TRUE, 1, 2) = 2');
+      Check(Peek(Rt, P, '%M4.0') = 1, 'ENO = EN');
+      Check(Peek(Rt, P, '%MW22') = 30, 'LAD MUX(K := 2) = 30');
+      Check(Peek(Rt, P, '%MW24') = 20, 'LAD LIMIT(0, 50, 20) = 20');
+      Check((Peek(Rt, P, '%MW26') = 4) and (Peek(Rt, P, '%MW28') = 9), 'LAD MIN = 4, MAX = 9 (IN4 left empty)');
+      Check(PeekReal(Rt, P, '"L".r1') = 4.0, 'LAD SQRT(16.0) = 4.0');
+      Check(PeekReal(Rt, P, '"L".r2') = 8.0, 'LAD EXPT(2.0, 3.0) = 8.0');
+      Check(Peek(Rt, P, '%MW38') = 2, 'LAD MOD(17, 5) = 2');
+      Check(Peek(Rt, P, '%MW40') = 8, 'LAD SHL(1, 3) = 8');
+      Check(Peek(Rt, P, '%MW42') = $0F00, 'LAD AND words = 16#0F00');
+      Check(Peek(Rt, P, '%MW44') = $FF00, 'LAD INV = 16#FF00');
+      Check(PeekStr(Rt, P, '"L".s') = 'abcd', 'LAD CONCAT = ''abcd''');
+      Check(Peek(Rt, P, '%MW46') = 4, 'LAD LEN = 4');
+      Check(PeekStr(Rt, P, '"L".s2') = 'ell', 'LAD MID = ''ell''');
+      Check((Peek(Rt, P, '%MW48') = 0) and (Peek(Rt, P, '%M5.6') = 0), 'LAD SEL with EN = 0: OUT stays, ENO = 0');
+      Check(Peek(Rt, P, '%MW60') = 6, 'STL CALL SEL = 6');
+      Check(Peek(Rt, P, '%MW62') = 8, 'STL CALL MAX (OUT :=) = 8');
+      Check(PeekStr(Rt, P, '"L".s3') = 'xyz', 'STL CALL CONCAT = ''xyz''');
+      Check(Peek(Rt, P, '%MW64') = 100, 'STL CALL LIMIT = 100');
+      Check(Peek(Rt, P, '"L".cdv') = 0, 'CTU_DINT box: CV 0');
+      for I := 1 to 3 do
+      begin
+        Rt.SetSimBit(0, 0, True);
+        Wait(30);
+        Rt.SetSimBit(0, 0, False);
+        Wait(30);
+      end;
+      Check(Peek(Rt, P, '"L".edges') = 3, Format('LAD R_TRIG box + INC: 3 rising edges (%d)', [Peek(Rt, P, '"L".edges')]));
+      Check(Peek(Rt, P, '"L".falls') = 3, Format('LAD F_TRIG box: 3 falling edges (%d)', [Peek(Rt, P, '"L".falls')]));
+      Check(Peek(Rt, P, '"L".cdv') = 3, Format('LAD CTU with a CTU_DINT instance: CV 3 (%d)', [Peek(Rt, P, '"L".cdv')]));
+      Rt.SetSimBit(0, 0, True);
+      Rt.SetSimBit(0, 1, True);
+      Wait(120);
+      Check(Peek(Rt, P, '%M6.3') = 1, 'LAD TON with a TON_LTIME instance: Q after LT#50MS');
+      Check(Int64(Peek64(Rt, P, '"L".et')) = 50000000, 'TON_LTIME: ET in ns');
+      Check(Peek(Rt, P, '%M7.0') = 1, 'STL CALL of a TON_TIME instance: Q');
+      Check(Peek(Rt, P, '%M6.2') = 1, 'LAD RS box: set');
+      Rt.SetSimBit(0, 2, True);
+      Wait(40);
+      Check(Peek(Rt, P, '%M6.2') = 0, 'LAD RS box: reset wins');
+    finally
+      Rt.Free;
+    end;
+  finally
+    P.Free;
+  end;
+  // errors on the box
+  P := LadSclProject;
+  try
+    N := P.Block(0).Net(1);
+    Ce := N.Cell(0, 1);
+    Ce.P[3] := '';
+    N.SetCell(0, 1, Ce);
+    Pr := Compile(P);
+    Check(Pr.ErrorCount > 0, 'SEL box without OUT: an error');
+    Check((Length(Pr.Msgs) > 0) and (Pos('OUT missing', Pr.Msgs[0].Text) > 0), 'its message: ' + Pr.Msgs[0].Text);
+  finally
+    P.Free;
+  end;
+  // rename: the code follows
+  P := TPlcProject.Create;
+  try
+    BuildExample(30, P);
+    B := P.FindFB('"Signals"');
+    I := 0;
+    for Cnt := 0 to P.BlockCount - 1 do
+      if SameText(P.Block(Cnt).Name, 'Avg2') then I := Cnt;
+    Cnt := RenameBlockInCode(P, P.Block(I), 'Mean');
+    Check(Cnt >= 2, Format('FC "Avg2" -> "Mean": %d places follow (the call, #Avg2 in the FC)', [Cnt]));
+    Check(Pos('"Mean"(', P.Block(0).Net(1).Stl.Text) > 0, 'the call is "Mean"(..)');
+    Check(Pos('#Mean :=', P.Block(I).Net(0).Stl.Text) > 0, 'its value #Mean := ..');
+    Pr := Compile(P);
+    Check(Pr.ErrorCount = 0, 'the renamed project compiles');
+    if B <> nil then
+    begin
+      B.Version := '1.2';
+      Txt := SclExportAll(P, Rep);
+      Check(Pos('VERSION : 1.2', Txt) > 0, 'the version in the .scl source');
+      Check(Pos('"Mean"', P.ToJsonText) > 0, 'the project file has the new name');
+      Check(Pos('"version" : "1.2"', P.ToJsonText) > 0, 'the project file has the version');
+    end;
+  finally
+    P.Free;
+  end;
+end;
+
+{ the I/O screen: the next address / name of a new row, the signal generators }
+procedure TestIoSignals;
+var
+  A: TAddr;
+  E: string;
+  SL: TStringList;
+  P, P2: TPlcProject;
+  S: TSimSignal;
+  Rt: TPlcRuntime;
+begin
+  WriteLn('--- I/O: next address, next name, signals ---');
+  Check(ParseAddr('M100.7', A, E) and (FormatAddr(NextAddr(A, 0), cfS71500) = '%M101.0'), 'M100.7 -> M101.0');
+  Check(ParseAddr('I0.3', A, E) and (FormatAddr(NextAddr(A, 0), cfS71500) = '%I0.4'), 'I0.3 -> I0.4');
+  Check(ParseAddr('MW20', A, E) and (FormatAddr(NextAddr(A, 2), cfS71500) = '%MW22'), 'MW20 -> MW22');
+  Check(ParseAddr('MD20', A, E) and (FormatAddr(NextAddr(A, 0), cfS71500) = '%MD24'), 'MD20 -> MD24 (its size)');
+  Check(ParseAddr('IW64', A, E) and (FormatAddr(NextAddr(A, 2), cfS71500) = '%IW66'), 'IW64 -> IW66');
+  SL := TStringList.Create;
+  try
+    SL.Add('Tag_3');
+    SL.Add('Motor');
+    SL.Add('Motor_1');
+    Check(NextName('Tag_3', SL) = 'Tag_4', 'Tag_3 -> Tag_4');
+    Check(NextName('Motor', SL) = 'Motor_2', 'Motor -> Motor_2 (Motor_1 is taken)');
+    SL.Add('tag_4');
+    Check(NextName('Tag_3', SL) = 'Tag_5', 'not case sensitive: tag_4 is taken');
+  finally
+    SL.Free;
+  end;
+  S.Kind := sgSquare; S.Lo := 0; S.Hi := 1; S.PeriodMs := 1000; S.Duty := 25;
+  Check((SignalValue(S, 0.1, 0) = 1) and (SignalValue(S, 0.3, 0) = 0) and (SignalValue(S, 1.2, 0) = 1), 'square 25 %');
+  S.Kind := sgSine; S.Lo := 0; S.Hi := 100;
+  Check((Abs(SignalValue(S, 0, 0) - 50) < 1e-6) and (Abs(SignalValue(S, 0.25, 0) - 100) < 1e-6), 'sine 0..100');
+  S.Kind := sgTriangle;
+  Check(Abs(SignalValue(S, 0.5, 0) - 100) < 1e-6, 'triangle: top at half');
+  S.Kind := sgRamp;
+  Check(Abs(SignalValue(S, 0.25, 0) - 25) < 1e-6, 'ramp');
+  S.Kind := sgStep; S.Lo := 0; S.Hi := 3;
+  Check((SignalValue(S, 2.5, 0) = 2) and (SignalValue(S, 4.5, 0) = 0), 'step 0,1,2,3,0');
+  S.Kind := sgRandom; S.Hi := 10;
+  Check(Abs(SignalValue(S, 0, 0.5) - 5) < 1e-6, 'random: Lo + (Hi - Lo) * rnd');
+  P := TPlcProject.Create;
+  P2 := TPlcProject.Create;
+  try
+    P.AddSignal('%I8.0', sgSquare, 0, 1, 500, 30);
+    P.AddSignal('"Level"', sgSine, 0, 27648, 8000, 50);
+    P.Signals[1].On := True;
+    P.Signals[1].Comment := 'tank';
+    P2.LoadFromJsonText(P.ToJsonText);
+    Check(Length(P2.Signals) = 2, 'the signals in the project file');
+    Check((P2.Signals[0].Kind = sgSquare) and (P2.Signals[0].PeriodMs = 500) and (P2.Signals[0].Duty = 30), 'row 1 back');
+    Check((P2.Signals[1].Kind = sgSine) and P2.Signals[1].On and (P2.Signals[1].Comment = 'tank') and
+      (P2.Signals[1].Hi = 27648), 'row 2 back');
+    P2.DeleteSignal(0);
+    Check((Length(P2.Signals) = 1) and (P2.Signals[0].Address = '"Level"'), 'delete a row');
+  finally
+    P.Free;
+    P2.Free;
+  end;
+  Rt := TPlcRuntime.Create(0);
+  try
+    Rt.SetSimRaw(10, 4, $12345678);
+    Check((Rt.SimIn[10] = $12) and (Rt.SimIn[13] = $78), 'SetSimRaw: big endian');
+  finally
+    Rt.Free;
+  end;
+end;
+
+{ the groups of the tag table and the watch table; the SCL import of the Data blocks screen }
+procedure TestGroups;
+var
+  P, P2: TPlcProject;
+  G, G2: Integer;
+  E, Rep: string;
+begin
+  WriteLn('--- groups of tags / watch rows, SCL import of types and DBs ---');
+  P := TPlcProject.Create;
+  P2 := TPlcProject.Create;
+  try
+    P.AddTag('Start', 'Bool', '%I0.0', '');
+    P.AddTag('Stop', 'Bool', '%I0.1', '');
+    P.AddTag('Speed', 'Int', '%MW20', '');
+    G := GroupAdd(P.TagGroups, 'Motor');
+    G2 := GroupAdd(P.TagGroups, 'Motor');
+    Check((P.TagGroups[G].Id = 1) and (P.TagGroups[G2].Id = 2), 'a new group gets a new Id');
+    Check(GroupNameTwice(P.TagGroups, G) and GroupNameTwice(P.TagGroups, G2), 'a name used twice is seen (red in the tree)');
+    P.TagGroups[G2].Name := 'Drive';
+    Check(not GroupNameTwice(P.TagGroups, G), 'renamed: no longer twice');
+    Check(not GroupNameOk('All tag', AllTagsName, E) and not GroupNameOk(' all TAG ', AllTagsName, E), '"All tag" is the root''s name');
+    Check(not GroupNameOk('', AllTagsName, E) and GroupNameOk('Pumps', AllTagsName, E), 'not empty; another name is fine');
+    Check(not GroupNameOk('All rows', AllWatchName, E), '"All rows" is the root of the watch tree');
+    P.Tags[0].GroupId := P.TagGroups[G].Id;
+    P.Tags[1].GroupId := P.TagGroups[G].Id;
+    P.Tags[2].GroupId := P.TagGroups[G2].Id;
+    P.AddWatch('"Start"', dfDec);
+    G := GroupAdd(P.WatchGroups, 'Inputs');
+    P.Watch[0].GroupId := P.WatchGroups[G].Id;
+    P2.LoadFromJsonText(P.ToJsonText);
+    Check((Length(P2.TagGroups) = 2) and (P2.TagGroups[1].Name = 'Drive') and (P2.TagGroups[1].Id = 2), 'tag groups in the project file');
+    Check((P2.Tags[0].GroupId = 1) and (P2.Tags[2].GroupId = 2), 'the group of each tag');
+    Check((Length(P2.WatchGroups) = 1) and (P2.Watch[0].GroupId = P2.WatchGroups[0].Id), 'watch groups and rows');
+    P2.DeleteTagGroup(0);
+    Check((Length(P2.Tags) = 3) and (P2.Tags[0].GroupId = 0) and (P2.Tags[2].GroupId = 2), 'a group deleted: its tags stay');
+    Check((Length(P2.TagGroups) = 1) and (GroupOfId(P2.TagGroups, 2) = 0), 'the other group keeps its Id');
+    P2.DeleteWatchGroup(0);
+    Check((Length(P2.Watch) = 1) and (P2.Watch[0].GroupId = 0), 'a watch group deleted: its rows stay');
+  finally
+    P.Free;
+    P2.Free;
+  end;
+  P := TPlcProject.Create;
+  try
+    P.NewEmpty(5);
+    Check(not SclImport(P, 'FUNCTION "F" : Void' + LineEnding + 'BEGIN' + LineEnding + 'END_FUNCTION', Rep, True),
+      'Data blocks: a source of blocks alone is refused');
+    G := P.BlockCount;
+    Check(SclImport(P, 'TYPE "Motor_T"' + LineEnding + 'VERSION : 0.1' + LineEnding + '   STRUCT' + LineEnding +
+      '      Run : Bool;' + LineEnding + '      Speed : Int := 100;' + LineEnding + '   END_STRUCT;' + LineEnding +
+      'END_TYPE' + LineEnding + LineEnding + 'DATA_BLOCK "Line"' + LineEnding + '{ S7_Optimized_Access := ''TRUE'' }' +
+      LineEnding + 'VERSION : 0.1' + LineEnding + '   VAR' + LineEnding + '      M1 : "Motor_T";' + LineEnding +
+      '      Count : DInt := 5;' + LineEnding + '   END_VAR' + LineEnding + 'BEGIN' + LineEnding + '   Count := 7;' +
+      LineEnding + 'END_DATA_BLOCK' + LineEnding + LineEnding + 'FUNCTION "Skip" : Void' + LineEnding + 'BEGIN' +
+      LineEnding + 'END_FUNCTION', Rep, True), 'Data blocks: TYPE and DATA_BLOCK imported: ' + Rep);
+    Check((P.FindUdt('Motor_T') <> nil) and (P.FindDBByName('Line') <> nil), 'the type and the DB are there');
+    Check(P.BlockCount = G, 'the FUNCTION is left out');
+    Check(Pos('1 FC / FB / OB left out', Rep) > 0, 'the report says so');
+    if P.FindDBByName('Line') <> nil then
+      with P.FindDBByName('Line') do
+        Check((FindVar('Count') >= 0) and (Vars[FindVar('Count')].Start = '7'), 'BEGIN: the start value');
+  finally
+    P.Free;
+  end;
+end;
+
+begin
+  TestGroups;
+  TestIoSignals;
+  TestLadStlScl;
+  TestSclSource;
+  TestScl64;
+  TestSclStrings;
+  TestSclParity;
   TestScl;
   TestUdt;
   TestDynIndex;

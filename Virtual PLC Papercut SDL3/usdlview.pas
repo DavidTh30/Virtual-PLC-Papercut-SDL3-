@@ -900,6 +900,7 @@ var
   St: TShotStep;
   P, V: Integer;
   Pt, Pp: TPointF;
+  Pc: PChar;
   S0, S1, S2, S3: string;
   Ok: Boolean;
 begin
@@ -972,12 +973,22 @@ begin
     Add(5, 'ob1');
     Add(5, 'mk', 'newlad');
     Add(10, 'shot', 'ladpal_1_palette');
-    Add(5, 'vs', 'drag 8 0.05 0.75');
+    // the LAD elements list: categories, a double click puts the element into the selected cell
+    Add(5, 'elem', 'showcat Comparison / selection');
+    Add(5, 'elem', 'open Comparison / selection');
+    Add(5, 'elem', 'show CMP >=');
     Add(10, 'shot', 'ladpal_2_scrolled');
-    Add(5, 'pal', 'cmp>=');
+    Add(5, 'elem', 'dbl CMP >=');
+    Add(5, 'ladins', 'esc');
     Add(10, 'pal', 'check cmp');
     Add(5, 'mk', 'nextcell');
-    Add(10, 'pal', 'conv');
+    Add(5, 'elem', 'showcat Comparison / selection');
+    Add(5, 'elem', 'open Comparison / selection');
+    Add(5, 'elem', 'showcat Move / conversion');
+    Add(5, 'elem', 'open Move / conversion');
+    Add(5, 'elem', 'show CONV');
+    Add(5, 'elem', 'dbl CONV');
+    Add(5, 'ladins', 'esc');
     Add(10, 'pal', 'check conv');
     Add(5, 'uiclick2', 'dtype2:0');
     Add(10, 'shot', 'ladpal_3_conv_out_types');
@@ -1114,6 +1125,278 @@ begin
     Add(30, 'ipc', 'iohelpform');
     Add(5, 'ipc', 'iohelppdf');
     Add(5, 'ipc', 'iohelpclose');
+    Add(5, 'quit');
+    FShotPos := 0;
+    FShotWait := FShots[0].Wait;
+    Exit;
+  end;
+  if (Length(FShots) = 0) and (GetEnvironmentVariable('VPLC_GROUPS_TEST') <> '') then
+  begin
+    // the trees of groups of the tag table and the watch table, sorting; Import SCL on the Data blocks
+    DeleteFile(FShotDir + 'grp_check.txt');
+    Add(10, 'ipc', 'ex 33');
+    Add(5, 'io', 'tags');
+    Add(5, 'screen', '5');
+    Add(10, 'uiclick2', 'grpadd:0');
+    Add(5, 'grp', 'type Motor');
+    Add(5, 'uiclick2', 'grpadd:0');
+    Add(5, 'grp', 'type Lamps');
+    Add(10, 'uiclick2', 'grpsel:0');
+    Add(10, 'uiclick2', 'taggrp:2');
+    Add(5, 'uiclick2', 'ctx:1');
+    Add(10, 'uiclick2', 'taggrp:3');
+    Add(5, 'uiclick2', 'ctx:1');
+    Add(10, 'uiclick2', 'taggrp:4');
+    Add(5, 'uiclick2', 'ctx:2');
+    Add(10, 'uiclick2', 'taggrp:5');
+    Add(5, 'uiclick2', 'ctx:2');
+    Add(10, 'uiclick2', 'grpopen:1');
+    Add(30, 'shot', 'groups_1_all_tag');
+    Add(5, 'grp', 'dump all');
+    Add(5, 'uiclick2', 'grpsel:1');
+    Add(10, 'uiclick2', 'tagadd:0');
+    Add(5, 'grp', 'commit');
+    Add(5, 'grp', 'dump motor');
+    Add(30, 'shot', 'groups_2_motor');
+    Add(5, 'grp', 'rename 0 1 all TAG');
+    Add(5, 'grp', 'rename 0 1 Motor');
+    Add(5, 'grp', 'dump renamed');
+    Add(10, 'uiclick2', 'grpsel:2');
+    Add(30, 'shot', 'groups_3_name_twice');
+    Add(5, 'grp', 'rename 0 1 Lamps');
+    Add(5, 'uiclick2', 'grpsel:0');
+    Add(10, 'uiclick2', 'sorttag:2');
+    Add(30, 'shot', 'groups_4_sorted_address');
+    Add(5, 'grp', 'dump address');
+    Add(10, 'uiclick2', 'sorttag:2');
+    Add(5, 'grp', 'dump address down');
+    Add(10, 'uiclick2', 'sorttag:1');
+    Add(5, 'grp', 'dump name');
+    Add(10, 'uiclick2', 'sorttag:3');
+    Add(5, 'grp', 'dump type');
+    Add(10, 'uiclick2', 'grpsel:1');
+    Add(10, 'uiclick2', 'grpdel:0');
+    Add(5, 'grp', 'dump deleted');
+    Add(5, 'screen', '3');
+    Add(10, 'uiclick2', 'grpadd:1');
+    Add(5, 'grp', 'type Box values');
+    Add(10, 'uiclick2', 'grpsel:16384');
+    Add(10, 'uiclick2', 'watchrow:0');
+    Add(10, 'uiclick2', 'watchgrp:0');
+    Add(5, 'uiclick2', 'ctx:1');
+    Add(5, 'grp', 'dump watch after row 0');
+    Add(10, 'uiclick2', 'watchrow:2');
+    Add(10, 'uiclick2', 'watchgrp:0');
+    Add(5, 'uiclick2', 'ctx:1');
+    Add(5, 'grp', 'dump watch after row 2');
+    Add(10, 'uiclick2', 'grpopen:16385');
+    Add(10, 'uiclick2', 'grpsel:16385');
+    Add(10, 'uiclick2', 'watchadd:0');
+    Add(5, 'grp', 'commit');
+    Add(30, 'shot', 'groups_5_watch_group');
+    Add(5, 'grp', 'dump watch group');
+    Add(10, 'uiclick2', 'grpsel:16384');
+    Add(10, 'uiclick2', 'sortwatch:1');
+    Add(30, 'shot', 'groups_6_watch_sorted');
+    Add(5, 'grp', 'dump watch name');
+    Add(10, 'uiclick2', 'sortwatch:3');
+    Add(5, 'grp', 'dump watch type');
+    Add(5, 'screen', '4');
+    Add(10, 'grp', 'dbimport test/types_dbs.scl');
+    Add(30, 'shot', 'groups_7_db_import');
+    Add(5, 'grp', 'projfile');
+    Add(5, 'quit');
+    FShotPos := 0;
+    FShotWait := FShots[0].Wait;
+    Exit;
+  end;
+  if (Length(FShots) = 0) and (GetEnvironmentVariable('VPLC_IOVIEW_TEST') <> '') then
+  begin
+    // the 3 views of the I/O screen, the signal table running; + Row in Watch, + Tag in the tags
+    DeleteFile(FShotDir + 'io_check.txt');
+    Add(10, 'ipc', 'ex 33');
+    Add(10, 'fkey', '5');
+    Add(5, 'io', 'tags');
+    Add(5, 'screen', '2');
+    Add(30, 'shot', 'ioview_1_model');
+    Add(5, 'uiclick2', 'ioview:1');
+    Add(10, 'io', 'door');
+    Add(30, 'shot', 'ioview_2_tags');
+    Add(5, 'uiclick2', 'ioview:2');
+    Add(10, 'uiclick2', 'sigtags:0');
+    Add(10, 'uiclick2', 'sigadd:0');
+    Add(10, 'io', 'sigbad');
+    Add(10, 'uiclick2', 'sigall:1');
+    Add(60, 'shot', 'ioview_3_signals');
+    Add(5, 'io', 'dump signals');
+    Add(5, 'uiclick2', 'ioview:1');
+    Add(30, 'shot', 'ioview_4_tags_driven');
+    Add(5, 'screen', '3');
+    Add(5, 'io', 'watchmw');
+    Add(10, 'uiclick2', 'watchadd:0');
+    Add(10, 'uiclick2', 'watchadd:0');
+    Add(5, 'io', 'watchbad');
+    Add(10, 'uiclick2', 'watchadd:0');
+    Add(20, 'shot', 'ioview_5_watch');
+    Add(5, 'io', 'dump watch');
+    Add(5, 'screen', '5');
+    Add(10, 'uiclick2', 'tagadd:0');
+    Add(10, 'uiclick2', 'tagadd:0');
+    Add(5, 'io', 'tagbad');
+    Add(30, 'shot', 'ioview_6_tags');
+    Add(5, 'io', 'dump tags');
+    Add(5, 'quit');
+    FShotPos := 0;
+    FShotWait := FShots[0].Wait;
+    Exit;
+  end;
+  if (Length(FShots) = 0) and (GetEnvironmentVariable('VPLC_LADSTL_TEST') <> '') then
+  begin
+    // the LAD boxes and STL CALLs of the SCL functions running; the STL elements; rename / version in the head
+    DeleteFile(FShotDir + 'ide_check.txt');
+    Add(10, 'ipc', 'ex 33');
+    Add(10, 'fkey', '8');
+    Add(30, 'fkey', '5');
+    Add(5, 'screen', '1');
+    Add(5, 'fkey', '9');
+    Add(40, 'shot', 'ladstl_1_monitor');
+    Add(5, 'scroll', '900');
+    Add(30, 'shot', 'ladstl_2_monitor_more');
+    Add(5, 'fkey', '9');
+    Add(5, 'stlnet', 'STL');
+    Add(20, 'shot', 'ladstl_3_stl_elements');
+    Add(5, 'elem', 'showcat SCL functions (CALL)');
+    Add(5, 'elem', 'open SCL functions (CALL)');
+    Add(5, 'elem', 'show CALL MUX');
+    Add(10, 'elem', 'hover CALL MUX');
+    Add(20, 'shot', 'ladstl_4_stl_call');
+    Add(10, 'ipc', 'ex 30');
+    Add(5, 'screen', '1');
+    Add(5, 'uiclick2', 'block:1');
+    Add(10, 'ide', 'head Mean 1.1');
+    Add(10, 'ide', 'code 0 1');
+    Add(10, 'ide', 'code 1 0');
+    Add(20, 'shot', 'ladstl_5_renamed');
+    Add(5, 'quit');
+    FShotPos := 0;
+    FShotWait := FShots[0].Wait;
+    Exit;
+  end;
+  if (Length(FShots) = 0) and (GetEnvironmentVariable('VPLC_IDE_TEST') <> '') then
+  begin
+    // auto highlight, Find Declaration (Alt+Up, Ctrl+Click), All variables / All elements, .scl export / import
+    DeleteFile(FShotDir + 'ide_check.txt');
+    Add(10, 'ipc', 'ex 30');
+    Add(5, 'screen', '1');
+    Add(10, 'ide', 'caret 0 3 BASE');
+    Add(20, 'shot', 'ide_1_highlight');
+    Add(5, 'ide', 'decl');
+    Add(10, 'ide', 'check #BASE: its VAR CONSTANT line (network 1, line 2)');
+    Add(5, 'ide', 'caret 0 3 Picked');
+    Add(5, 'ide', 'decl');
+    Add(10, 'ide', 'check "Elems".Picked: the DB screen, DB1, variable 2');
+    Add(10, 'shot', 'ide_2_decl_db');
+    Add(5, 'screen', '1');
+    Add(5, 'ide', 'caret 0 4 Start');
+    Add(5, 'ide', 'ctrlclick');
+    Add(10, 'ide', 'check Ctrl+Click on "Start": the tags, tag 3');
+    Add(5, 'screen', '1');
+    Add(5, 'ide', 'caret 1 10 Avg2');
+    Add(5, 'ide', 'decl');
+    Add(10, 'ide', 'check "Avg2": the block FC1');
+    Add(5, 'ide', 'view 0');
+    Add(30, 'ide', 'viewshot ide_3_all_variables.png');
+    Add(5, 'ide', 'view 1');
+    Add(30, 'ide', 'viewshot ide_4_all_elements.png');
+    Add(5, 'ide', 'viewclose');
+    Add(5, 'ide', 'export ide_export.scl');
+    Add(5, 'ide', 'import test/tia_source.scl');
+    Add(10, 'ide', 'check after the import');
+    Add(5, 'screen', '1');
+    Add(5, 'uiclick2', 'block:3');
+    Add(20, 'shot', 'ide_5_imported');
+    Add(5, 'uiclick2', 'sclsrc:0');
+    Add(10, 'shot', 'ide_6_menu');
+    Add(5, 'quit');
+    FShotPos := 0;
+    FShotWait := FShots[0].Wait;
+    Exit;
+  end;
+  if (Length(FShots) = 0) and (GetEnvironmentVariable('VPLC_STRINGS_TEST') <> '') then
+  begin
+    // the examples of the SCL elements and of strings, running: the DB values, the watch table, the monitor
+    Add(10, 'ipc', 'ex 31');
+    Add(10, 'fkey', '8');
+    Add(30, 'fkey', '5');
+    Add(30, 'screen', '4');
+    Add(20, 'shot', 'strings_1_db');
+    Add(5, 'screen', '3');
+    Add(20, 'shot', 'strings_2_watch');
+    Add(5, 'screen', '1');
+    Add(5, 'fkey', '9');
+    Add(30, 'shot', 'strings_3_monitor');
+    Add(5, 'fkey', '9');
+    Add(10, 'ipc', 'ex 30');
+    Add(10, 'fkey', '8');
+    Add(30, 'fkey', '5');
+    Add(30, 'screen', '4');
+    Add(20, 'shot', 'elements_1_db');
+    Add(5, 'screen', '1');
+    Add(5, 'fkey', '9');
+    Add(30, 'shot', 'elements_2_monitor');
+    Add(5, 'fkey', '9');
+    Add(10, 'ipc', 'ex 32');
+    Add(10, 'fkey', '8');
+    Add(30, 'fkey', '5');
+    Add(60, 'screen', '4');
+    Add(20, 'shot', 'long_1_db');
+    Add(5, 'screen', '3');
+    Add(20, 'shot', 'long_2_watch');
+    Add(5, 'quit');
+    FShotPos := 0;
+    FShotWait := FShots[0].Wait;
+    Exit;
+  end;
+  if (Length(FShots) = 0) and (GetEnvironmentVariable('VPLC_ELEMS_TEST') <> '') then
+  begin
+    // the SCL elements panel: categories, a double click at the caret, a drag into the code, the menu,
+    // the project's elements
+    DeleteFile(FShotDir + 'elems_check.txt');
+    Add(10, 'ipc', 'ex 15');
+    Add(5, 'screen', '1');
+    Add(10, 'uiclick2', 'net:0');
+    Add(5, 'uiclick2', 'addscl:0');
+    Add(5, 'uiclick2', 'ctx:1');
+    Add(10, 'elem', 'caret 1 0 0');
+    Add(10, 'shot', 'elems_1_panel');
+    Add(5, 'elem', 'show IF ... THEN');
+    Add(5, 'elem', 'dbl IF ... THEN');
+    Add(5, 'elem', 'type "Start"');
+    Add(5, 'elem', 'check a double click on IF ... THEN, then typed "Start" at the caret');
+    Add(5, 'elem', 'showcat Program control');
+    Add(5, 'elem', 'open Program control');
+    Add(5, 'elem', 'showcat Comparison / selection');
+    Add(5, 'elem', 'open Comparison / selection');
+    Add(5, 'elem', 'show MUX');
+    Add(10, 'elem', 'hover MUX');
+    Add(10, 'shot', 'elems_2_hover');
+    Add(5, 'elem', 'caret 1 1 4');
+    Add(5, 'elem', 'show MUX');
+    Add(10, 'elem', 'drag MUX');
+    Add(10, 'elem', 'check MUX dragged onto the caret in line 2');
+    Add(10, 'shot', 'elems_3_dropped');
+    Add(5, 'elem', 'show SEL');
+    Add(5, 'elem', 'rclick SEL');
+    Add(10, 'shot', 'elems_4_menu');
+    Add(5, 'uiclick2', 'ctx:1');
+    Add(5, 'elem', 'check the menu: Copy of SEL');
+    Add(5, 'elem', 'showcat Comparison / selection');
+    Add(5, 'elem', 'open Comparison / selection');
+    Add(5, 'elem', 'showcat Project: Data blocks');
+    Add(5, 'elem', 'open Project: Data blocks');
+    Add(5, 'elem', 'show "Temp".Setpoint');
+    Add(10, 'elem', 'hover "Temp".Setpoint');
+    Add(10, 'shot', 'elems_5_project');
     Add(5, 'quit');
     FShotPos := 0;
     FShotWait := FShots[0].Wait;
@@ -1379,13 +1662,13 @@ begin
   end;
   if (Length(FShots) = 0) and (GetEnvironmentVariable('VPLC_HELP_TEST') <> '') then
   begin
-    // the language help of the Elements panel: select (drag, double click, triple click), copy,
-    // the right button, a word dragged into the SCL code; the STL help
+    // the STL help of the Elements panel: select (drag, double click, triple click), copy, the right
+    // button (SCL has the elements list: VPLC_ELEMS_TEST)
     DeleteFile(FShotDir + 'help_check.txt');
     Add(10, 'sample', '13');
     Add(5, 'screen', '1');
-    Add(5, 'fc1');
-    Add(5, 'stlnet', 'SCL');
+    Add(5, 'ob1');
+    Add(5, 'stlnet', 'STL');
     Add(10, 'helpsel', '2,0,2,3,1');
     Add(5, 'helpcopy', 'drag 2,0..2,3');
     Add(10, 'shot', 'help_1_selected');
@@ -1398,14 +1681,6 @@ begin
     Add(5, 'helprclick', '9,3');
     Add(10, 'shot', 'help_2_menu');
     Add(5, 'esc');
-    Add(5, 'helpsel', '9,14,9,14,2');
-    Add(5, 'helpcopy', 'the word to drag');
-    Add(5, 'stlnet', 'SCL');
-    Add(10, 'helpdrag', '9,16');
-    Add(10, 'helpcheck', '');
-    Add(10, 'shot', 'help_3_dropped');
-    Add(5, 'ob1');
-    Add(5, 'stlnet', 'STL');
     Add(10, 'helpsel', '4,0,4,8,1');
     Add(5, 'helpcopy', 'STL drag 4,0..4,8');
     Add(10, 'shot', 'help_4_stl');
@@ -1991,7 +2266,7 @@ begin
         'refresh': UI.RefreshProjectFiles;
         'folder 0': UI.FileFolder := 0;
         'folder 1': UI.FileFolder := 1;
-        'ex 6', 'ex 19', 'ex 20', 'ex 22', 'ex 23', 'ex 25': UI.LoadExampleNow(StrToInt(Copy(St.Arg, 4, 2)));
+        'ex 6', 'ex 15', 'ex 30', 'ex 31', 'ex 32', 'ex 33', 'ex 19', 'ex 20', 'ex 22', 'ex 23', 'ex 25': UI.LoadExampleNow(StrToInt(Copy(St.Arg, 4, 2)));
         'in on': UI.Rt.SetSimBit(0, 0, True);
       end;
       SaveToFile(FShotDir + 'ipc_check.txt');
@@ -2525,6 +2800,154 @@ begin
     finally
       Free;
     end;
+  if St.Cmd = 'ide' then
+    with TStringList.Create do
+    try
+      // Find Declaration, the views, .scl sources: caret n r <word>, decl, view k, viewshot file, link url,
+      // export file, import file, check <what>
+      if FileExists(FShotDir + 'ide_check.txt') then LoadFromFile(FShotDir + 'ide_check.txt');
+      S0 := ExtractWord(1, St.Arg, [' ']);
+      S1 := Trim(Copy(St.Arg, Length(S0) + 2, MaxInt));
+      if S0 = 'caret' then
+      begin
+        V := StrToInt(ExtractWord(1, S1, [' ']));
+        P := StrToInt(ExtractWord(2, S1, [' ']));
+        S2 := ExtractWord(3, S1, [' ']);
+        S3 := UI.CurBlockPublic.Net(V).Stl[P];
+        UI.FocusStl(V, P, Pos(S2, S3) + 1);
+      end
+      else if S0 = 'decl' then UI.KeyDown(ukUp, #0, [umAlt])
+      else if S0 = 'ctrlclick' then
+      begin
+        // a Ctrl+Click on the caret
+        Pt := UI.DesignToPixel(UI.CaretPoint.X + 3, UI.CaretPoint.Y + 8);
+        UI.MouseMods := [umCtrl];
+        UI.MouseClicks := 1;
+        UI.MouseMove(Pt.X, Pt.Y);
+        UI.MouseDown(Pt.X, Pt.Y);
+        UI.MouseUp(Pt.X, Pt.Y);
+        UI.MouseMods := [];
+      end
+      else if S0 = 'view' then UI.ShowViewPublic(StrToInt(S1))
+      else if S0 = 'viewshot' then
+      begin
+        if UI.ViewForm <> nil then
+        begin
+          UI.ViewForm.SetBounds(UI.ViewForm.Left, 40, 1100, 700);
+          UI.ViewForm.SaveShot(FShotDir + S1);
+          Add(Format('%s: the view shows %d characters', [S1, Length(UI.ViewForm.CopyAll)]));
+        end;
+        SaveToFile(FShotDir + 'ide_check.txt');
+      end
+      else if S0 = 'head' then
+        // the name and the version of the block at the top right
+        UI.SetBlockHead(ExtractWord(1, S1, [' ']), ExtractWord(2, S1, [' ']))
+      else if S0 = 'code' then
+      begin
+        // the text of network n of block b
+        V := StrToInt(ExtractWord(1, S1, [' ']));
+        P := StrToInt(ExtractWord(2, S1, [' ']));
+        Add(Format('block %d network %d: %s', [V, P, StringReplace(UI.Project.Block(V).Net(P).Stl.Text, LineEnding, ' | ',
+          [rfReplaceAll])]));
+        Add(Format('block %d: %s version %s', [V, UI.Project.Block(V).Name, UI.Project.Block(V).Version]));
+        SaveToFile(FShotDir + 'ide_check.txt');
+      end
+      else if S0 = 'viewclose' then
+      begin
+        if UI.ViewForm <> nil then UI.ViewForm.Hide;
+      end
+      else if S0 = 'export' then
+      begin
+        Add('export: ' + UI.ExportSclFile(FShotDir + S1, True));
+        SaveToFile(FShotDir + 'ide_check.txt');
+      end
+      else if S0 = 'import' then
+      begin
+        Add('import of ' + ExpandFileName(S1));
+        SaveToFile(FShotDir + 'ide_check.txt');
+        Add('import: ' + UI.ImportSclFile(ExpandFileName(S1)));
+        SaveToFile(FShotDir + 'ide_check.txt');
+      end
+      else if S0 = 'check' then
+      begin
+        Add(Format('%s: screen %d, block %d, network %d, caret %.0f,%.0f, DB %d var %d, tag %d, interface row %d, blocks %d, '
+          + 'types %d', [S1, Ord(UI.Screen), UI.BlockSel, UI.NetSel, UI.CaretPoint.X, UI.CaretPoint.Y, UI.DBSel,
+          UI.VarSel, UI.TagSel, UI.IfSel, UI.Project.BlockCount, UI.Project.UdtCount]));
+        SaveToFile(FShotDir + 'ide_check.txt');
+      end;
+    finally
+      Free;
+    end;
+  if St.Cmd = 'elem' then
+    with TStringList.Create do
+    try
+      // the SCL elements panel: open <category>, dbl / hover / rclick / drag <caption>, caret n r c,
+      // type <text>, check <what> (the lines of the SCL network n, the clipboard)
+      if FileExists(FShotDir + 'elems_check.txt') then LoadFromFile(FShotDir + 'elems_check.txt');
+      S0 := ExtractWord(1, St.Arg, [' ']);
+      S1 := Trim(Copy(St.Arg, Length(S0) + 2, MaxInt));
+      if S0 = 'caret' then
+        UI.FocusStl(StrToInt(ExtractWord(1, S1, [' '])), StrToInt(ExtractWord(2, S1, [' '])),
+          StrToInt(ExtractWord(3, S1, [' '])))
+      else if S0 = 'type' then UI.TextInput(S1)
+      else if S0 = 'check' then
+      begin
+        Add('== ' + S1);
+        if (UI.CurBlockPublic <> nil) and (UI.NetSel >= 0) and (UI.NetSel < UI.CurBlockPublic.NetCount) then
+          for P := 0 to UI.CurBlockPublic.Net(UI.NetSel).Stl.Count - 1 do
+            Add(Format('  %d [%s]', [P + 1, UI.CurBlockPublic.Net(UI.NetSel).Stl[P]]));
+        Pc := SDL_GetClipboardText;
+        if Pc <> nil then
+        begin
+          Add('  clipboard [' + StringReplace(StrPas(Pc), LineEnding, '|', [rfReplaceAll]) + ']');
+          SDL_free(Pc);
+        end;
+        Add('  project: ' + UI.Project.Name);
+        SaveToFile(FShotDir + 'elems_check.txt');
+      end
+      else
+      begin
+        // the element is brought into view now, its place is taken from the next frame
+        V := UI.ElemFind(S1, (S0 = 'open') or (S0 = 'showcat'));
+        if V < 0 then
+        begin
+          Add('== ' + St.Arg + ': not found');
+          SaveToFile(FShotDir + 'elems_check.txt');
+        end
+        else if (S0 <> 'show') and (S0 <> 'showcat') then
+        begin
+          if S0 = 'open' then Pt := UI.HitPoint('elemcat', V) else Pt := UI.HitPoint('elem', V);
+          UI.MouseMods := [];
+          UI.MouseClicks := 1;
+          UI.MouseMove(Pt.X, Pt.Y);
+          if S0 = 'open' then
+          begin
+            UI.MouseDown(Pt.X, Pt.Y);
+            UI.MouseUp(Pt.X, Pt.Y);
+          end
+          else if S0 = 'dbl' then
+          begin
+            UI.MouseDown(Pt.X, Pt.Y);
+            UI.MouseUp(Pt.X, Pt.Y);
+            UI.MouseClicks := 2;
+            UI.MouseDown(Pt.X, Pt.Y);
+            UI.MouseUp(Pt.X, Pt.Y);
+            UI.MouseClicks := 1;
+          end
+          else if S0 = 'rclick' then UI.MouseRightDown(Pt.X, Pt.Y)
+          else if S0 = 'drag' then
+          begin
+            // onto the caret of the code
+            Pp := UI.DesignToPixel(UI.CaretPoint.X + 2, UI.CaretPoint.Y + 8);
+            UI.MouseDown(Pt.X, Pt.Y);
+            for P := 1 to 10 do UI.MouseMove(Pt.X + (Pp.X - Pt.X) * P / 10, Pt.Y + (Pp.Y - Pt.Y) * P / 10);
+            UI.MouseUp(Pp.X, Pp.Y);
+          end;
+        end;
+      end;
+    finally
+      Free;
+    end;
   if (St.Cmd = 'uirclick') or (St.Cmd = 'uiclick2') then
   begin
     // the right button (uirclick) or a click (uiclick2) on a region of the UI: what:par
@@ -2546,6 +2969,108 @@ begin
       UI.MouseUp(Pt.X, Pt.Y);
     end;
   end;
+  if St.Cmd = 'grp' then
+    with TStringList.Create do
+    try
+      // the group test: typing a name, the views, the SCL import of types / DBs, into grp_check.txt
+      if FileExists(FShotDir + 'grp_check.txt') then LoadFromFile(FShotDir + 'grp_check.txt');
+      if Copy(St.Arg, 1, 5) = 'type ' then
+      begin
+        UI.TextInput(Copy(St.Arg, 6, MaxInt));
+        UI.EndEdit(True);
+      end
+      else if St.Arg = 'commit' then UI.EndEdit(True)
+      else if Copy(St.Arg, 1, 7) = 'rename ' then
+      begin
+        S1 := Copy(St.Arg, 8, MaxInt);   // K G name
+        V := StrToInt(Copy(S1, 1, 1));
+        S2 := Copy(S1, 3, MaxInt);
+        UI.TestGroupName(V, StrToInt(Copy(S2, 1, Pos(' ', S2) - 1)), Copy(S2, Pos(' ', S2) + 1, MaxInt));
+        if V = 0 then
+          Add(Format('rename to "%s": the group is "%s"', [Copy(S2, Pos(' ', S2) + 1, MaxInt),
+            UI.Project.TagGroups[StrToInt(Copy(S2, 1, Pos(' ', S2) - 1))].Name]));
+      end
+      else if Copy(St.Arg, 1, 9) = 'dbimport ' then
+        Add('import: ' + UI.ImportSclFile(ExtractFilePath(ParamStr(0)) + Copy(St.Arg, 10, MaxInt), True))
+      else if St.Arg = 'projfile' then
+      begin
+        S1 := UI.Project.ToJsonText;
+        Add(Format('project file: tagGroups %s, watchGroups %s', [BoolToStr(Pos('"tagGroups"', S1) > 0, True),
+          BoolToStr(Pos('"watchGroups"', S1) > 0, True)]));
+      end
+      else if Copy(St.Arg, 1, 10) = 'dump watch' then
+      begin
+        S1 := '';
+        for V := 0 to High(UI.Project.Watch) do S1 := S1 + IntToStr(UI.Project.Watch[V].GroupId);
+        Add(St.Arg + ': ' + UI.ViewText(1) + '   (the groups of the rows: ' + S1 + ')');
+      end
+      else if Copy(St.Arg, 1, 5) = 'dump ' then
+      begin
+        S1 := '';
+        for V := 0 to High(UI.Project.TagGroups) do
+          S1 := S1 + Format('%d:%s ', [UI.Project.TagGroups[V].Id, UI.Project.TagGroups[V].Name]);
+        Add(St.Arg + ': groups [' + Trim(S1) + '] shown: ' + UI.ViewText(0));
+      end;
+      SaveToFile(FShotDir + 'grp_check.txt');
+    finally
+      Free;
+    end;
+  if St.Cmd = 'io' then
+    with TStringList.Create do
+    try
+      // the I/O test: tags beyond the CPU's channels, bad rows, the tables into io_check.txt
+      if FileExists(FShotDir + 'io_check.txt') then LoadFromFile(FShotDir + 'io_check.txt');
+      if St.Arg = 'tags' then
+      begin
+        UI.Project.AddTag('Door', 'Bool', '%I8.0', 'beyond the inputs of the CPU');
+        UI.Project.AddTag('Level', 'Int', '%IW100', 'an analog value');
+        UI.Project.AddTag('Flow', 'Real', '%ID104', 'a Real input');
+        UI.Project.AddTag('Count', 'DInt', '%ID108', '');
+        UI.Project.AddTag('Horn', 'Bool', '%Q8.0', 'an output beyond the CPU');
+        UI.Project.AddTag('Valve', 'Int', '%QW100', 'an analog output');
+      end
+      else if St.Arg = 'door' then
+      begin
+        Pt := UI.HitPoint('tagio', 0);
+        Add('before ' + BoolToStr(UI.Rt.GetSimBit(8, 0), True));
+        UI.MouseMove(Pt.X, Pt.Y);
+        UI.MouseDown(Pt.X, Pt.Y);
+        Add('after down ' + BoolToStr(UI.Rt.GetSimBit(8, 0), True));
+        UI.MouseUp(Pt.X, Pt.Y);
+        Add(Format('Door switch clicked at %.0f,%.0f: I8.0 = %s', [Pt.X, Pt.Y, BoolToStr(UI.Rt.GetSimBit(8, 0), True)]));
+      end
+      else if St.Arg = 'sigbad' then
+        UI.Project.AddSignal('%Q0.0', sgSquare, 0, 1, 1000, 50)
+      else if St.Arg = 'watchmw' then
+        UI.Project.AddWatch('%MW20', dfDec)
+      else if St.Arg = 'watchbad' then
+        UI.Project.AddWatch('"NoSuchTag"', dfDec)
+      else if St.Arg = 'tagbad' then
+        UI.Project.AddTag('Broken', 'Int', '%XW1', 'not an address: red, the message beside the buttons')
+      else if St.Arg = 'dump signals' then
+      begin
+        Add('signals:');
+        for V := 0 to High(UI.Project.Signals) do
+          with UI.Project.Signals[V] do
+            Add(Format('  %s %s %g..%g %g ms on=%s', [Address, SigKindNames[Kind], Lo, Hi, PeriodMs, BoolToStr(On, True)]));
+        Add(Format('  Door (I8.0) after the run: %s, Level IW100 = %d', [BoolToStr(UI.Rt.GetSimBit(8, 0), True),
+          SmallInt(UI.Rt.SimIn[100] shl 8 or UI.Rt.SimIn[101])]));
+      end
+      else if St.Arg = 'dump watch' then
+      begin
+        Add('watch:');
+        for V := 0 to High(UI.Project.Watch) do Add('  ' + UI.Project.Watch[V].Address);
+      end
+      else if St.Arg = 'dump tags' then
+      begin
+        Add('tags:');
+        for V := 0 to High(UI.Project.Tags) do
+          Add(Format('  %s %s %s', [UI.Project.Tags[V].Name, UI.Project.Tags[V].TypeText, UI.Project.Tags[V].Address]));
+      end;
+      SaveToFile(FShotDir + 'io_check.txt');
+    finally
+      Free;
+    end;
   if St.Cmd = 'exportall' then
     with TStringList.Create do
     try
@@ -2970,6 +3495,12 @@ begin
     UI.TextInput('XYZ M0.0');
   end;
   if St.Cmd = 'compile' then UI.KeyDown(ukF7, #0, []);
+  if St.Cmd = 'fkey' then
+    case St.Arg of
+      '5': UI.KeyDown(ukF5, #0, []);
+      '8': UI.KeyDown(ukF8, #0, []);
+      '9': UI.KeyDown(ukF9, #0, []);
+    end;
   if St.Cmd = 'selftest' then
   begin
     UI.SelfTestModbus;

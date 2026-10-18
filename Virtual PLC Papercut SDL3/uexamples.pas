@@ -22,7 +22,7 @@ procedure WriteExamples(const Dir: string);          // the missing ones
 implementation
 
 const
-  Files: array[0..29] of string = (
+  Files: array[0..33] of string = (
     '01_Motor_start_stop_S7-1200', '02_Motor_start_stop_S7-1500', '03_Motor_start_stop_S7-300',
     '04_Motor_start_stop_S7-400', '05_Traffic_light_S7-1200', '06_Tank_level_control_S7-1200',
     '07_Conveyor_box_counter_S7-1200', '08_Star_delta_starter_S7-300', '09_Pump_duty_standby_S7-1500',
@@ -32,7 +32,8 @@ const
     '19_Timers_LAD_S7-1200', '20_Counters_LAD_S7-1200', '21_Timers_LAD_S7-1500', '22_Counters_LAD_S7-1500',
     '23_Timers_LAD_S7-300', '24_Counters_LAD_S7-300', '25_Timers_LAD_S7-400', '26_Counters_LAD_S7-400',
     '27_Data_type_conversion_S7-1200', '28_Data_type_conversion_STL_S7-300', '29_Math_S7-1200',
-    '30_Large_FB_motor_control_S7-1500');
+    '30_Large_FB_motor_control_S7-1500', '31_SCL_elements_S7-1500', '32_SCL_strings_S7-1500',
+    '33_SCL_64_bit_dates_S7-1500', '34_LAD_STL_SCL_functions_S7-1500');
 
 function ExampleCount: Integer;
 begin
@@ -113,6 +114,17 @@ var
     Ce.DType2 := T2;
     Ce.P[0] := AIn;
     Ce.P[1] := AOut;
+    N.SetCell(R, C, Ce);
+  end;
+
+  // a box with up to 5 pins (the boxes of the SCL functions)
+  procedure SBox(R, C: Integer; K: TLadKind; const Op: string; const Ps: array of string);
+  var
+    J: Integer;
+  begin
+    if C >= N.Cols then N.SetCols(C + 3);
+    Ce := NewCell(K, Op);
+    for J := 0 to High(Ps) do Ce.P[J] := Ps[J];
     N.SetCell(R, C, Ce);
   end;
 
@@ -1386,6 +1398,310 @@ begin
         P.AddWatch('"M1_DB".RunSeconds', dfDec);
         P.AddWatch('"M2_DB".State', dfDec);
         P.AddWatch('"M3_DB".State', dfDec);
+      end;
+    30: // ---------- the SCL elements of the SCL Compiler ----------
+      begin
+        Start(13, 'SCL elements: literals, MUX, slices, 2D arrays, system FBs (S7-1500)',
+          'SCL as in the SCL Compiler: typed literals (INT#, UDINT#, 8#, D#, TOD#), VAR CONSTANT, MUX, slices ' +
+          '(.%X3, .%B1), a two-dimensional array with a start list, an FC that returns its value as #Name and ' +
+          'is called with positional arguments, and the system FBs TON_TIME, CTU_INT, R_TRIG, F_TRIG, RS and SR ' +
+          'as statics of an FB. I0.0 counts and starts the timer, I0.1 resets the RS / SR.');
+        P.AddTag('Start', 'Bool', '%I0.0', 'push button: count, time, edges');
+        P.AddTag('Reset', 'Bool', '%I0.1', 'push button: reset RS / SR');
+        P.AddTag('Lamp_Time', 'Bool', '%Q0.0', 'TON_TIME: 2 s after Start');
+        P.AddTag('Lamp_Count', 'Bool', '%Q0.1', 'CTU_INT: 3 presses');
+        P.AddTag('Lamp_RS', 'Bool', '%Q0.2', 'RS: reset wins');
+        P.AddTag('Lamp_SR', 'Bool', '%Q0.3', 'SR: set wins');
+        Push(0);
+        Push(1);
+        D := P.AddDB(1, 'Elems');
+        D.AddVar('Sel', 'Int', '1', 'MUX: K (0..2)');
+        D.AddVar('Picked', 'Int', '0', 'MUX(K := Sel, 10, 20, 30)');
+        D.AddVar('Status', 'Word', 'W#16#0', 'bits and a byte set by slices');
+        D.AddVar('Bit11', 'Bool', 'FALSE', 'Status.%X11');
+        D.AddVar('Big', 'UDInt', 'UDINT#4000000000', 'a UDInt literal');
+        D.AddVar('Day', 'Date', 'D#2024-01-31', 'a Date literal');
+        D.AddVar('Noon', 'Time_Of_Day', 'TOD#12:00:00', 'a Time_Of_Day literal');
+        D.AddVar('Grid', 'Array[0..2, 1..3] of Int', '[1, 2, 3, 4(0), 9, 9]', 'two dimensions, a start list');
+        D.AddVar('Sum', 'Int', '0', 'the sum of Grid');
+        D.AddVar('Avg', 'Int', '0', '"Avg2"(Grid[0, 1], Grid[2, 3])');
+        D.AddVar('Edges', 'Int', '0', 'rising edges of Start (R_TRIG)');
+        D.AddVar('Falls', 'Int', '0', 'falling edges of Start (F_TRIG)');
+        B := P.AddBlock(bkFC, 1, 'Avg2');
+        B.Comment := 'the average of two Ints: the Return value is written as #Avg2';
+        B.Iface.AddSecVar(vsInput, 'a', 'Int', '', '');
+        B.Iface.AddSecVar(vsInput, 'b', 'Int', '', '');
+        B.Iface.AddSecVar(vsReturn, 'Ret_Val', 'Int', '', 'the average');
+        Scl(B, 'Average', 'TIA writes the function value as #<name of the FC>', '#Avg2 := (#a + #b) / 2;');
+        B := P.AddBlock(bkFB, 1, 'Signals');
+        B.Comment := 'the system FBs as statics: called as #name(..)';
+        B.Iface.AddSecVar(vsInput, 'Go', 'Bool', 'FALSE', '');
+        B.Iface.AddSecVar(vsInput, 'Clr', 'Bool', 'FALSE', '');
+        B.Iface.AddSecVar(vsOutput, 'TimeUp', 'Bool', 'FALSE', '');
+        B.Iface.AddSecVar(vsOutput, 'Counted', 'Bool', 'FALSE', '');
+        B.Iface.AddSecVar(vsOutput, 'RsQ', 'Bool', 'FALSE', '');
+        B.Iface.AddSecVar(vsOutput, 'SrQ', 'Bool', 'FALSE', '');
+        B.Iface.AddSecVar(vsStatic, 'Delay', 'TON_TIME', '', 'on delay');
+        B.Iface.AddSecVar(vsStatic, 'Presses', 'CTU_INT', '', 'counts up');
+        B.Iface.AddSecVar(vsStatic, 'Up', 'R_TRIG', '', 'rising edge');
+        B.Iface.AddSecVar(vsStatic, 'Down', 'F_TRIG', '', 'falling edge');
+        B.Iface.AddSecVar(vsStatic, 'Rs', 'RS', '', 'reset dominant');
+        B.Iface.AddSecVar(vsStatic, 'Sr', 'SR', '', 'set dominant');
+        Scl(B, 'System FBs', 'TON_TIME, CTU_INT, R_TRIG, F_TRIG, RS, SR', L([
+          '#Delay(IN := #Go, PT := T#2S, Q => #TimeUp);',
+          '#Up(CLK := #Go);',
+          '#Down(CLK := #Go);',
+          'IF #Up.Q THEN "Elems".Edges := "Elems".Edges + 1; END_IF;',
+          'IF #Down.Q THEN "Elems".Falls := "Elems".Falls + 1; END_IF;',
+          '#Presses(CU := #Go, R := #Clr, PV := 3, Q => #Counted);',
+          '#Rs(S := #Go, R1 := #Clr, Q1 => #RsQ);',
+          '#Sr(S1 := #Go, R := #Clr, Q1 => #SrQ);']));
+        D := P.AddDB(2, 'Signals_DB');
+        D.InstanceOf := 1;
+        B := P.Block(0);
+        Scl(B, 'Literals, constants, MUX, slices', 'VAR CONSTANT, typed literals, MUX, .%X / .%B', L([
+          'VAR CONSTANT',
+          '    BASE : Int := 10;',
+          'END_VAR',
+          '"Elems".Picked := MUX(K := "Elems".Sel, IN0 := #BASE, IN1 := INT#2 * #BASE, IN2 := 8#36, INELSE := -1);',
+          '"Elems".Status.%X3 := "Start";',
+          '"Elems".Status.%B1 := 16#A5;',
+          '"Elems".Bit11 := "Elems".Status.%X11;']));
+        Scl(B, 'Two dimensions, FC', 'Grid[i, j] in loops, an FC with positional arguments', L([
+          'VAR_TEMP',
+          '    i : Int;',
+          '    j : Int;',
+          'END_VAR',
+          '"Elems".Sum := 0;',
+          'FOR #i := 0 TO 2 DO',
+          '    FOR #j := 1 TO 3 DO',
+          '        "Elems".Sum := "Elems".Sum + "Elems".Grid[#i, #j];',
+          '    END_FOR;',
+          'END_FOR;',
+          '"Elems".Avg := "Avg2"("Elems".Grid[0, 1], "Elems".Grid[2, 3]);']));
+        Scl(B, 'System FBs', 'the FB with the system FBs', L([
+          '"Signals_DB"(Go := "Start", Clr := "Reset", TimeUp => "Lamp_Time", Counted => "Lamp_Count",',
+          '             RsQ => "Lamp_RS", SrQ => "Lamp_SR");']));
+        P.AddWatch('"Elems".Sel', dfDec);
+        P.AddWatch('"Elems".Picked', dfDec);
+        P.AddWatch('"Elems".Status', dfHex);
+        P.AddWatch('"Elems".Sum', dfDec);
+        P.AddWatch('"Elems".Avg', dfDec);
+        P.AddWatch('"Elems".Edges', dfDec);
+        P.AddWatch('"Signals_DB".Presses.CV', dfDec);
+      end;
+    31: // ---------- strings ----------
+      begin
+        Start(13, 'SCL strings: String, WString, Char (S7-1500)',
+          'SCL strings as in the SCL Compiler: String[n] and WString[n] with LEN, CONCAT, LEFT, RIGHT, MID, FIND, ' +
+          'comparisons, Char, an array of strings, an FC with a String Return value and an FB with a String ' +
+          'Static. Modify "Text".Name in the watch table; I0.0 picks the next word of the list.');
+        P.AddTag('Next', 'Bool', '%I0.0', 'push button: the next word');
+        Push(0);
+        D := P.AddDB(1, 'Text');
+        D.AddVar('Name', 'String[20]', '''Siemens''', 'modify me');
+        D.AddVar('Greeting', 'String[40]', '', '"Hello"(Name)');
+        D.AddVar('Len', 'Int', '0', 'LEN(Greeting)');
+        D.AddVar('Pos', 'Int', '0', 'FIND(Greeting, Name)');
+        D.AddVar('First3', 'String[3]', '', 'LEFT(Name, 3)');
+        D.AddVar('Last3', 'String[3]', '', 'RIGHT(Name, 3)');
+        D.AddVar('Middle', 'String[10]', '', 'MID(Name, 3, 2)');
+        D.AddVar('IsPlc', 'Bool', 'FALSE', 'Name = ''PLC''');
+        D.AddVar('Initial', 'Char', '''?''', 'the first letter');
+        D.AddVar('Words', 'Array[0..3] of String[8]', '[''red'', ''green'', ''blue'', ''yellow'']', 'a list');
+        D.AddVar('Index', 'Int', '0', 'the word shown');
+        D.AddVar('Word', 'String[8]', '', 'Words[Index]');
+        D.AddVar('Wide', 'WString[20]', 'WSTRING#''Gr$00FC$00DFe''', 'a WString');
+        D.AddVar('WideLen', 'Int', '0', 'LEN(Wide)');
+        D.AddVar('Old', 'Bool', 'FALSE', 'the edge memory of Next');
+        B := P.AddBlock(bkFC, 1, 'Hello');
+        B.Comment := 'a greeting: a String Input and a String Return value';
+        B.Iface.AddSecVar(vsInput, 'Who', 'String[20]', '', '');
+        B.Iface.AddSecVar(vsReturn, 'Ret_Val', 'String[40]', '', '');
+        Scl(B, 'Greeting', 'CONCAT of three strings', '#Hello := CONCAT(IN1 := CONCAT(IN1 := ''Hello '', IN2 := #Who), IN2 := ''!'');');
+        B := P.Block(0);
+        Scl(B, 'String functions', 'LEN, FIND, LEFT, RIGHT, MID, compare, Char', L([
+          '"Text".Greeting := "Hello"(Who := "Text".Name);',
+          '"Text".Len := LEN("Text".Greeting);',
+          '"Text".Pos := FIND(IN1 := "Text".Greeting, IN2 := "Text".Name);',
+          '"Text".First3 := LEFT(IN := "Text".Name, L := 3);',
+          '"Text".Last3 := RIGHT(IN := "Text".Name, L := 3);',
+          '"Text".Middle := MID(IN := "Text".Name, L := 3, P := 2);',
+          '"Text".IsPlc := "Text".Name = ''PLC'';',
+          '"Text".WideLen := LEN("Text".Wide);']));
+        Scl(B, 'A list of words', 'I0.0 shows the next word of the array', L([
+          'IF "Next" AND NOT "Text".Old THEN',
+          '    "Text".Index := ("Text".Index + 1) MOD 4;',
+          'END_IF;',
+          '"Text".Old := "Next";',
+          '"Text".Word := "Text".Words["Text".Index];']));
+        P.AddWatch('"Text".Name', dfDec);
+        P.AddWatch('"Text".Greeting', dfDec);
+        P.AddWatch('"Text".Len', dfDec);
+        P.AddWatch('"Text".Word', dfDec);
+        P.AddWatch('"Text".Wide', dfDec);
+      end;
+    32: // ---------- 64 bit, long times and dates ----------
+      begin
+        Start(13, 'SCL 64 bit: LInt, LReal, LTime, LDT, DT, DTL (S7-1500)',
+          'SCL with the 64 bit types of the S7-1500, exact beyond 2^53: an LInt cycle counter, LReal arithmetic, ' +
+          'an LTime from TON_LTIME, LDT and DT plus a time, DT_TO_DATE / DT_TO_TOD, a DTL struct, an LWord ' +
+          'with slices and a CTU_DINT. I0.0 runs the LTime timer and counts.');
+        P.AddTag('Run', 'Bool', '%I0.0', 'switch: the timer runs, the counter counts');
+        P.AddTag('Done', 'Bool', '%Q0.0', 'TON_LTIME: Q after LT#3S');
+        D := P.AddDB(1, 'Long');
+        D.AddVar('Cycles', 'ULInt', '0', 'cycles since the start');
+        D.AddVar('Big', 'LInt', '9007199254740993', '2^53 + 1: no Double holds it');
+        D.AddVar('BigPlus', 'LInt', '0', 'Big + Cycles, exact');
+        D.AddVar('Third', 'LReal', '0.0', '1.0 / 3.0 in 64 bit');
+        D.AddVar('Elapsed', 'LTime', 'LT#0NS', 'ET of TON_LTIME (ns)');
+        D.AddVar('Start', 'LDT', 'LDT#2024-01-31-12:00:00', 'a date and time in ns');
+        D.AddVar('Later', 'LDT', '', 'Start + Elapsed');
+        D.AddVar('Stamp', 'Date_And_Time', 'DT#2024-01-31-23:30:00', 'a DT (BCD)');
+        D.AddVar('Stamp2', 'Date_And_Time', '', 'Stamp + T#1H: the next day');
+        D.AddVar('Day', 'Date', '', 'DT_TO_DATE(Stamp2)');
+        D.AddVar('Clock', 'Time_Of_Day', '', 'DT_TO_TOD(Stamp2)');
+        D.AddVar('Local', 'DTL', '', 'a DTL: YEAR, MONTH, DAY, ...');
+        D.AddVar('Mask', 'LWord', 'LW#16#FFFF0000FFFF0000', 'an LWord, bits set by slices');
+        D.AddVar('Count', 'DInt', '0', 'CTU_DINT.CV');
+        B := P.AddBlock(bkFB, 1, 'Runner');
+        B.Comment := 'TON_LTIME and CTU_DINT as statics';
+        B.Iface.AddSecVar(vsInput, 'Go', 'Bool', 'FALSE', '');
+        B.Iface.AddSecVar(vsOutput, 'Q', 'Bool', 'FALSE', '');
+        B.Iface.AddSecVar(vsOutput, 'Et', 'LTime', '', '');
+        B.Iface.AddSecVar(vsOutput, 'Cv', 'DInt', '0', '');
+        B.Iface.AddSecVar(vsStatic, 'Timer', 'TON_LTIME', '', 'an LTime timer');
+        B.Iface.AddSecVar(vsStatic, 'Counter', 'CTU_DINT', '', 'a DInt counter');
+        Scl(B, 'Timer and counter', 'LT#3S, PV 100000', L([
+          '#Timer(IN := #Go, PT := LT#3S, Q => #Q, ET => #Et);',
+          '#Counter(CU := #Go, R := FALSE, PV := 100000, CV => #Cv);']));
+        D := P.AddDB(2, 'Runner_DB');
+        D.InstanceOf := 1;
+        B := P.Block(0);
+        Scl(B, '64 bit arithmetic', 'exact LInt / ULInt, LReal', L([
+          '"Long".Cycles := "Long".Cycles + 1;',
+          '"Long".BigPlus := "Long".Big + ULINT_TO_LINT("Long".Cycles);',
+          '"Long".Third := 1.0 / LREAL#3.0;',
+          '"Long".Mask.%X0 := "Run";']));
+        Scl(B, 'Long times and dates', 'LDT + LTime, DT + TIME, DT_TO_DATE / DT_TO_TOD, DTL', L([
+          '"Runner_DB"(Go := "Run", Q => "Done", Et => "Long".Elapsed, Cv => "Long".Count);',
+          '"Long".Later := "Long".Start + "Long".Elapsed;',
+          '"Long".Stamp2 := "Long".Stamp + T#1H;',
+          '"Long".Day := DT_TO_DATE("Long".Stamp2);',
+          '"Long".Clock := DT_TO_TOD("Long".Stamp2);',
+          '"Long".Local.YEAR := 2024;',
+          '"Long".Local.MONTH := 2;',
+          '"Long".Local.DAY := 1;']));
+        P.AddWatch('"Long".Cycles', dfDec);
+        P.AddWatch('"Long".BigPlus', dfDec);
+        P.AddWatch('"Long".Elapsed', dfDec);
+        P.AddWatch('"Long".Later', dfDec);
+        P.AddWatch('"Long".Stamp2', dfDec);
+      end;
+    33: // ---------- LAD and STL with the SCL functions ----------
+      begin
+        Start(13, 'LAD and STL: the SCL functions as boxes and CALLs (S7-1500)',
+          'The functions of SCL in LAD boxes (SEL, MUX, LIMIT, MIN, MAX, SQRT, EXPT, SHL, AND, CONCAT, LEN, MID, ' +
+          'R_TRIG with INC, a TON_LTIME and a CTU_DINT instance) and in STL as CALL SEL / CALL CONCAT / CALL of a ' +
+          'TON_TIME instance with parameter lines. I0.0 counts edges and runs the timers; modify "Box".Sel.');
+        P.AddTag('Go', 'Bool', '%I0.0', 'push button: edges, timers, counter');
+        P.AddTag('Enable', 'Bool', '%M10.0', 'the boxes run (set by network 1)');
+        P.AddTag('Lamp', 'Bool', '%Q0.0', 'TON_LTIME: Q');
+        P.AddTag('Lamp_STL', 'Bool', '%Q0.1', 'TON_TIME in STL: Q');
+        Push(0);
+        D := P.AddDB(1, 'Box');
+        D.AddVar('Sel', 'Bool', 'TRUE', 'SEL: G');
+        D.AddVar('Picked', 'Int', '0', 'SEL(G, 10, 20)');
+        D.AddVar('K', 'Int', '2', 'MUX: K');
+        D.AddVar('FromMux', 'Int', '0', 'MUX(K, 100, 200, 300)');
+        D.AddVar('Limited', 'Int', '0', 'LIMIT(0, 150, 100)');
+        D.AddVar('Smallest', 'Int', '0', 'MIN(9, 4, 6)');
+        D.AddVar('Root', 'Real', '0.0', 'SQRT(2.0)');
+        D.AddVar('Cube', 'Real', '0.0', 'EXPT(1.5, 3.0)');
+        D.AddVar('Shifted', 'Word', 'W#16#0', 'SHL(16#0001, 4)');
+        D.AddVar('Masked', 'Word', 'W#16#0', 'AND(16#F0F0, 16#FF00)');
+        D.AddVar('Text', 'String[20]', '', 'CONCAT(''PLC '', ''box'')');
+        D.AddVar('TextLen', 'Int', '0', 'LEN(Text)');
+        D.AddVar('Part', 'String[10]', '', 'MID(Text, 3, 5)');
+        D.AddVar('Edge', 'R_TRIG', '', 'the rising edges of Go');
+        D.AddVar('Edges', 'Int', '0', 'INC on each edge');
+        D.AddVar('Long', 'TON_LTIME', '', 'an LTime timer box');
+        D.AddVar('LongEt', 'LTime', '', 'its ET');
+        D.AddVar('Count', 'CTU_DINT', '', 'a DInt counter box');
+        D.AddVar('CountCv', 'DInt', '0', 'its CV');
+        D.AddVar('StlSel', 'Int', '0', 'STL: CALL SEL');
+        D.AddVar('StlText', 'String[20]', '', 'STL: CALL CONCAT');
+        D.AddVar('StlTimer', 'TON_TIME', '', 'STL: CALL "Box".StlTimer');
+        B := P.Block(0);
+        Scl(B, 'Enable', 'the boxes below run while Enable is 1', '"Enable" := TRUE;');
+        LadNet(B, 'SEL and MUX', 'EN is the rung, ENO = EN', 2);
+        Lad(0, 0, lkNO, '"Enable"');
+        SBox(0, 1, lkSel, '', ['"Box".Sel', '10', '20', '"Box".Picked']);
+        Wires(0, 2, 3);
+        SBox(0, 4, lkMux, '', ['"Box".K', '100', '200', '300', '"Box".FromMux']);
+        Wires(0, 5, 7);
+        LadNet(B, 'LIMIT and MIN', '', 1);
+        Lad(0, 0, lkNO, '"Enable"');
+        SBox(0, 1, lkLimit, '', ['0', '150', '100', '"Box".Limited']);
+        Wires(0, 2, 3);
+        SBox(0, 4, lkMin, '', ['9', '4', '6', '', '"Box".Smallest']);
+        Wires(0, 5, 7);
+        LadNet(B, 'SQRT and EXPT', 'Real functions', 1);
+        Lad(0, 0, lkNO, '"Enable"');
+        SBox(0, 1, lkSqrt, '', ['2.0', '"Box".Root']);
+        Wires(0, 2, 3);
+        SBox(0, 4, lkExpt, '', ['1.5', '3.0', '"Box".Cube']);
+        Wires(0, 5, 7);
+        LadNet(B, 'SHL and AND', 'bit strings', 1);
+        Lad(0, 0, lkNO, '"Enable"');
+        SBox(0, 1, lkShl, '', ['W#16#0001', '4', '"Box".Shifted']);
+        Wires(0, 2, 3);
+        SBox(0, 4, lkAndW, '', ['W#16#F0F0', 'W#16#FF00', '"Box".Masked']);
+        Wires(0, 5, 7);
+        LadNet(B, 'Strings', 'CONCAT, LEN, MID in a row', 1);
+        Lad(0, 0, lkNO, '"Enable"');
+        SBox(0, 1, lkConcat, '', ['''PLC ''', '''box''', '"Box".Text']);
+        Wires(0, 2, 3);
+        SBox(0, 4, lkLen, '', ['"Box".Text', '"Box".TextLen']);
+        Wires(0, 5, 6);
+        SBox(0, 7, lkMid, '', ['"Box".Text', '3', '5', '"Box".Part']);
+        Wires(0, 8, 9);
+        LadNet(B, 'R_TRIG and INC', 'counts the rising edges of Go', 1);
+        Lad(0, 0, lkNO, '"Go"');
+        SBox(0, 1, lkRTrig, '"Box".Edge', []);
+        Wires(0, 2, 3);
+        SBox(0, 4, lkInc, '', ['"Box".Edges']);
+        Wires(0, 5, 7);
+        LadNet(B, 'TON_LTIME and CTU_DINT', 'a TON box and a CTU box with the instances of TIA', 1);
+        Lad(0, 0, lkNO, '"Go"');
+        SBox(0, 1, lkTON, '"Box".Long', ['LT#3S', '"Box".LongEt']);
+        Wires(0, 2, 6);
+        Lad(0, 7, lkCoil, '"Lamp"');
+        LadNet(B, 'CTU_DINT', '', 1);
+        Lad(0, 0, lkNO, '"Go"');
+        SBox(0, 1, lkCTU, '"Box".Count', ['100000', 'FALSE', '"Box".CountCv']);
+        Wires(0, 2, 7);
+        Stl(B, 'STL: CALL of the SCL functions', 'one parameter per line, RET_VAL is the result', L([
+          'CALL SEL',
+          '  value_type := Int',
+          '  G := "Box".Sel',
+          '  IN0 := 1',
+          '  IN1 := 2',
+          '  RET_VAL := "Box".StlSel',
+          'CALL CONCAT',
+          '  IN1 := ''from ''',
+          '  IN2 := ''STL''',
+          '  RET_VAL := "Box".StlText',
+          'CALL "Box".StlTimer',
+          '  IN := "Go"',
+          '  PT := T#2S',
+          '  Q := "Lamp_STL"']));
+        P.AddWatch('"Box".Picked', dfDec);
+        P.AddWatch('"Box".FromMux', dfDec);
+        P.AddWatch('"Box".Text', dfDec);
+        P.AddWatch('"Box".Edges', dfDec);
+        P.AddWatch('"Box".LongEt', dfDec);
+        P.AddWatch('"Box".StlText', dfDec);
       end;
   end;
   if I > 3 then

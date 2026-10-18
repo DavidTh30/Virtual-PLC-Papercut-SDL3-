@@ -14,6 +14,7 @@ uses
 
 type
   THelpPdfEvent = procedure(Sender: TObject) of object;
+  THelpLinkEvent = procedure(Sender: TObject; const URL: string) of object;
 
   { a help page as data: the window shows it as HTML, the PDF export lays out the same items.
     K: hkHead a heading, hkText a paragraph, hkCode a line of code (lines in a row are one block),
@@ -34,6 +35,8 @@ type
     FHtml: TIpHtmlPanel;
     FMenu: TPopupMenu;
     FSource: string;
+    FOnLink: THelpLinkEvent;
+    procedure HotClick(Sender: TObject);
     procedure PdfClick(Sender: TObject);
     procedure BrowserClick(Sender: TObject);
     procedure CopyClick(Sender: TObject);
@@ -49,6 +52,9 @@ type
     function CopyAll: string;  // selects everything, copies it, the text that went to the clipboard
     procedure SaveShot(const FileName: string);   // the window as it is on the screen (PNG)
     property Viewer: TIpHtmlPanel read FHtml;
+    procedure SetPage(const AHtml: string);   // another page in the same window (its position stays)
+    { a click on a link: the link (no web page is opened) }
+    property OnLink: THelpLinkEvent read FOnLink write FOnLink;
   end;
 
 function IpcHelpHtml(const Cpu: string): string;
@@ -387,6 +393,7 @@ begin
   FHtml.DefaultTypeFace := 'Segoe UI';
   FHtml.DefaultFontSize := 10;
   FHtml.PopupMenu := FMenu;
+  FHtml.OnHotClick := @HotClick;
   FHtml.SetHtmlFromStr(AHtml);
 end;
 
@@ -401,6 +408,17 @@ begin
   Result.Left := FBar.ClientWidth - ARight - AWidth;
   Result.Anchors := [akTop, akRight];
   Result.OnClick := AClick;
+end;
+
+procedure THelpForm.HotClick(Sender: TObject);
+begin
+  if Assigned(FOnLink) then FOnLink(Self, FHtml.HotURL);
+end;
+
+procedure THelpForm.SetPage(const AHtml: string);
+begin
+  FSource := AHtml;
+  FHtml.SetHtmlFromStr(AHtml);
 end;
 
 procedure THelpForm.PdfClick(Sender: TObject);

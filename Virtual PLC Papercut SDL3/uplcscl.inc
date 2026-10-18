@@ -20,8 +20,15 @@
       <type>_TO_<type> conversions (INT_TO_REAL, REAL_TO_INT, DINT_TO_INT ...)
     "DB".Timer.TON / TOF / TP / TONR (IN := .., PT := .., Q => .., ET => ..);
     "DB".Counter.CTU / CTD / CTUD (CU := .., R := .., PV := .., Q => .., CV => ..);
-    FC calls: "Name"(); FC1();
-    operands: "Tag", "DB".Var, "DB".Arr[expression], %MW20, MW20, DB1.DBW2, #temp
+    FC calls: "Name"(); FC1(); "F"(In := .., Out => ..) or positional "F"(1, 2, "DB".o); #<FC name> := ..
+    VAR CONSTANT name : Type := value; END_VAR (#name); typed literals INT#5 UDINT#16#FF 8#17 D#.. TOD#..
+      DT#.. LT#.. LTOD#.. LDT#.. CHAR#'A' STRING#'..' WSTRING#'..'; MUX; slices .%X3 .%B1 .%W0 .%D0
+    system FBs as statics / DB variables: #t(IN := .., PT := ..) of TON_TIME TOF_TIME TP_TIME TONR_TIME
+      TON_LTIME, CTU_INT .. CTUD_ULINT, R_TRIG F_TRIG RS SR
+    String[n] WString[n] Char WChar: LEN CONCAT LEFT RIGHT MID FIND, = <> < > (a string stack of its own)
+    64 bit exact (an Int64 beside the Double of each stack value): LInt ULInt LWord LReal LTime LTOD LDT
+      Date_And_Time, the time arithmetic of TIA, TIME_TO_LTIME DT_TO_LDT DT_TO_DATE DT_TO_TOD ..
+    operands: "Tag", "DB".Var, "DB".Arr[expression], "DB".M[i, j], %MW20, MW20, DB1.DBW2, #temp
   Types follow TIA: implicit widening (Int -> DInt -> Real), REAL to INT
   needs a conversion, conditions must be BOOL. }
 
@@ -39,6 +46,8 @@ type
   TOpChunk = array of TOp;
 
 const
+  { opStrOp }
+  soConcat = 1; soLeft = 2; soRight = 3; soMid = 4; soLen = 5; soFind = 6; soCmp = 7; soChr = 8; soSwap = 9;
   { opSBin }
   sbAdd = 0; sbSub = 1; sbMul = 2; sbDiv = 3; sbMod = 4; sbPow = 5; sbAnd = 6; sbOr = 7; sbXor = 8;
   sbBAnd = 9; sbBOr = 10; sbBXor = 11; sbEq = 12; sbNe = 13; sbLt = 14; sbGt = 15; sbLe = 16; sbGe = 17;
@@ -55,9 +64,11 @@ begin
   case T of
     dtBool: Result := 0;
     dtByte, dtChar, dtSInt, dtUSInt: Result := 1;
-    dtWord, dtInt, dtUInt, dtS5Time, dtDate: Result := 2;
+    dtWord, dtInt, dtUInt, dtS5Time, dtDate, dtWChar: Result := 2;
     dtDWord, dtDInt, dtUDInt, dtTime, dtTOD: Result := 3;
     dtReal: Result := 4;
+    dtLWord, dtLInt, dtULInt, dtLTime, dtLTOD, dtLDT, dtDT: Result := 5;
+    dtLReal: Result := 6;
   else
     Result := 3;
   end;
@@ -65,19 +76,44 @@ end;
 
 function SclIsBits(T: TDataType): Boolean;
 begin
-  Result := T in [dtByte, dtWord, dtDWord];
+  Result := T in [dtByte, dtWord, dtDWord, dtLWord];
 end;
 
 function SclIsNum(T: TDataType): Boolean;
 begin
   Result := T in [dtByte, dtWord, dtDWord, dtChar, dtSInt, dtUSInt, dtInt, dtUInt, dtDInt, dtUDInt, dtReal,
-    dtTime, dtS5Time, dtDate, dtTOD];
+    dtTime, dtS5Time, dtDate, dtTOD, dtWChar, dtLWord, dtLInt, dtULInt, dtLReal, dtLTime, dtLTOD, dtLDT, dtDT];
+end;
+
+{ a time / date type: its arithmetic has rules of its own }
+function SclIsTimeT(T: TDataType): Boolean;
+begin
+  Result := T in [dtTime, dtLTime, dtTOD, dtLTOD, dtDT, dtLDT, dtDate, dtS5Time];
+end;
+
+{ the integers (for an untyped number beside a time: TIME + 5) }
+function SclIsInt(T: TDataType): Boolean;
+begin
+  Result := T in [dtSInt, dtUSInt, dtInt, dtUInt, dtDInt, dtUDInt, dtLInt, dtULInt];
+end;
+
+{ a String / WString: its value is on the string stack }
+function SclIsStr(T: TDataType): Boolean;
+begin
+  Result := T in [dtString, dtWString];
 end;
 
 { the type of a + b: REAL wins, then TIME, then the wider integer }
 function SclArith(A, B: TDataType): TDataType;
 begin
-  if (A = dtReal) or (B = dtReal) then Exit(dtReal);
+  if (A = dtLReal) or (B = dtLReal) then Exit(dtLReal);
+  if (A = dtReal) or (B = dtReal) then
+  begin
+    // a 64 bit integer beside a Real: LReal
+    if (A in Int64Types) or (B in Int64Types) then Exit(dtLReal);
+    Exit(dtReal);
+  end;
+  if (A = dtLTime) or (B = dtLTime) then Exit(dtLTime);
   if (A = dtTime) or (B = dtTime) then Exit(dtTime);
   if SclRank(A) > SclRank(B) then Result := A
   else if SclRank(B) > SclRank(A) then Result := B
@@ -92,7 +128,7 @@ var
   P: Integer;
   Base: Integer;
   LoopExits, LoopConts: array of array of Integer;
-  LoopDepth, CaseDepth: Integer;
+  LoopDepth, CaseDepth, MuxDepth: Integer;
   ErrCount: Integer;
 
   { ---------- lexer ---------- }
@@ -111,13 +147,20 @@ var
   procedure Lex;
   var
     Li, I, J, Len: Integer;
-    S: string;
+    S, W: string;
     InCmt: Boolean;
     C: Char;
 
     function At(K: Integer): Char;
     begin
       if K <= Len then Result := S[K] else Result := #0;
+    end;
+
+    { the literals with '-' and ':' in them }
+    function DateLit(const Pfx: string): Boolean;
+    begin
+      Result := (Pfx = 'D') or (Pfx = 'DATE') or (Pfx = 'DT') or (Pfx = 'DATE_AND_TIME') or (Pfx = 'TOD') or
+        (Pfx = 'TIME_OF_DAY') or (Pfx = 'LTOD') or (Pfx = 'LTIME_OF_DAY') or (Pfx = 'LDT');
     end;
 
   begin
@@ -159,8 +202,18 @@ var
         end;
         if C = '''' then
         begin
+          // 'text': '' and $' are quotes inside it (SclStrDecode makes the text)
           J := I + 1;
-          while (J <= Len) and (S[J] <> '''') do Inc(J);
+          while J <= Len do
+          begin
+            if S[J] = '$' then Inc(J)
+            else if S[J] = '''' then
+            begin
+              if At(J + 1) <> '''' then Break;
+              Inc(J);
+            end;
+            Inc(J);
+          end;
           AddTok(stStr, Copy(S, I + 1, J - I - 1), Li);
           I := J + 1;
           Continue;
@@ -220,10 +273,30 @@ var
           while (J <= Len) and (S[J] in ['A'..'Z', 'a'..'z', '0'..'9', '_']) do Inc(J);
           if (J <= Len) and (S[J] = '#') then
           begin
-            // T#5S, S5T#2S, TIME#.., L#10, W#16#FF, C#5 ...
+            // T#5S, S5T#2S, TIME#.., L#10, W#16#FF, C#5, INT#-5, D#2024-01-31, TOD#12:00:00, CHAR#'A' ...
+            W := UpperCase(Copy(S, I, J - I));
             Inc(J);
-            if (J <= Len) and (S[J] = '-') then Inc(J);
-            while (J <= Len) and (S[J] in ['A'..'Z', 'a'..'z', '0'..'9', '_', '#', '.']) do Inc(J);
+            if (J <= Len) and (S[J] = '''') then
+            begin
+              Inc(J);
+              while J <= Len do
+              begin
+                if S[J] = '$' then Inc(J)
+                else if S[J] = '''' then
+                begin
+                  if At(J + 1) <> '''' then Break;
+                  Inc(J);
+                end;
+                Inc(J);
+              end;
+              if J <= Len then Inc(J);
+            end
+            else
+            begin
+              if (J <= Len) and (S[J] in ['-', '+']) then Inc(J);
+              while (J <= Len) and ((S[J] in ['A'..'Z', 'a'..'z', '0'..'9', '_', '#', '.']) or
+                ((S[J] in ['-', ':']) and DateLit(W))) do Inc(J);
+            end;
             AddTok(stTyped, Copy(S, I, J - I), Li);
           end
           else
@@ -316,13 +389,31 @@ var
     FBlock.Ops[I].K := V;
   end;
 
+  { a 64 bit constant: exact in KI }
+  procedure EK64(V: Int64; T: TDataType);
+  var
+    I: Integer;
+  begin
+    I := E(opSPushK, tcWord, T);
+    FBlock.Ops[I].K := V;
+    FBlock.Ops[I].KI := V;
+  end;
+
+  { a constant of the type T: 64 bit exact }
+  procedure EKT(V: Int64; T: TDataType);
+  begin
+    if T in Int64Types then EK64(V, T) else EK(V, T);
+  end;
+
   function Cat(T: TDataType): TTimeCat;
   begin
-    if T = dtReal then Result := tcFloat else Result := tcFix;
+    if T in RealTypes then Result := tcFloat else Result := tcFix;
   end;
 
   procedure SetMon(OpIx, Line: Integer);
   begin
+    // SCL inside a LAD / STL network has no monitor slots of its own
+    if FInline then Exit;
     if (Line >= 0) and (Line < N.Stl.Count) then FBlock.Ops[OpIx].Mon := Base + Line;
   end;
 
@@ -355,6 +446,9 @@ var
       Info: TVarInfo;     // IsBlock: its type
       Text: string;
       Method: string;     // TON / CTU ... when the path is a timer / counter call
+      Slice: Char;        // a slice of a bit string: X / B / W / D (#0: none), .%X3
+      SliceN: Integer;
+      BaseT: TDataType;   // a slice: the type of the whole variable
     end;
 
   function TypeOfOpd(const O: TOperand): TDataType;
@@ -379,16 +473,28 @@ var
   function PathEx(AllowBlock: Boolean): TRef;
   var
     T: TSclToken;
-    Er, U, Disp: string;
+    Er, U, Disp, Cs: string;
     IxT: TDataType;
     V: TVarInfo;
-    I: Integer;
+    I, K, W, Wd: Integer;
   begin
     FillChar(Result, SizeOf(Result), 0);
     Result.Opd.Block := -1;
     T := Tok;
+    if (T.Kind = stHash) and (FConsts.IndexOf(UpperCase(T.S)) >= 0) then
+      Fail('#' + T.S + ' is a constant (VAR CONSTANT): it cannot be written');
     case T.Kind of
-      stHash: Result.Text := '#' + T.S;
+      stHash:
+        if (FSrc <> nil) and (FSrc.Kind = bkFC) and SameText(T.S, FSrc.Name) and (FSrc.Iface.FindVar(T.S) < 0) then
+        begin
+          // #<FC name> := ..: the function value (TIA writes it so)
+          Result.Text := '';
+          for I := 0 to High(FSrc.Iface.Vars) do
+            if FSrc.Iface.Vars[I].Section = vsReturn then Result.Text := '#' + FSrc.Iface.Vars[I].Name;
+          if Result.Text = '' then Fail(Format('FC "%s" has no Return value', [FSrc.Name]));
+        end
+        else
+          Result.Text := '#' + T.S;
       stQuoted: Result.Text := '"' + T.S + '"';
       stPercent, stIdent: Result.Text := T.S;
     else
@@ -398,6 +504,19 @@ var
     Next;
     while True do
     begin
+      if IsSym('.') and (PeekTok(1).Kind = stPercent) then
+      begin
+        // a slice: .%X3 (a bit), .%B1 (a byte), .%W0 (a word), .%D0 (a double word)
+        U := UpperCase(PeekTok(1).S);
+        if (Length(U) < 3) or not (U[2] in ['X', 'B', 'W', 'D']) or not TryStrToInt(Copy(U, 3, MaxInt), I) or (I < 0) then
+          Fail('slice expected: .%X0, .%B0, .%W0, .%D0');
+        Result.Slice := U[2];
+        Result.SliceN := I;
+        Disp := Disp + '.' + PeekTok(1).S;
+        Next;
+        Next;
+        Break;
+      end;
       if IsSym('.') then
       begin
         U := UpperCase(PeekTok(1).S);
@@ -425,20 +544,69 @@ var
       if IsSym('[') then
       begin
         Next;
-        if (Tok.Kind = stNum) and (PeekTok(1).Kind = stSym) and (PeekTok(1).S = ']') then
+        // constant indexes: [3], [-1], [1, 2]
+        K := 0;
+        Cs := '';
+        while True do
         begin
-          Result.Text := Result.Text + '[' + Tok.S + ']';
-          Disp := Disp + '[' + Tok.S + ']';
-          Next;
-          Next;
+          if (PeekTok(K).Kind = stSym) and (PeekTok(K).S = '-') then
+          begin
+            Cs := Cs + '-';
+            Inc(K);
+          end;
+          if PeekTok(K).Kind <> stNum then
+          begin
+            Cs := '';
+            Break;
+          end;
+          Cs := Cs + PeekTok(K).S;
+          Inc(K);
+          if (PeekTok(K).Kind = stSym) and (PeekTok(K).S = ']') then Break;
+          if (PeekTok(K).Kind = stSym) and (PeekTok(K).S = ',') then
+          begin
+            Cs := Cs + ',';
+            Inc(K);
+            Continue;
+          end;
+          Cs := '';
+          Break;
+        end;
+        if Cs <> '' then
+        begin
+          Result.Text := Result.Text + '[' + Cs + ']';
+          Disp := Disp + '[' + Cs + ']';
+          for I := 0 to K do Next;
           Continue;
         end;
         // a variable index: computed at run time, the operand is resolved at the first element
         if not FRes.ResolveVar(Result.Text, V, Er) then Fail(Er);
         if not V.IsArray then Fail(Disp + ' is not an array');
-        IxT := Expr;
-        if not (IxT in [dtInt, dtDInt, dtSInt, dtUSInt, dtUInt, dtUDInt, dtByte, dtWord, dtDWord]) then
-          Fail('array index must be an integer');
+        if Length(V.Dims) > 1 then
+        begin
+          // [i, j, ..]: the element number row by row (the last index fastest)
+          for K := 0 to High(V.Dims) do
+          begin
+            if K > 0 then
+            begin
+              Expect(',');
+              EK(V.Dims[K].Hi - V.Dims[K].Lo + 1, dtDInt);
+              E(opSBin, tcFix, dtDInt, sbMul);
+            end;
+            IxT := Expr;
+            if not (IxT in [dtInt, dtDInt, dtSInt, dtUSInt, dtUInt, dtUDInt, dtByte, dtWord, dtDWord]) then
+              Fail('array index must be an integer');
+            EK(V.Dims[K].Lo, dtDInt);
+            E(opSBin, tcFix, dtDInt, sbSub);
+            if K > 0 then E(opSBin, tcFix, dtDInt, sbAdd);
+          end;
+          IxT := dtDInt;
+        end
+        else
+        begin
+          IxT := Expr;
+          if not (IxT in [dtInt, dtDInt, dtSInt, dtUSInt, dtUInt, dtUDInt, dtByte, dtWord, dtDWord]) then
+            Fail('array index must be an integer');
+        end;
         Expect(']');
         if V.T = dtBool then I := E(opSIndex, tcFix, dtDInt, 1)
         else I := E(opSIndex, tcFix, dtDInt, ElemStride(V.T, V.Udt) * 8);
@@ -446,7 +614,18 @@ var
         FBlock.Ops[I].Hi := V.Hi;
         FBlock.Ops[I].Ext := Ord(Result.Indexed);   // an outer index is already on the stack
         FBlock.Ops[I].Opd.Text := Disp;
-        Result.Text := Result.Text + Format('[%d]', [V.Lo]);
+        if Length(V.Dims) > 1 then
+        begin
+          Cs := '';
+          for K := 0 to High(V.Dims) do
+          begin
+            if K > 0 then Cs := Cs + ',';
+            Cs := Cs + IntToStr(V.Dims[K].Lo);
+          end;
+          Result.Text := Result.Text + '[' + Cs + ']';
+        end
+        else
+          Result.Text := Result.Text + Format('[%d]', [V.Lo]);
         Disp := Disp + '[..]';
         Result.Indexed := True;
         Continue;
@@ -454,7 +633,7 @@ var
       Break;
     end;
     // a whole struct, array or IEC instance as the target or source of a := b
-    if AllowBlock and (Result.Method = '') and (Result.Text[1] in ['"', '#']) and
+    if AllowBlock and (Result.Method = '') and (Result.Slice = #0) and (Result.Text[1] in ['"', '#']) and
       FRes.ResolveVar(Result.Text, V, Er) and
       (V.IsArray or (V.T in [dtStruct, dtIECTimer, dtIECCounter])) then
     begin
@@ -471,6 +650,41 @@ var
     if Result.Opd.Kind <> okAddr then Fail(Result.Text + ': variable or address expected');
     Result.T := TypeOfOpd(Result.Opd);
     if Result.Method <> '' then Result.T := Result.Opd.DType;
+    if Result.Slice <> #0 then
+    begin
+      Result.BaseT := Result.T;
+      case Result.T of
+        dtByte, dtSInt, dtUSInt, dtChar: W := 8;
+        dtWord, dtInt, dtUInt: W := 16;
+        dtDWord, dtDInt, dtUDInt: W := 32;
+        dtLWord, dtLInt, dtULInt: W := 64;
+      else
+        Fail(Format('%s is %s: a slice needs a bit string or an integer', [Result.Text, DataTypeNames[Result.T]]));
+      end;
+      case Result.Slice of
+        'X': begin Wd := 1; Result.T := dtBool; end;
+        'B': begin Wd := 8; Result.T := dtByte; end;
+        'W': begin Wd := 16; Result.T := dtWord; end;
+      else
+        begin Wd := 32; Result.T := dtDWord; end;
+      end;
+      if (Wd >= W) or ((Result.SliceN + 1) * Wd > W) then
+        Fail(Format('%s: no %s in a %s', [Disp, '.%' + Result.Slice + IntToStr(Result.SliceN), DataTypeNames[Result.BaseT]]));
+    end;
+    // a string: its type (the max length) for the store
+    if SclIsStr(Result.T) and FRes.ResolveVar(Result.Text, V, Er) then Result.Info := V;
+  end;
+
+  { a slice: its width in bits and its shift from bit 0 }
+  function SliceW(const R: TRef): Integer;
+  begin
+    case R.Slice of
+      'X': Result := 1;
+      'B': Result := 8;
+      'W': Result := 16;
+    else
+      Result := 32;
+    end;
   end;
 
   function Path: TRef;
@@ -481,7 +695,9 @@ var
   { the type of a struct / array as TIA writes it, and the bytes it takes }
   function BlockTypeName(const V: TVarInfo): string;
   begin
-    if V.T = dtStruct then Result := '"' + V.Udt.Name + '"' else Result := DataTypeNames[V.T];
+    if V.T = dtStruct then Result := '"' + V.Udt.Name + '"'
+    else if (SclIsStr(V.T) or (V.T in [dtIECTimer, dtIECCounter])) and (V.Udt <> nil) then Result := V.Udt.Name
+    else Result := DataTypeNames[V.T];
     if V.IsArray then Result := Format('Array[%d..%d] of %s', [V.Lo, V.Hi, Result]);
   end;
 
@@ -489,7 +705,10 @@ var
   begin
     if not V.IsArray then
     begin
-      if V.T = dtStruct then Result := V.Udt.Size else Result := DataTypeSize(V.T);
+      if (V.T = dtStruct) or ((SclIsStr(V.T) or (V.T in [dtIECTimer, dtIECCounter])) and (V.Udt <> nil)) then
+        Result := V.Udt.Size
+      else
+        Result := DataTypeSize(V.T);
     end
     else if V.T = dtBool then
       Result := (V.Hi - V.Lo + 1 + 7) div 8
@@ -522,17 +741,113 @@ var
     SetMon(K, Line);
   end;
 
-  procedure PushRef(const R: TRef);
+  { the max length of a String variable (254 when its type is not known) }
+  function StrMaxOf(const V: TVarInfo): Integer;
+  begin
+    if (V.Udt <> nil) and (V.Udt.StrMax > 0) then Result := V.Udt.StrMax else Result := 254;
+  end;
+
+  procedure StrPushOpd(const O: TOperand; T: TDataType; Indexed: Boolean);
   var
     I: Integer;
   begin
+    I := E(opStrPush, tcWord, T, Ord(T = dtWString));
+    FBlock.Ops[I].Opd := O;
+    FBlock.Ops[I].Ext := Ord(Indexed);
+    FBlock.Ops[I].Weight := 4;
+  end;
+
+  function StrStoreOpd(const O: TOperand; T: TDataType; AMax: Integer; Indexed: Boolean): Integer;
+  begin
+    Result := E(opStrStore, tcWord, T, Ord(T = dtWString));
+    FBlock.Ops[Result].Opd := O;
+    FBlock.Ops[Result].Ext := Ord(Indexed);
+    FBlock.Ops[Result].Hi := AMax;
+    FBlock.Ops[Result].Weight := 4;
+  end;
+
+  { a Char / WChar (on the value stack) where a string is wanted }
+  procedure CharToStr;
+  begin
+    E(opStrOp, tcWord, dtString, soChr);
+  end;
+
+  procedure PushRef(const R: TRef);
+  var
+    I: Integer;
+    ST: TDataType;
+  begin
+    if SclIsStr(R.T) then
+    begin
+      StrPushOpd(R.Opd, R.T, R.Indexed);
+      Exit;
+    end;
+    if R.Slice <> #0 then
+    begin
+      // (whole shr n * width) and mask
+      if R.BaseT in Int64Types then ST := dtLWord else ST := dtDWord;
+      if R.Indexed then I := E(opSPushIdx, tcWord, R.BaseT) else I := E(opSPush, tcWord, R.BaseT);
+      FBlock.Ops[I].Opd := R.Opd;
+      EK(R.SliceN * SliceW(R), dtDInt);
+      E(opSBin, tcWord, ST, sbShr);
+      EKT((Int64(1) shl SliceW(R)) - 1, ST);
+      E(opSBin, tcWord, ST, sbBAnd);
+      Exit;
+    end;
     if R.Indexed then I := E(opSPushIdx, tcWord, R.T)
     else I := E(opSPush, tcWord, R.T);
     FBlock.Ops[I].Opd := R.Opd;
   end;
 
   function StoreRef(const R: TRef; Line: Integer): Integer;
+  var
+    I: Integer;
+    Mask: Int64;
+    ST: TDataType;
   begin
+    if SclIsStr(R.T) then
+    begin
+      Result := StrStoreOpd(R.Opd, R.T, StrMaxOf(R.Info), R.Indexed);
+      SetMon(Result, Line);
+      Exit;
+    end;
+    if R.Slice <> #0 then
+    begin
+      // read, change the slice, write back: the value waits in register 14, an index offset in 15
+      if SliceW(R) = 64 then Mask := -1 else Mask := (Int64(1) shl SliceW(R)) - 1;
+      if R.BaseT in Int64Types then ST := dtLWord else ST := dtDWord;
+      E(opSSetReg, tcWord, ST, 14);
+      if R.Indexed then
+      begin
+        E(opSSetReg, tcWord, dtDInt, 15);
+        E(opSGetReg, tcWord, dtDInt, 15);
+        I := E(opSPushIdx, tcWord, R.BaseT);
+      end
+      else
+        I := E(opSPush, tcWord, R.BaseT);
+      FBlock.Ops[I].Opd := R.Opd;
+      if ST = dtLWord then EKT(not (Mask shl (R.SliceN * SliceW(R))), ST)
+      else EKT(not (Mask shl (R.SliceN * SliceW(R))) and $FFFFFFFF, ST);
+      E(opSBin, tcWord, ST, sbBAnd);
+      E(opSGetReg, tcWord, ST, 14);
+      EKT(Mask, ST);
+      E(opSBin, tcWord, ST, sbBAnd);
+      EK(R.SliceN * SliceW(R), dtDInt);
+      E(opSBin, tcWord, ST, sbShl);
+      E(opSBin, tcWord, ST, sbBOr);
+      if R.Indexed then
+      begin
+        E(opSSetReg, tcWord, ST, 14);
+        E(opSGetReg, tcWord, dtDInt, 15);
+        E(opSGetReg, tcWord, ST, 14);
+        Result := E(opSStoreIdx, tcWord, R.BaseT);
+      end
+      else
+        Result := E(opSStore, tcWord, R.BaseT);
+      FBlock.Ops[Result].Opd := R.Opd;
+      SetMon(Result, Line);
+      Exit;
+    end;
     if R.Indexed then Result := E(opSStoreIdx, tcWord, R.T)
     else Result := E(opSStore, tcWord, R.T);
     FBlock.Ops[Result].Opd := R.Opd;
@@ -543,11 +858,23 @@ var
   procedure CheckAssign(Dst, Src: TDataType; const What: string);
   begin
     if Dst = Src then Exit;
+    if SclIsStr(Dst) or SclIsStr(Src) then
+    begin
+      // a String takes a String / WString / Char / WChar (the Char was made a string)
+      if SclIsStr(Dst) and (SclIsStr(Src) or (Src in [dtChar, dtWChar])) then Exit;
+      Fail(Format('type mismatch: %s := %s (%s)', [DataTypeNames[Dst], DataTypeNames[Src], What]));
+    end;
     if (Dst = dtBool) <> (Src = dtBool) then
       Fail(Format('type mismatch: %s := %s (%s)', [DataTypeNames[Dst], DataTypeNames[Src], What]));
-    if (Src = dtReal) and (Dst <> dtReal) then
-      Fail(Format('REAL to %s needs a conversion: REAL_TO_%s(...) (%s)', [DataTypeNames[Dst],
-        UpperCase(DataTypeNames[Dst]), What]));
+    if (Src in RealTypes) and not (Dst in RealTypes) then
+      Fail(Format('%s to %s needs a conversion: %s_TO_%s(...) (%s)', [UpperCase(DataTypeNames[Src]),
+        DataTypeNames[Dst], UpperCase(DataTypeNames[Src]), UpperCase(DataTypeNames[Dst]), What]));
+    if (Src = dtLReal) and (Dst = dtReal) then
+      Fail(Format('LREAL to Real needs a conversion: LREAL_TO_REAL(...) (%s)', [What]));
+    // the 64 bit times / dates: the same type, or an untyped number
+    if ((Dst in [dtLTime, dtLTOD, dtLDT, dtDT]) or (Src in [dtLTime, dtLTOD, dtLDT, dtDT])) and
+      not ((Src = dtDInt) or (Dst in [dtLInt, dtULInt, dtLWord]) and SclIsTimeT(Src)) then
+      Fail(Format('type mismatch: %s := %s (%s)', [DataTypeNames[Dst], DataTypeNames[Src], What]));
     if (Dst in [dtTime, dtTOD]) and not (Src in [dtTime, dtTOD, dtDInt]) and (SclRank(Src) < 3) then
       Fail(Format('type mismatch: %s := %s', [DataTypeNames[Dst], DataTypeNames[Src]]));
 
@@ -557,7 +884,8 @@ var
 
   { the arguments in the order of Names (positional or name := value); each
     argument's code is moved into place, so the names may come in any order }
-  function Args(const Names: array of string; out Types: array of TDataType; MinArgs: Integer): Integer;
+  function Args(const Names: array of string; out Types: array of TDataType; MinArgs: Integer;
+    StrMask: Integer = 0): Integer;
   var
     Chunks: array of TOpChunk;
     Given: array of Boolean;
@@ -590,6 +918,11 @@ var
       if Ix > High(Names) then Fail('too many parameters');
       Pos0 := Length(FBlock.Ops);
       T := Expr;
+      if (StrMask and (1 shl Ix) <> 0) and (T in [dtChar, dtWChar]) then
+      begin
+        CharToStr;
+        T := dtString;
+      end;
       Chunks[Ix] := TakeChunk(Pos0);
       Types[Ix] := T;
       Given[Ix] := True;
@@ -615,11 +948,179 @@ var
     Lo, Hi: Integer;
   begin
     Result := ParseDataType(S, T, Lo, Hi) and (T in [dtBool, dtByte, dtWord, dtDWord, dtChar, dtSInt, dtUSInt,
-      dtInt, dtUInt, dtDInt, dtUDInt, dtReal, dtTime, dtS5Time, dtDate, dtTOD]);
-    if SameText(S, 'LREAL') then
+      dtInt, dtUInt, dtDInt, dtUDInt, dtReal, dtTime, dtS5Time, dtDate, dtTOD, dtWChar, dtLWord, dtLInt, dtULInt,
+      dtLReal, dtLTime, dtLTOD, dtLDT, dtDT]);
+  end;
+
+  { the conversions between the times and dates that change the unit: TIME <-> LTIME (ms, ns), TOD <-> LTOD,
+    DT <-> LDT, DT / LDT -> DATE, TOD, DATE -> DT; False for the others }
+  function TimeConv(TA, TB: TDataType): Boolean;
+  begin
+    Result := True;
+    if ((TA = dtTime) and (TB = dtLTime)) or ((TA = dtTOD) and (TB = dtLTOD)) then
     begin
-      T := dtReal;
-      Result := True;
+      EK64(1000000, dtLInt);
+      E(opSBin, tcFix, dtLInt, sbMul);
+    end
+    else if ((TA = dtLTime) and (TB = dtTime)) or ((TA = dtLTOD) and (TB = dtTOD)) then
+    begin
+      EK64(1000000, dtLInt);
+      E(opSBin, tcFix, dtLInt, sbDiv);
+      E(opSUn, tcWord, TB, suWrap);
+    end
+    else if (TA = dtDT) and (TB = dtLDT) then
+    begin
+      // ms since 1990 -> ns since 1970
+      EK64(631152000000, dtLInt);
+      E(opSBin, tcFix, dtLInt, sbAdd);
+      EK64(1000000, dtLInt);
+      E(opSBin, tcFix, dtLInt, sbMul);
+    end
+    else if (TA = dtLDT) and (TB = dtDT) then
+    begin
+      EK64(1000000, dtLInt);
+      E(opSBin, tcFix, dtLInt, sbDiv);
+      EK64(631152000000, dtLInt);
+      E(opSBin, tcFix, dtLInt, sbSub);
+    end
+    else if (TA = dtDT) and (TB in [dtDate, dtTOD]) then
+    begin
+      EK64(86400000, dtLInt);
+      if TB = dtDate then E(opSBin, tcFix, dtLInt, sbDiv) else E(opSBin, tcFix, dtLInt, sbMod);
+      E(opSUn, tcWord, TB, suWrap);
+    end
+    else if (TA = dtLDT) and (TB in [dtDate, dtTOD, dtLTOD]) then
+    begin
+      EK64(86400000000000, dtLInt);
+      if TB = dtDate then
+      begin
+        E(opSBin, tcFix, dtLInt, sbDiv);
+        EK64(7305, dtLInt);
+        E(opSBin, tcFix, dtLInt, sbSub);
+      end
+      else
+      begin
+        E(opSBin, tcFix, dtLInt, sbMod);
+        if TB = dtTOD then
+        begin
+          EK64(1000000, dtLInt);
+          E(opSBin, tcFix, dtLInt, sbDiv);
+        end;
+      end;
+      E(opSUn, tcWord, TB, suWrap);
+    end
+    else if (TA = dtDate) and (TB = dtDT) then
+    begin
+      EK64(86400000, dtLInt);
+      E(opSBin, tcFix, dtLInt, sbMul);
+    end
+    else
+      Result := False;
+  end;
+
+  { MUX(K := k, IN0 := .., IN1 := .., .. INELSE := ..) or MUX(k, in0, in1, ..): K in a register, the
+    result built up in another one: acc := SEL(K = n, acc, INn) for every input }
+  function MuxCall: TDataType;
+  var
+    Chunks: array of TOpChunk;
+    Tys: array of TDataType;
+    Given: array of Boolean;
+    KCh, ElseCh: TOpChunk;
+    HasK, HasElse: Boolean;
+    Ix, K, Pos0, RK, RA, PosN: Integer;
+    Nm: string;
+    T, ElseT: TDataType;
+  begin
+    if MuxDepth >= 2 then Fail('MUX nested too deep');
+    RK := 10 + 2 * MuxDepth;
+    RA := RK + 1;
+    Inc(MuxDepth);
+    try
+      Expect('(');
+      HasK := False;
+      HasElse := False;
+      ElseT := dtNone;
+      PosN := 0;
+      Chunks := nil;
+      Tys := nil;
+      Given := nil;
+      while not IsSym(')') do
+      begin
+        if (Tok.Kind = stIdent) and (PeekTok(1).Kind = stSym) and (PeekTok(1).S = ':=') then
+        begin
+          Nm := UpperCase(Tok.S);
+          if Nm = 'K' then Ix := -1
+          else if Nm = 'INELSE' then Ix := -3
+          else if not ((Copy(Nm, 1, 2) = 'IN') and TryStrToInt(Copy(Nm, 3, MaxInt), Ix) and (Ix >= 0) and (Ix <= 31)) then
+            Fail('MUX has no parameter ' + Nm);
+          Next;
+          Next;
+        end
+        else
+        begin
+          if PosN = 0 then Ix := -1 else Ix := PosN - 1;
+          Inc(PosN);
+        end;
+        Pos0 := Length(FBlock.Ops);
+        T := Expr;
+        if Ix = -1 then
+        begin
+          if not (T in [dtInt, dtDInt, dtSInt, dtUSInt, dtUInt, dtUDInt, dtByte, dtWord, dtDWord]) then
+            Fail('MUX: K must be an integer');
+          KCh := TakeChunk(Pos0);
+          HasK := True;
+        end
+        else if Ix = -3 then
+        begin
+          ElseCh := TakeChunk(Pos0);
+          ElseT := T;
+          HasElse := True;
+        end
+        else
+        begin
+          if Ix > 31 then Fail('MUX: at most 32 inputs');
+          if Ix > High(Chunks) then
+          begin
+            SetLength(Chunks, Ix + 1);
+            SetLength(Tys, Ix + 1);
+            SetLength(Given, Ix + 1);
+          end;
+          Chunks[Ix] := TakeChunk(Pos0);
+          Tys[Ix] := T;
+          Given[Ix] := True;
+        end;
+        if IsSym(',') then Next else Break;
+      end;
+      Expect(')');
+      if not HasK then Fail('MUX: K missing');
+      if Length(Chunks) < 2 then Fail('MUX needs IN0 and IN1');
+      for K := 0 to High(Chunks) do
+        if not Given[K] then Fail(Format('MUX: IN%d missing', [K]));
+      Result := Tys[0];
+      for K := 1 to High(Tys) + Ord(HasElse) do
+      begin
+        if K <= High(Tys) then T := Tys[K] else T := ElseT;
+        if (Result = dtBool) <> (T = dtBool) then Fail('MUX: the inputs must have the same kind of type');
+        if SclIsStr(Result) or SclIsStr(T) then Fail('MUX of strings is not supported');
+        if Result <> dtBool then Result := SclArith(Result, T);
+      end;
+      PutChunk(KCh);
+      E(opSSetReg, tcWord, dtDInt, RK);
+      if HasElse then PutChunk(ElseCh) else EK(0, Result);
+      E(opSSetReg, tcWord, Result, RA);
+      for K := 0 to High(Chunks) do
+      begin
+        E(opSGetReg, tcWord, dtDInt, RK);
+        EK(K, dtDInt);
+        E(opSBin, tcFix, dtDInt, sbEq);
+        E(opSGetReg, tcWord, Result, RA);
+        PutChunk(Chunks[K]);
+        E(opSTern, tcWord, Result, stSel);
+        E(opSSetReg, tcWord, Result, RA);
+      end;
+      E(opSGetReg, tcWord, Result, RA);
+    finally
+      Dec(MuxDepth);
     end;
   end;
 
@@ -627,7 +1128,8 @@ var
   var
     U, A, B: string;
     Q, Cnt: Integer;
-    Ts: array[0..3] of TDataType;
+    Ts: array[0..31] of TDataType;
+    MNames: array of string;
     TA, TB: TDataType;
     Un: Integer;
   begin
@@ -640,10 +1142,11 @@ var
       if TypeByName(A, TA) and TypeByName(B, TB) then
       begin
         Args(['IN'], Ts, 1);
+        if TimeConv(TA, TB) then Exit(TB);
         if TB = dtBool then E(opSUn, tcWord, dtBool, suBool)
         else
         begin
-          if (Ts[0] = dtReal) and (TB <> dtReal) then E(opSUn, tcFloat, TB, suRound);
+          if (Ts[0] in RealTypes) and not (TB in RealTypes) then E(opSUn, tcFloat, TB, suRound);
           E(opSUn, tcWord, TB, suWrap);
         end;
         Exit(TB);
@@ -687,15 +1190,62 @@ var
           end;
       else
         begin
-          E(opSUn, tcFloat, dtReal, Un);
-          Exit(dtReal);
+          // SQRT, SIN ... of an LReal: an LReal
+          if Ts[0] = dtLReal then Result := dtLReal else Result := dtReal;
+          E(opSUn, tcFloat, Result, Un);
+          Exit;
         end;
       end;
+    end;
+    if U = 'MUX' then Exit(MuxCall);
+    // the string functions
+    case U of
+      'LEN':
+        begin
+          Args(['IN'], Ts, 1, 1);
+          if not SclIsStr(Ts[0]) then Fail('LEN: a String expected');
+          E(opStrOp, tcWord, dtInt, soLen);
+          Exit(dtInt);
+        end;
+      'CONCAT', 'FIND':
+        begin
+          Args(['IN1', 'IN2'], Ts, 2, 3);
+          if not SclIsStr(Ts[0]) or not SclIsStr(Ts[1]) then Fail(U + ': String inputs expected');
+          if U = 'FIND' then
+          begin
+            E(opStrOp, tcWord, dtInt, soFind);
+            Exit(dtInt);
+          end;
+          if (Ts[0] = dtWString) or (Ts[1] = dtWString) then Result := dtWString else Result := dtString;
+          E(opStrOp, tcWord, Result, soConcat);
+          Exit;
+        end;
+      'LEFT', 'RIGHT', 'MID':
+        begin
+          if U = 'MID' then Args(['IN', 'L', 'P'], Ts, 3, 1) else Args(['IN', 'L'], Ts, 2, 1);
+          if not SclIsStr(Ts[0]) then Fail(U + ': a String expected');
+          if not (Ts[1] in [dtInt, dtDInt, dtSInt, dtUSInt, dtUInt, dtUDInt, dtByte, dtWord]) then
+            Fail(U + ': L must be an integer');
+          if (U = 'MID') and not (Ts[2] in [dtInt, dtDInt, dtSInt, dtUSInt, dtUInt, dtUDInt, dtByte, dtWord]) then
+            Fail('MID: P must be an integer');
+          case U of
+            'LEFT': E(opStrOp, tcWord, Ts[0], soLeft);
+            'RIGHT': E(opStrOp, tcWord, Ts[0], soRight);
+          else
+            E(opStrOp, tcWord, Ts[0], soMid);
+          end;
+          Exit(Ts[0]);
+        end;
     end;
     case U of
       'MIN', 'MAX':
         begin
-          Cnt := Args(['IN1', 'IN2', 'IN3', 'IN4'], Ts, 2);
+          // IN1 .. IN32
+          SetLength(MNames, 32);
+          for Q := 0 to 31 do MNames[Q] := 'IN' + IntToStr(Q + 1);
+          Cnt := Args(MNames, Ts, 2);
+          for Q := 0 to Cnt - 1 do
+            if SclIsStr(Ts[Q]) then Fail(U + ' of strings is not supported');
           Result := Ts[0];
           for Q := 1 to Cnt - 1 do
           begin
@@ -706,6 +1256,7 @@ var
       'LIMIT':
         begin
           Args(['MN', 'IN', 'MX'], Ts, 3);
+          if not SclIsNum(Ts[0]) or not SclIsNum(Ts[1]) or not SclIsNum(Ts[2]) then Fail('LIMIT needs numbers');
           Result := SclArith(SclArith(Ts[0], Ts[1]), Ts[2]);
           E(opSTern, Cat(Result), Result, stLimit);
         end;
@@ -713,6 +1264,7 @@ var
         begin
           Args(['G', 'IN0', 'IN1'], Ts, 3);
           if Ts[0] <> dtBool then Fail('SEL: G must be BOOL');
+          if SclIsStr(Ts[1]) or SclIsStr(Ts[2]) then Fail('SEL of strings is not supported');
           if (Ts[1] = dtBool) and (Ts[2] = dtBool) then Result := dtBool else Result := SclArith(Ts[1], Ts[2]);
           E(opSTern, tcWord, Result, stSel);
         end;
@@ -797,6 +1349,26 @@ var
       Exit;
     end;
     if A.IsBlock then Fail(Format('type mismatch: parameter %s is %s', [Nm, DataTypeNames[V.T]]));
+    if SclIsStr(V.T) then
+    begin
+      // a String parameter: copied as text (the target keeps its own max length)
+      if not SclIsStr(A.T) then Fail(Format('type mismatch: parameter %s is %s', [Nm, DataTypeNames[V.T]]));
+      if ToMember then
+      begin
+        if IIdx then E(opSGetReg, tcWord, dtDInt, 9);
+        PutChunk(ACh);
+        PushRef(A);
+        StrStoreOpd(MO, V.T, StrMaxOf(V), IIdx);
+      end
+      else
+      begin
+        PutChunk(ACh);
+        if IIdx then E(opSGetReg, tcWord, dtDInt, 9);
+        StrPushOpd(MO, V.T, IIdx);
+        StoreRef(A, Line);
+      end;
+      Exit;
+    end;
     if ToMember then
     begin
       if IIdx then E(opSGetReg, tcWord, dtDInt, 9);
@@ -847,6 +1419,13 @@ var
     MO.Text := '#' + Nm;
     if IIdx then E(opSGetReg, tcWord, dtDInt, 9);
     T := Expr;
+    if SclIsStr(V.T) then
+    begin
+      if T in [dtChar, dtWChar] then CharToStr;
+      CheckAssign(V.T, T, Nm);
+      StrStoreOpd(MO, V.T, StrMaxOf(V), IIdx);
+      Exit;
+    end;
     CheckAssign(V.T, T, Nm);
     if IIdx then I := E(opSStoreIdx, tcWord, V.T) else I := E(opSStore, tcWord, V.T);
     FBlock.Ops[I].Opd := MO;
@@ -878,6 +1457,10 @@ var
     Posts: array of TOpChunk;
     Given: array of Boolean;
     V: TVarInfo;
+    Order: array of Integer;
+    PosN: Integer;
+    Positional: Boolean;
+    Sec: TVarSection;
 
     function ParamInfo(const Mv: TDbVar): TVarInfo;
     begin
@@ -889,6 +1472,8 @@ var
       Result.IsArray := Mv.IsArray;
       Result.Lo := Mv.Lo;
       Result.Hi := Mv.Hi;
+      Result.Dims := Mv.Dims;
+      Result.TypeText := Mv.TypeText;
     end;
 
   begin
@@ -903,12 +1488,34 @@ var
     SetLength(Given, Length(U.Vars));
     SetLength(Posts, 0);
     NPost := 0;
+    // the parameters in the order of a positional call: Input, Output, InOut
+    Order := nil;
+    for Sec := vsInput to vsInOut do
+      for K := 0 to High(U.Vars) do
+        if U.Vars[K].Section = Sec then
+        begin
+          SetLength(Order, Length(Order) + 1);
+          Order[High(Order)] := K;
+        end;
+    PosN := 0;
     while not IsSym(')') do
     begin
-      if Tok.Kind <> stIdent then Fail('parameter name expected (In := .., Out => ..)');
-      Nm := Tok.S;
-      Next;
-      K := U.FindVar(Nm);
+      if (Tok.Kind = stIdent) and (PeekTok(1).Kind = stSym) and ((PeekTok(1).S = ':=') or (PeekTok(1).S = '=>')) then
+      begin
+        Nm := Tok.S;
+        Next;
+        K := U.FindVar(Nm);
+        Positional := False;
+      end
+      else
+      begin
+        // "F"(2, 3, "D".o): the parameters in the order of the interface
+        if PosN > High(Order) then Fail(Format('FC%d "%s": too many parameters', [Fc.Number, Fc.Name]));
+        K := Order[PosN];
+        Inc(PosN);
+        Nm := U.Vars[K].Name;
+        Positional := True;
+      end;
       if (K < 0) or not (U.Vars[K].Section in [vsInput, vsOutput, vsInOut]) then
         Fail(Format('FC%d "%s" has no parameter %s', [Fc.Number, Fc.Name, Nm]));
       M := U.Vars[K];
@@ -916,9 +1523,9 @@ var
       if Given[K] then Fail(Nm + ' is given twice');
       Given[K] := True;
       V := ParamInfo(M);
-      if IsSym(':=') then
+      if (Positional and (M.Section <> vsOutput)) or (not Positional and IsSym(':=')) then
       begin
-        Next;
+        if not Positional then Next;
         if M.Section = vsOutput then Fail(Format('%s is an output: %s => target', [Nm, Nm]));
         if M.Section = vsInput then
           ParamInput(V, M.Name, False, Line)
@@ -930,7 +1537,7 @@ var
           Act := PathEx(True);
           if Act.Method <> '' then Fail('a timer call gives no value');
           Ch := TakeChunk(P0);
-          if not IsBlockType(V) and not Act.IsBlock and (Act.T <> V.T) then
+          if not IsBlockType(V) and not Act.IsBlock and (Act.T <> V.T) and not (SclIsStr(V.T) and SclIsStr(Act.T)) then
             Fail(Format('InOut %s is %s: the variable must have the same type (%s)', [Nm, DataTypeNames[V.T], DataTypeNames[Act.T]]));
           ParamCopy(V, M.Name, False, Act, Ch, True, Line);
           P1 := Length(FBlock.Ops);
@@ -940,9 +1547,9 @@ var
           Inc(NPost);
         end;
       end
-      else if IsSym('=>') then
+      else if Positional or IsSym('=>') then
       begin
-        Next;
+        if not Positional then Next;
         if M.Section <> vsOutput then Fail(Format('%s is an %s: %s := ..', [Nm, SectionNames[M.Section], Nm]));
         P0 := Length(FBlock.Ops);
         Act := PathEx(True);
@@ -972,7 +1579,8 @@ var
       if U.Vars[K].Section = vsReturn then
       begin
         V := ParamInfo(U.Vars[K]);
-        I := E(opSPush, tcWord, V.T);
+        if SclIsStr(V.T) then I := E(opStrPush, tcWord, V.T, Ord(V.T = dtWString))
+        else I := E(opSPush, tcWord, V.T);
         FBlock.Ops[I].Opd.Kind := okAddr;
         FBlock.Ops[I].Opd.A := V.A;
         FBlock.Ops[I].Opd.DType := V.T;
@@ -989,6 +1597,10 @@ var
     V: Double;
     R: TRef;
     U: string;
+    Ty: TDataType;
+    K: Integer;
+    I64: Int64;
+    Q64: QWord;
   begin
     T := Tok;
     if IsSym('(') then
@@ -1012,17 +1624,44 @@ var
             EK(V, dtReal);
             Exit(dtReal);
           end;
-          // integer literals are untyped: they calculate in 32 bit, the target type wraps
-          V := StrToInt64Def(T.S, 0);
-          if Abs(V) > 2147483647 then Fail('number out of range ' + T.S);
-          Result := dtDInt;
-          EK(V, Result);
-          Exit;
+          // integer literals are untyped: they calculate in 32 bit, the target type wraps; above the DInt
+          // range a UDInt, above it an LInt, above that a ULInt (exact)
+          if TryStrToInt64(T.S, I64) then
+          begin
+            if I64 > 4294967295 then
+            begin
+              EK64(I64, dtLInt);
+              Exit(dtLInt);
+            end;
+            if I64 > 2147483647 then Result := dtUDInt else Result := dtDInt;
+            EK(I64, Result);
+            Exit;
+          end;
+          if not TryStrToQWord(T.S, Q64) then Fail('number out of range ' + T.S);
+          EK64(Int64(Q64), dtULInt);
+          Exit(dtULInt);
         end;
       stTyped:
         begin
           Next;
-          if not ParseConst(T.S, C) then Fail('bad constant ' + T.S);
+          U := UpperCase(Copy(T.S, 1, Pos('#', T.S) - 1));
+          if ((U = 'STRING') or (U = 'WSTRING')) and (Pos('''', T.S) = Pos('#', T.S) + 1) and
+            (T.S[Length(T.S)] = '''') then
+          begin
+            // STRING#'text', WSTRING#'text'
+            K := E(opStrPushK, tcWord, dtString, Ord(U = 'WSTRING'));
+            FBlock.Ops[K].Opd.Text := SclStrDecode(Copy(T.S, Pos('#', T.S) + 2, Length(T.S) - Pos('#', T.S) - 2),
+              U = 'WSTRING');
+            if U = 'WSTRING' then Exit(dtWString);
+            Exit(dtString);
+          end;
+          if not ParseConst(T.S, C) then
+          begin
+            // INT#5, 8#17, D#2024-01-31, TOD#12:00:00, LINT#.., LT#.., LDT#.. (64 bit exact)
+            if not SclTypedLiteralEx(T.S, V, I64, Ty) then Fail('bad constant ' + T.S);
+            if Ty in Int64Types then EK64(I64, Ty) else EK(V, Ty);
+            Exit(Ty);
+          end;
           case C.Kind of
             ckTime: begin EK(C.I, dtTime); Exit(dtTime); end;
             ckS5Time: begin EK(C.Bits, dtS5Time); Exit(dtS5Time); end;
@@ -1046,13 +1685,28 @@ var
       stStr:
         begin
           Next;
-          if Length(T.S) <> 1 then Fail('only CHAR constants (one letter) are supported');
-          EK(Ord(T.S[1]), dtChar);
-          Exit(dtChar);
+          // 'A' is a Char (it goes into a String too), 'text' a String
+          U := SclStrDecode(T.S);
+          if Length(UTF8Decode(U)) = 1 then
+          begin
+            EK(Ord(UTF8Decode(U)[1]) and $FF, dtChar);
+            Exit(dtChar);
+          end;
+          K := E(opStrPushK, tcWord, dtString);
+          FBlock.Ops[K].Opd.Text := U;
+          FBlock.Ops[K].Weight := 2;
+          Exit(dtString);
         end;
       stIdent:
         begin
           U := UpperCase(T.S);
+          if (U = '__RLO__') and FInline then
+          begin
+            // the RLO of the LAD rung / STL line
+            Next;
+            E(opSRloPush, tcBit, dtBool);
+            Exit(dtBool);
+          end;
           if U = 'TRUE' then begin Next; EK(1, dtBool); Exit(dtBool); end;
           if U = 'FALSE' then begin Next; EK(0, dtBool); Exit(dtBool); end;
           if IsKeyword(U) then Fail('"' + T.S + '" is not allowed here');
@@ -1062,6 +1716,14 @@ var
             Exit(Call(T.S));
           end;
         end;
+    end;
+    if (T.Kind = stHash) and (FConsts.IndexOf(UpperCase(T.S)) >= 0) then
+    begin
+      // a constant of VAR CONSTANT
+      K := PtrInt(FConsts.Objects[FConsts.IndexOf(UpperCase(T.S))]);
+      Next;
+      if FConstT[K] in Int64Types then EK64(FConstI[K], FConstT[K]) else EK(FConstV[K], FConstT[K]);
+      Exit(FConstT[K]);
     end;
     R := Path;
     if R.Method <> '' then Fail(R.Method + ' is a statement (call it on its own line)');
@@ -1079,8 +1741,8 @@ var
       Next;
       B := Primary;
       if not SclIsNum(Result) or not SclIsNum(B) then Fail('** needs numbers');
-      E(opSBin, tcFloat, dtReal, sbPow);
-      Result := dtReal;
+      if (Result = dtLReal) or (B = dtLReal) then Result := dtLReal else Result := dtReal;
+      E(opSBin, tcFloat, Result, sbPow);
     end;
   end;
 
@@ -1124,17 +1786,44 @@ var
       Next;
       B := UnExpr;
       if not SclIsNum(Result) or not SclIsNum(B) then Fail('* / MOD need numbers');
+      if (Result in [dtTOD, dtLTOD, dtDT, dtLDT, dtDate]) or (B in [dtTOD, dtLTOD, dtDT, dtLDT, dtDate]) then
+        Fail(Format('* / MOD with %s is not allowed', [DataTypeNames[Result]]));
       R := SclArith(Result, B);
-      if (Op = sbMod) and (R = dtReal) then Fail('MOD needs integers');
+      if (Op = sbMod) and (R in RealTypes) then Fail('MOD needs integers');
       // TIME * INT stays TIME
       E(opSBin, Cat(R), R, Op);
       Result := R;
     end;
   end;
 
+  { + / - with a time or a date (as in TIA): TIME +- TIME, TOD +- TIME (within a day), DT +- TIME,
+    LTOD / LDT +- LTIME, TOD - TOD = TIME, DT - DT = TIME, LTOD / LDT - LTOD / LDT = LTIME; the type of the
+    result, the type to compute in (Calc) }
+  function TimeArith(Op: Integer; A, B: TDataType; out Calc: TDataType): TDataType;
+  var
+    Ok: Boolean;
+  begin
+    Result := dtNone;
+    if (A = dtS5Time) or (B = dtS5Time) then Fail('arithmetic with S5Time is not allowed (S5TIME_TO_TIME)');
+    if ((A = dtTime) and (B = dtLTime)) or ((A = dtLTime) and (B = dtTime)) then
+      Fail('TIME and LTIME: one of them needs a conversion (TIME_TO_LTIME, LTIME_TO_TIME)');
+    Ok := False;
+    if (A in [dtTime, dtLTime]) and ((B = A) or SclIsInt(B)) then begin Result := A; Ok := True; end
+    else if (B in [dtTime, dtLTime]) and SclIsInt(A) and (Op = sbAdd) then begin Result := B; Ok := True; end
+    else if (A in [dtTOD, dtDT]) and ((B = dtTime) or SclIsInt(B)) then begin Result := A; Ok := True; end
+    else if (A in [dtLTOD, dtLDT]) and ((B = dtLTime) or SclIsInt(B)) then begin Result := A; Ok := True; end
+    else if (Op = sbSub) and (A = B) and (A in [dtTOD, dtDT]) then begin Result := dtTime; Ok := True; end
+    else if (Op = sbSub) and (A = B) and (A in [dtLTOD, dtLDT]) then begin Result := dtLTime; Ok := True; end;
+    if not Ok then
+      Fail(Format('%s %s %s is not allowed', [DataTypeNames[A], Copy('+-', Op + 1, 1), DataTypeNames[B]]));
+    // 64 bit: in Int64; TOD: in DInt (then into the day)
+    if (A in Int64Types) or (B in Int64Types) then Calc := dtLInt
+    else Calc := dtDInt;
+  end;
+
   function AddExpr: TDataType;
   var
-    B, R: TDataType;
+    B, R, Cl: TDataType;
     Op: Integer;
   begin
     Result := MulExpr;
@@ -1144,6 +1833,28 @@ var
       Next;
       B := MulExpr;
       if not SclIsNum(Result) or not SclIsNum(B) then Fail('+ - need numbers');
+      if SclIsTimeT(Result) or SclIsTimeT(B) then
+      begin
+        R := TimeArith(Op, Result, B, Cl);
+        E(opSBin, tcFix, Cl, Op);
+        // a time of day stays inside the day
+        if R = dtTOD then
+        begin
+          EK(86400000, dtDInt);
+          E(opSBin, tcFix, dtDInt, sbAdd);
+          EK(86400000, dtDInt);
+          E(opSBin, tcFix, dtDInt, sbMod);
+        end
+        else if R = dtLTOD then
+        begin
+          EK64(86400000000000, dtLInt);
+          E(opSBin, tcFix, dtLInt, sbAdd);
+          EK64(86400000000000, dtLInt);
+          E(opSBin, tcFix, dtLInt, sbMod);
+        end;
+        Result := R;
+        Continue;
+      end;
       R := SclArith(Result, B);
       E(opSBin, Cat(R), R, Op);
       Result := R;
@@ -1153,7 +1864,7 @@ var
   function Compare(Lower: Boolean): TDataType;
   var
     B, R: TDataType;
-    Op: Integer;
+    Op, K: Integer;
   begin
     if Lower then Result := AddExpr else Result := Compare(True);
     while (Lower and (IsSym('<') or IsSym('>') or IsSym('<=') or IsSym('>='))) or
@@ -1170,6 +1881,23 @@ var
       end;
       Next;
       if Lower then B := AddExpr else B := Compare(True);
+      if SclIsStr(Result) or SclIsStr(B) then
+      begin
+        // strings (a Char beside a String is one): compared on the string stack
+        if B in [dtChar, dtWChar] then CharToStr
+        else if Result in [dtChar, dtWChar] then
+        begin
+          // the Char came first: its string goes under the other one
+          CharToStr;
+          E(opStrOp, tcWord, dtString, soSwap);
+        end
+        else if not SclIsStr(Result) or not SclIsStr(B) then
+          Fail(Format('cannot compare %s with %s', [DataTypeNames[Result], DataTypeNames[B]]));
+        K := E(opStrOp, tcWord, dtBool, soCmp);
+        FBlock.Ops[K].Ext := Op;
+        Result := dtBool;
+        Continue;
+      end;
       if (Result = dtBool) <> (B = dtBool) then Fail('cannot compare BOOL with a number');
       if (Result = dtBool) and Lower then Fail('< > need numbers');
       R := SclArith(Result, B);
@@ -1276,8 +2004,18 @@ var
     Tg: TRef;
     MemOpd: TOperand;
     Code: TOpCode;
+    VarT: TDataType;
+    Vi: TVarInfo;
   begin
     IsTimer := R.Method[1] = 'T';
+    // the type of the times (TON_LTIME: LTime) / of the count (CTU_DINT: DInt)
+    VarT := dtNone;
+    if R.IsBlock and (R.Info.Udt <> nil) then VarT := R.Info.Udt.IecVar
+    else if FRes.ResolveVar(R.Text, Vi, Er) and (Vi.Udt <> nil) then VarT := Vi.Udt.IecVar;
+    if VarT = dtNone then
+    begin
+      if IsTimer then VarT := dtTime else VarT := dtInt;
+    end;
     if IsTimer and (R.Opd.DType <> dtIECTimer) then Fail(R.Text + ' must be an IEC_TIMER for .' + R.Method);
     if not IsTimer and (R.Opd.DType <> dtIECCounter) then Fail(R.Text + ' must be an IEC_COUNTER for .' + R.Method);
     if IsTimer then
@@ -1310,8 +2048,10 @@ var
         if Ix < 0 then Fail(Format('%s has no input %s', [R.Method, Nm]));
         Pos0 := Length(FBlock.Ops);
         T := Expr;
-        if (Nm = 'PT') and not (T in [dtTime, dtDInt]) then Fail('PT must be a TIME (T#5S)');
-        if (Nm = 'PV') and not (T in [dtInt, dtDInt, dtSInt, dtUSInt, dtUInt]) then Fail('PV must be an integer');
+        if (Nm = 'PT') and (VarT = dtLTime) and not (T in [dtLTime, dtDInt, dtLInt]) then
+          Fail('PT of ' + R.Text + ' must be an LTIME (LT#5S)');
+        if (Nm = 'PT') and (VarT <> dtLTime) and not (T in [dtTime, dtDInt]) then Fail('PT must be a TIME (T#5S)');
+        if (Nm = 'PV') and not SclIsInt(T) then Fail('PV must be an integer');
         if (Nm <> 'PT') and (Nm <> 'PV') and (T <> dtBool) then Fail(Nm + ' must be BOOL');
         Chunks[Ix] := TakeChunk(Pos0);
         Given[Ix] := True;
@@ -1367,7 +2107,7 @@ var
       else
         Code := opCTUD;
       end;
-    if IsTimer then OpIx := E(opSTimer, tcFix, dtNone, Ord(Code)) else OpIx := E(opSCounter, tcFix, dtNone, Ord(Code));
+    if IsTimer then OpIx := E(opSTimer, tcFix, VarT, Ord(Code)) else OpIx := E(opSCounter, tcFix, VarT, Ord(Code));
     FBlock.Ops[OpIx].Opd := R.Opd;
     FBlock.Ops[OpIx].Ext := Ord(R.Indexed);
     FBlock.Ops[OpIx].Weight := 12;
@@ -1386,6 +2126,132 @@ var
         Ix := E(opSPush, tcWord, MemOpd.DType);
       FBlock.Ops[Ix].Opd := MemOpd;
       CheckAssign(OutRef[K].T, MemOpd.DType, OutRef[K].Text);
+      StoreRef(OutRef[K], Line);
+    end;
+  end;
+
+  { R_TRIG / F_TRIG (CLK := .., Q => ..), RS (S := .., R1 := .., Q1 => ..), SR (S1 := .., R := .., Q1 => ..):
+    the inputs are written into the instance, then the output and the edge memory M computed inline }
+  procedure EdgeCall(const R: TRef; Line: Integer);
+  var
+    Ty, Nm, OutNm, Er: string;
+    Ins: array of string;
+    OutC: array of TOpChunk;
+    OutRef: array of TRef;
+    K, Ix, Pos0, NOut: Integer;
+    T: TDataType;
+
+    function Mem(const M: string): TOperand;
+    begin
+      if not FRes.Resolve(R.Text + '.' + M, Result, Er, False) then Fail(Er);
+    end;
+
+    procedure PushM(const M: string);
+    var
+      O: TOperand;
+      I: Integer;
+    begin
+      // E may move the ops: the index first
+      O := Mem(M);
+      I := E(opSPush, tcBit, dtBool);
+      FBlock.Ops[I].Opd := O;
+    end;
+
+    procedure StoreM(const M: string);
+    var
+      I: Integer;
+      O: TOperand;
+    begin
+      O := Mem(M);
+      I := E(opSStore, tcBit, dtBool);
+      FBlock.Ops[I].Opd := O;
+      SetMon(I, Line);
+    end;
+
+  begin
+    if R.Indexed then Fail(R.Info.Udt.Name + ' in an array: a constant index is needed');
+    Ty := UpperCase(R.Info.Udt.Name);
+    case Ty of
+      'R_TRIG', 'F_TRIG': begin Ins := ['CLK']; OutNm := 'Q'; end;
+      'RS': begin Ins := ['S', 'R1']; OutNm := 'Q1'; end;
+    else
+      begin Ins := ['S1', 'R']; OutNm := 'Q1'; end;
+    end;
+    NOut := 0;
+    Expect('(');
+    while not IsSym(')') do
+    begin
+      if Tok.Kind <> stIdent then Fail('parameter name expected (CLK := ..)');
+      Nm := UpperCase(Tok.S);
+      Next;
+      if IsSym(':=') then
+      begin
+        Next;
+        Ix := -1;
+        for K := 0 to High(Ins) do
+          if Ins[K] = Nm then Ix := K;
+        if Ix < 0 then Fail(Format('%s has no input %s', [Ty, Nm]));
+        T := Expr;
+        if T <> dtBool then Fail(Nm + ' must be BOOL');
+        StoreM(Ins[Ix]);
+      end
+      else if IsSym('=>') then
+      begin
+        Next;
+        if Nm <> OutNm then Fail(Format('%s has no output %s', [Ty, Nm]));
+        Pos0 := Length(FBlock.Ops);
+        SetLength(OutC, NOut + 1);
+        SetLength(OutRef, NOut + 1);
+        OutRef[NOut] := Path;
+        OutC[NOut] := TakeChunk(Pos0);
+        Inc(NOut);
+      end
+      else
+        Fail(':= or => expected after ' + Nm);
+      if IsSym(',') then Next else Break;
+    end;
+    Expect(')');
+    case Ty of
+      'R_TRIG', 'F_TRIG':
+        begin
+          // Q := CLK AND NOT M (R_TRIG) / NOT CLK AND M (F_TRIG); M := CLK
+          PushM('CLK');
+          if Ty = 'F_TRIG' then E(opSUn, tcBit, dtBool, suNot);
+          PushM('M');
+          if Ty = 'R_TRIG' then E(opSUn, tcBit, dtBool, suNot);
+          E(opSBin, tcBit, dtBool, sbAnd);
+          StoreM('Q');
+          PushM('CLK');
+          StoreM('M');
+        end;
+      'RS':
+        begin
+          // reset wins: Q1 := (S OR Q1) AND NOT R1
+          PushM('S');
+          PushM('Q1');
+          E(opSBin, tcBit, dtBool, sbOr);
+          PushM('R1');
+          E(opSUn, tcBit, dtBool, suNot);
+          E(opSBin, tcBit, dtBool, sbAnd);
+          StoreM('Q1');
+        end;
+    else
+      begin
+        // set wins: Q1 := S1 OR (Q1 AND NOT R)
+        PushM('Q1');
+        PushM('R');
+        E(opSUn, tcBit, dtBool, suNot);
+        E(opSBin, tcBit, dtBool, sbAnd);
+        PushM('S1');
+        E(opSBin, tcBit, dtBool, sbOr);
+        StoreM('Q1');
+      end;
+    end;
+    for K := 0 to NOut - 1 do
+    begin
+      PutChunk(OutC[K]);
+      PushM(OutNm);
+      CheckAssign(OutRef[K].T, dtBool, OutRef[K].Text);
       StoreRef(OutRef[K], Line);
     end;
   end;
@@ -1442,7 +2308,7 @@ var
             if Act.Method <> '' then Fail('a timer call gives no value');
             Ch := TakeChunk(P0);
             if not FRes.ResolveVar(R.Text + '.' + M.Name, V, Er) then Fail(Er);
-            if not IsBlockType(V) and not Act.IsBlock and (Act.T <> V.T) then
+            if not IsBlockType(V) and not Act.IsBlock and (Act.T <> V.T) and not (SclIsStr(V.T) and SclIsStr(Act.T)) then
               Fail(Format('InOut %s is %s: the variable must have the same type (%s)', [Nm, DataTypeNames[V.T], DataTypeNames[Act.T]]));
             ParamCopy(V, M.Name, R.Indexed, Act, Ch, True, Line);
             P1 := Length(FBlock.Ops);
@@ -1517,7 +2383,7 @@ var
 
   begin
     Line := Tok.Line;
-    FLine := Line;
+    if not FInline then FLine := Line;
     if IsSym(';') then
     begin
       Next;
@@ -1547,7 +2413,7 @@ var
         SetLength(Ends, Length(Ends) + 1);
         Ends[High(Ends)] := Jmp;
         Patch(J1, Length(FBlock.Ops));
-        FLine := Tok.Line;
+        if not FInline then FLine := Tok.Line;
         Next;
         J1 := Cond;
         Expect('THEN');
@@ -1755,6 +2621,17 @@ var
       EndStmt;
       Exit;
     end;
+    if (Tok.Kind = stIdent) and SameText(Tok.S, '__RLO__') and FInline then
+    begin
+      // __RLO__ := Q of a box: the power out
+      Next;
+      Expect(':=');
+      T := Expr;
+      if T <> dtBool then Fail('the RLO is BOOL');
+      E(opSRloSet, tcBit, dtBool);
+      EndStmt;
+      Exit;
+    end;
     if (Tok.Kind = stIdent) and IsKeyword(Tok.S) then Fail('"' + Tok.S + '" is not allowed here');
     // an FB call with an instance DB: "Inst_DB"(In := ..)
     if (Tok.Kind in [stIdent, stQuoted]) and (PeekTok(1).Kind = stSym) and (PeekTok(1).S = '(') and
@@ -1798,6 +2675,24 @@ var
       EndStmt;
       Exit;
     end;
+    // a system FB: #t(IN := .., PT := ..) of a TON_TIME, #c(CU := ..) of a CTU_INT ...
+    if IsSym('(') and R.IsBlock and not R.Info.IsArray and (R.Info.T in [dtIECTimer, dtIECCounter]) then
+    begin
+      R.Method := SysFbMethod(R.Info.TypeText);
+      if R.Method = '' then
+        Fail(Format('%s is an %s: call it as %s.%s(..)', [R.Text, DataTypeNames[R.Info.T], R.Text,
+          IfThen(R.Info.T = dtIECTimer, 'TON', 'CTU')]));
+      TimerCall(R, Line);
+      EndStmt;
+      Exit;
+    end;
+    // R_TRIG / F_TRIG / RS / SR
+    if IsSym('(') and R.IsBlock and not R.Info.IsArray and (R.Info.T = dtStruct) and IsSysFb(R.Info.Udt) then
+    begin
+      EdgeCall(R, Line);
+      EndStmt;
+      Exit;
+    end;
     // a multi-instance call: #inst(..), #M[#i](..)
     if IsSym('(') and R.IsBlock and (R.Info.T = dtStruct) and not R.Info.IsArray and R.Info.Udt.IsIface then
     begin
@@ -1815,6 +2710,7 @@ var
     if R.Opd.A.Area in [arI, arPI] then Msg('writing an input: the next input image overwrites it', False);
     Expect(':=');
     T := Expr;
+    if SclIsStr(R.T) and (T in [dtChar, dtWChar]) then CharToStr;
     CheckAssign(R.T, T, R.Text);
     StoreRef(R, Line);
     EndStmt;
@@ -1883,25 +2779,118 @@ var
     end;
   end;
 
+  { VAR CONSTANT  name : Type := value;  the value: a number, a typed literal, TRUE / FALSE, 'c' }
+  procedure ConstDecl(const Nm: string; T: TDataType);
+  var
+    Neg: Boolean;
+    V: Double;
+    Iv: Int64;
+    Vt: TDataType;
+    C: TConst;
+    K: Integer;
+  begin
+    if not IsSym(':=') then Fail('VAR CONSTANT: ' + Nm + ' := value expected');
+    Next;
+    Iv := 0;
+    Neg := IsSym('-');
+    if Neg then Next;
+    case Tok.Kind of
+      stNum:
+        if (Pos('.', Tok.S) > 0) or (Pos('E', UpperCase(Tok.S)) > 0) then
+        begin
+          if not StrToFloatDot(Tok.S, V) then Fail('bad number ' + Tok.S);
+          Vt := dtReal;
+        end
+        else
+        begin
+          if not TryStrToInt64(Tok.S, Iv) then Iv := Int64(StrToQWordDef(Tok.S, 0));
+          V := Iv;
+          if V > 4294967295.0 then Vt := dtLInt
+          else if V > 2147483647 then Vt := dtUDInt
+          else Vt := dtDInt;
+        end;
+      stTyped:
+        if ParseConst(Tok.S, C) then
+        begin
+          case C.Kind of
+            ckTime: begin V := C.I; Vt := dtTime; end;
+            ckS5Time: begin V := C.Bits; Vt := dtS5Time; end;
+            ckReal: begin V := C.R; Vt := dtReal; end;
+            ckHex:
+              begin
+                V := C.I;
+                case C.Size of
+                  osByte: Vt := dtByte;
+                  osWord: Vt := dtWord;
+                else
+                  Vt := dtDWord;
+                end;
+              end;
+          else
+            begin V := C.I; Vt := dtDInt; end;
+          end;
+        end
+        else if not SclTypedLiteralEx(Tok.S, V, Iv, Vt) then
+          Fail('bad constant ' + Tok.S);
+      stStr:
+        begin
+          if Length(Tok.S) <> 1 then Fail('only CHAR constants (one letter) are supported');
+          V := Ord(Tok.S[1]);
+          Vt := dtChar;
+        end;
+      stIdent:
+        if SameText(Tok.S, 'TRUE') or SameText(Tok.S, 'FALSE') then
+        begin
+          V := Ord(SameText(Tok.S, 'TRUE'));
+          Vt := dtBool;
+        end
+        else
+          Fail('VAR CONSTANT: a constant value expected, found ' + Tok.S);
+    else
+      Fail('VAR CONSTANT: a constant value expected, found "' + Tok.S + '"');
+    end;
+    Next;
+    if not (Vt in Int64Types) and not (Tok.Kind = stNum) then Iv := Round(V);
+    if Neg then
+    begin
+      if not SclIsNum(Vt) then Fail('- needs a number');
+      V := -V;
+      Iv := -Iv;
+    end;
+    if (T in Int64Types) and not (Vt in Int64Types) then Iv := Round(V);
+    CheckAssign(T, Vt, '#' + Nm);
+    K := Length(FConstV);
+    SetLength(FConstV, K + 1);
+    SetLength(FConstI, K + 1);
+    SetLength(FConstT, K + 1);
+    FConstV[K] := V;
+    FConstI[K] := Iv;
+    FConstT[K] := T;
+    FConsts.AddObject(UpperCase(Nm), TObject(PtrInt(K)));
+  end;
+
   procedure TempDecl;
   var
     Nm, Ty: string;
     T: TDataType;
     Lo, Hi, Sz, Ofs: Integer;
     U: TDataBlock;
+    IsConst: Boolean;
   begin
-    // VAR_TEMP  name : Type;  ...  END_VAR
+    // VAR_TEMP  name : Type;  ...  END_VAR      VAR CONSTANT  name : Type := value;  ...  END_VAR
     Next;
+    IsConst := IsKw('CONSTANT');
+    if IsConst then Next;
     while not IsKw('END_VAR') and (Tok.Kind <> stEOF) do
     begin
-      FLine := Tok.Line;
+      if not FInline then FLine := Tok.Line;
       try
         if Tok.Kind <> stIdent then Fail('VAR_TEMP: name expected');
         Nm := Tok.S;
         Next;
         Expect(':');
         Ty := '';
-        while not IsSym(';') and (Tok.Kind <> stEOF) and not IsKw('END_VAR') do
+        while not IsSym(';') and not IsSym(':=') and (Tok.Kind <> stEOF) and not IsKw('END_VAR') do
         begin
           // Array[0..3] of "Type": tokens glued again, OF kept apart
           if (Tok.Kind = stIdent) and SameText(Tok.S, 'OF') then Ty := Ty + ' of '
@@ -1910,8 +2899,21 @@ var
           Next;
         end;
         if not FProject.ParseVarType(Ty, T, Lo, Hi, U) then Fail('unknown data type ' + Ty);
+        if (FTemps.IndexOfName(UpperCase(Nm)) >= 0) or (FConsts.IndexOf(UpperCase(Nm)) >= 0) then
+          Fail('#' + Nm + ' is declared twice');
+        if IsConst then
+        begin
+          if (Hi >= Lo) or not (T in [dtBool, dtByte, dtWord, dtDWord, dtChar, dtSInt, dtUSInt, dtInt, dtUInt, dtDInt,
+            dtUDInt, dtReal, dtTime, dtS5Time, dtDate, dtTOD, dtWChar, dtLWord, dtLInt, dtULInt, dtLReal, dtLTime,
+            dtLTOD, dtLDT, dtDT]) then
+            Fail('VAR CONSTANT: an elementary data type expected');
+          ConstDecl(Nm, T);
+          if IsSym(';') then Next else Fail('";" expected');
+          Continue;
+        end;
+        if IsSym(':=') then Fail('VAR_TEMP: no start value (the local data is not kept)');
         if T in [dtIECTimer, dtIECCounter] then Fail('timers / counters need a DB (they keep their state)');
-        if FTemps.IndexOfName(UpperCase(Nm)) >= 0 then Fail('#' + Nm + ' is declared twice');
+        if (T = dtStruct) and IsSysFb(U) then Fail(U.Name + ' needs a DB (it keeps its state)');
         if U <> nil then U.Layout;
         if Hi >= Lo then
         begin
@@ -1920,7 +2922,7 @@ var
           else Sz := (Hi - Lo + 1) * ElemStride(T, U);
           Sz := (Sz + 1) div 2 * 2;
         end
-        else if T = dtStruct then
+        else if (T = dtStruct) or SclIsStr(T) then
           Sz := U.Size
         else
           Sz := DataTypeSize(T);
@@ -1945,7 +2947,7 @@ var
         end;
       end;
     end;
-    FLine := Tok.Line;
+    if not FInline then FLine := Tok.Line;
     if IsKw('END_VAR') then Next else Msg('END_VAR missing');
     if IsSym(';') then Next;
   end;
@@ -1954,6 +2956,7 @@ begin
   Base := FBlock.Nets[FNet].MonBase;
   LoopDepth := 0;
   CaseDepth := 0;
+  MuxDepth := 0;
   ErrCount := 0;
   SetLength(Toks, 0);
   Lex;
@@ -1964,11 +2967,11 @@ begin
     Statements([]);
     if Tok.Kind <> stEOF then
     begin
-      FLine := Tok.Line;
+      if not FInline then FLine := Tok.Line;
       Msg(Format('unexpected "%s"', [Tok.S]));
       Next;
     end;
     if ErrCount > 20 then Break;
   end;
-  FLine := -1;
+  if not FInline then FLine := -1;
 end;

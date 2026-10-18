@@ -41,7 +41,9 @@ type
   TLadKind = (lkEmpty, lkWire, lkNO, lkNC, lkPos, lkNeg, lkNot, lkCoil, lkCoilNeg, lkSet, lkReset,
     lkTON, lkTOF, lkTP, lkTONR, lkSD, lkSE, lkSP, lkSS, lkSF, lkCU, lkCD, lkSC,
     lkCTU, lkCTD, lkCTUD, lkCmp, lkMove, lkAdd, lkSub, lkMul, lkDiv, lkNormX, lkScaleX, lkCall,
-    lkInRange, lkOutRange, lkConv, lkRound, lkTrunc, lkCeil, lkFloor);
+    lkInRange, lkOutRange, lkConv, lkRound, lkTrunc, lkCeil, lkFloor,
+    // the boxes of the SCL functions (compiled as SCL): selection, math, shift / word logic, string, edges
+    lkSel, lkMux, lkLimit, lkMin, lkMax, lkSqrt, lkSqr, lkAbs, lkExp, lkLn, lkSin, lkCos, lkTan, lkAsin, lkAcos, lkAtan, lkFrac, lkNegate, lkExpt, lkMod, lkInc, lkDec, lkShl, lkShr, lkRol, lkRor, lkAndW, lkOrW, lkXorW, lkInvW, lkConcat, lkLen, lkLeft, lkRight, lkMid, lkFind, lkSMove, lkRTrig, lkFTrig, lkRS, lkSR);
   TCmpOp = (coEQ, coNE, coGT, coLT, coGE, coLE);
   TBlockKind = (bkOB, bkFC, bkFB);
   TIntArray = array of Integer;
@@ -96,6 +98,7 @@ type
     Kind: TBlockKind;
     Number: Integer;
     Name, Comment: string;
+    Version: string;   // VERSION : 0.1 of the SCL source
     Networks: TList;   // of TNetwork
     Iface: TDataBlock; // the interface: Vars with Section; an FB's instance layout (temps in TempSize)
     constructor Create(AKind: TBlockKind; ANumber: Integer; const AName: string);
@@ -116,6 +119,7 @@ type
     Udt: TDataBlock;        // DType = dtStruct: the PLC data type
     IsArray: Boolean;
     Lo, Hi: Integer;
+    Dims: TArrDims;         // an array of more dimensions (Lo..Hi is then 0..n-1)
     Ofs, Bit: Integer;
     Valid: Boolean;
   end;
@@ -133,6 +137,9 @@ type
     IsUdt: Boolean;
     IsIface: Boolean;         // the interface of a block (also IsUdt: an FB type is a struct)
     IsFC: Boolean;            // an FC interface: the parameters are in the local data, the Temps after them
+    StrMax: Integer;          // > 0: the type of a String[StrMax] / WString[StrMax] (StrWide), no Vars
+    StrWide: Boolean;
+    IecVar: TDataType;        // <> dtNone: a timer (dtLTime) / counter (its PV / CV type) of another layout
     InstanceOf: Integer;      // an instance DB: the FB number, its Vars follow the interface
     Owner: TPlcProject;       // resolves the names of PLC data types
     Vars: array of TDbVar;
@@ -150,6 +157,27 @@ type
 
   TTag = record
     Name, TypeText, Address, Comment: string;
+    GroupId: Integer;     // its group of the tag table (0: none, only in "All tag")
+  end;
+
+  { a group of the tag table / of the watch table (a tree item): the rows keep its Id, so a group can
+    be renamed (also to a name used twice: shown red) or deleted without losing a row }
+  TItemGroup = record
+    Id: Integer;
+    Name: string;
+  end;
+  TItemGroups = array of TItemGroup;
+
+  { a simulated input signal (the signal table of the I/O screen): its generator writes the input module }
+  TSigKind = (sgConst, sgSquare, sgSine, sgTriangle, sgRamp, sgRandom, sgStep);
+  TSimSignal = record
+    Address: string;     // an input (I / PI): an address or a tag
+    Kind: TSigKind;
+    Lo, Hi: Double;      // the two values (Bool: 0 / 1)
+    PeriodMs: Double;
+    Duty: Double;        // Square: the % of the period at Hi
+    On: Boolean;
+    Comment: string;
   end;
 
   TWatchRow = record
@@ -158,6 +186,7 @@ type
     ModifyValue: string;
     ModifyOn: Boolean;
     ForceOn: Boolean;
+    GroupId: Integer;     // its group of the watch table (0: none)
   end;
 
   { the simulated communication ports (uPlcServer) }
@@ -195,6 +224,8 @@ type
     Udts: TList;              // of TDataBlock with IsUdt: the PLC data types
     Tags: array of TTag;
     Watch: array of TWatchRow;
+    TagGroups, WatchGroups: TItemGroups;
+    Signals: array of TSimSignal;   // the signal table of the I/O screen
     DIch: array[0..63] of TIoChannel;
     AIch: array[0..15] of TIoChannel;
     Modified: Boolean;
@@ -228,12 +259,16 @@ type
     function FindTag(const AName: string): Integer;
     procedure AddTag(const AName, AType, AAddress, AComment: string);
     procedure DeleteTag(I: Integer);
+    procedure DeleteTagGroup(I: Integer);     // its tags stay (no group)
+    procedure DeleteWatchGroup(I: Integer);   // its rows stay
     procedure AddWatch(const AAddress: string; AFmt: TDispFmt; const AModify: string = '');
     function WatchToJson: TJSONArray;
     procedure WatchFromJson(A: TJSONArray);
     procedure SaveWatchFile(const AFile: string);   // a watch table on its own
     procedure LoadWatchFile(const AFile: string);   // replaces the rows
     procedure DeleteWatch(I: Integer);
+    function AddSignal(const AAddress: string; AKind: TSigKind; ALo, AHi, APeriod, ADuty: Double): Integer;
+    procedure DeleteSignal(I: Integer);
     procedure SortBlocks;
     function CyclicOB: Integer;
     procedure SaveToFile(const AFile: string);
@@ -250,11 +285,13 @@ const
     'TON', 'TOF', 'TP', 'TONR', 'SD on-delay', 'SE ext. pulse', 'SP pulse', 'SS ret. on-delay',
     'SF off-delay', 'CU count up', 'CD count down', 'SC set counter',
     'CTU', 'CTD', 'CTUD', 'CMP', 'MOVE', 'ADD', 'SUB', 'MUL', 'DIV', 'NORM_X', 'SCALE_X', 'CALL',
-    'IN_RANGE', 'OUT_RANGE', 'CONV', 'ROUND', 'TRUNC', 'CEIL', 'FLOOR');
+    'IN_RANGE', 'OUT_RANGE', 'CONV', 'ROUND', 'TRUNC', 'CEIL', 'FLOOR',
+    'SEL', 'MUX', 'LIMIT', 'MIN', 'MAX', 'SQRT', 'SQR', 'ABS', 'EXP', 'LN', 'SIN', 'COS', 'TAN', 'ASIN', 'ACOS', 'ATAN', 'FRAC', 'NEG', 'EXPT', 'MOD', 'INC', 'DEC', 'SHL', 'SHR', 'ROL', 'ROR', 'AND', 'OR', 'XOR', 'INV', 'CONCAT', 'LEN', 'LEFT', 'RIGHT', 'MID', 'FIND', 'S_MOVE', 'R_TRIG', 'F_TRIG', 'RS', 'SR');
   LadKindIds: array[TLadKind] of string = ('', 'wire', 'no', 'nc', 'p', 'n', 'not', 'coil', 'ncoil',
     'set', 'reset', 'ton', 'tof', 'tp', 'tonr', 'sd', 'se', 'sp', 'ss', 'sf', 'cu', 'cd', 'sc',
     'ctu', 'ctd', 'ctud', 'cmp', 'move', 'add', 'sub', 'mul', 'div', 'normx', 'scalex', 'call',
-    'inrange', 'outrange', 'conv', 'round', 'trunc', 'ceil', 'floor');
+    'inrange', 'outrange', 'conv', 'round', 'trunc', 'ceil', 'floor',
+    'sel', 'mux', 'limit', 'min', 'max', 'sqrt', 'sqr', 'abs', 'exp', 'ln', 'sin', 'cos', 'tan', 'asin', 'acos', 'atan', 'frac', 'negate', 'expt', 'mod', 'inc', 'dec', 'shl', 'shr', 'rol', 'ror', 'andw', 'orw', 'xorw', 'invw', 'concat', 'len', 'left', 'right', 'mid', 'find', 'smove', 'rtrig', 'ftrig', 'rs', 'sr');
   CmpOpNames: array[TCmpOp] of string = ('==', '<>', '>', '<', '>=', '<=');
   DispFmtNames: array[TDispFmt] of string = ('BOOL', 'DEC', 'HEX', 'BIN', 'REAL', 'TIME', 'S5TIME',
     'COUNTER', 'CHAR');
@@ -267,6 +304,8 @@ function IsIPv4(const S: string): Boolean;         // a.b.c.d, each 0..255
 function CommIp(const C: TCommSettings): string;    // the listen address (from the older AllIfaces too)
 function SetHolding(var C: TCommSettings; const S: string): Boolean;
 function IsBox(K: TLadKind): Boolean;
+{ a box of an SCL function (SEL .. SR): compiled as SCL, its EN / CLK is the rung, ENO / Q the power out }
+function IsSclBox(K: TLadKind): Boolean;
 function LadHasType(K: TLadKind): Boolean;    // a box with a data type (DType)
 function LadHasType2(K: TLadKind): Boolean;   // ... and a second one for OUT (DType2): the converters
 function IsCoilKind(K: TLadKind): Boolean;
@@ -285,9 +324,39 @@ procedure SetCallArg(var Ce: TLadCell; I: Integer; const S: string);
 
 { the stride of one array element in bytes (0 = Bool, packed bits) }
 function ElemStride(T: TDataType; AUdt: TDataBlock): Integer;
+function SysUdt(const AName: string): TDataBlock;     // R_TRIG, F_TRIG, RS, SR, DTL (nil: none)
+{ the type of a String[Max] / WString[Max]: its size (2 + Max bytes, 4 + 2 * Max) in a TDataBlock }
+function StrUdt(AMax: Integer; Wide: Boolean): TDataBlock;
+{ the layout of TON_LTIME (PT 0, ET 8, IN 16.0, Q 16.1) and of the counters of other types (CTU_DINT:
+  the bits in byte 0, PV at 2, CV after it); nil for the IEC_TIMER / IEC_COUNTER layout }
+function IecUdt(const TypeText: string): TDataBlock;
+{ a counter / timer layout: the offsets of PV / CV, of ET and of the IN / Q byte }
+procedure IecOffsets(U: TDataBlock; IsTimer: Boolean; out OPv, OCv, OEt, OBits: Integer; out VT: TDataType);
+{ R_TRIG, F_TRIG, RS, SR: called like an FB (DTL is a struct only) }
+function IsSysFb(U: TDataBlock): Boolean;
+function IsSysUdt(U: TDataBlock): Boolean;
+{ a block gets another name: every "Old" of the program (SCL / STL text, LAD operands and parameters,
+  CALL boxes, the FB types of multi-instances) becomes "New", in the FC itself also #Old (its value);
+  the number of the places changed }
+function RenameBlockInCode(P: TPlcProject; B: TBlock; const NewName: string): Integer;
+
+{ the groups: a new one (its index; a new Id), the index of an Id (-1), the name used by another group }
+function GroupAdd(var G: TItemGroups; const AName: string): Integer;
+function GroupOfId(const G: TItemGroups; Id: Integer): Integer;
+function GroupNameTwice(const G: TItemGroups; I: Integer): Boolean;
+{ a name a group can have: not empty, not the name of the root ("All tag" / "All rows") }
+function GroupNameOk(const AName, Root: string; out Err: string): Boolean;
+function GroupsToJson(const G: TItemGroups): TJSONArray;
+procedure GroupsFromJson(A: TJSONArray; var G: TItemGroups);
 
 const
+  AllTagsName = 'All tag';      // the root of the tag table's tree: every tag, cannot be renamed or deleted
+  AllWatchName = 'All rows';    // the root of the watch table's tree
   SectionNames: array[TVarSection] of string = ('Input', 'Output', 'InOut', 'Static', 'Temp', 'Return');
+  SigKindNames: array[TSigKind] of string = ('Constant', 'Square', 'Sine', 'Triangle', 'Ramp', 'Random', 'Step');
+
+{ the value of a signal at the time T (s): its generator (Rnd: the random value of the period) }
+function SignalValue(const S: TSimSignal; T: Double; Rnd: Double): Double;
 
 { the JSON of one block / network / data block (data type: AsType), as in the project file }
 function BlockToJson(B: TBlock): TJSONObject;
@@ -299,6 +368,8 @@ implementation
 function ElemStride(T: TDataType; AUdt: TDataBlock): Integer;
 begin
   if (T = dtStruct) and (AUdt <> nil) then Exit(AUdt.Size);
+  // the elements of a string array start on an even byte
+  if (T in [dtString, dtWString, dtIECTimer, dtIECCounter]) and (AUdt <> nil) then Exit((AUdt.Size + 1) div 2 * 2);
   Result := DataTypeSize(T);
   if Result >= 2 then Result := (Result + 1) div 2 * 2;
 end;
@@ -384,8 +455,14 @@ end;
 
 function IsBox(K: TLadKind): Boolean;
 begin
-  Result := K in [lkTON, lkTOF, lkTP, lkTONR, lkCTU, lkCTD, lkCTUD, lkCmp, lkMove, lkAdd, lkSub,
-    lkMul, lkDiv, lkNormX, lkScaleX, lkCall, lkInRange, lkOutRange, lkConv, lkRound, lkTrunc, lkCeil, lkFloor];
+  Result := (K in [lkTON, lkTOF, lkTP, lkTONR, lkCTU, lkCTD, lkCTUD, lkCmp, lkMove, lkAdd, lkSub,
+    lkMul, lkDiv, lkNormX, lkScaleX, lkCall, lkInRange, lkOutRange, lkConv, lkRound, lkTrunc, lkCeil, lkFloor]) or
+    IsSclBox(K);
+end;
+
+function IsSclBox(K: TLadKind): Boolean;
+begin
+  Result := K >= lkSel;
 end;
 
 function LadHasType(K: TLadKind): Boolean;
@@ -412,10 +489,14 @@ begin
     lkSD, lkSE, lkSP, lkSS, lkSF: Result := 'timer T';
     lkCU, lkCD, lkSC: Result := 'counter C';
     lkCall: Result := 'block (FC, or an FB instance DB)';
+    lkRTrig: Result := 'instance (R_TRIG)';
+    lkFTrig: Result := 'instance (F_TRIG)';
+    lkRS: Result := 'instance (RS)';
+    lkSR: Result := 'instance (SR)';
     lkCmp, lkMove, lkAdd, lkSub, lkMul, lkDiv, lkNormX, lkScaleX, lkEmpty, lkWire, lkNot, lkInRange, lkOutRange,
     lkConv, lkRound, lkTrunc, lkCeil, lkFloor: Result := '';
   else
-    Result := 'operand';
+    if IsSclBox(K) then Result := '' else Result := 'operand';
   end;
 end;
 
@@ -433,6 +514,11 @@ begin
     lkNormX, lkScaleX: Result := 4;
     lkInRange, lkOutRange: Result := 3;
     lkConv, lkRound, lkTrunc, lkCeil, lkFloor: Result := 2;
+    lkSel, lkLimit, lkMid: Result := 4;
+    lkMux, lkMin, lkMax: Result := 5;
+    lkSqrt..lkFrac, lkNegate, lkInvW, lkLen, lkSMove: Result := 2;
+    lkExpt, lkMod, lkShl..lkXorW, lkConcat, lkLeft, lkRight, lkFind: Result := 3;
+    lkInc, lkDec, lkRS, lkSR: Result := 1;
   else
     Result := 0;
   end;
@@ -467,6 +553,27 @@ begin
       case I of 0: Result := 'MIN'; 1: Result := 'VAL'; 2: Result := 'MAX'; end;
     lkConv, lkRound, lkTrunc, lkCeil, lkFloor:
       case I of 0: Result := 'IN'; 1: Result := 'OUT'; end;
+    lkSel:
+      case I of 0: Result := 'G'; 1: Result := 'IN0'; 2: Result := 'IN1'; 3: Result := 'OUT'; end;
+    lkMux:
+      case I of 0: Result := 'K'; 1: Result := 'IN0'; 2: Result := 'IN1'; 3: Result := 'IN2'; 4: Result := 'OUT'; end;
+    lkLimit:
+      case I of 0: Result := 'MN'; 1: Result := 'IN'; 2: Result := 'MX'; 3: Result := 'OUT'; end;
+    lkMin, lkMax:
+      case I of 0: Result := 'IN1'; 1: Result := 'IN2'; 2: Result := 'IN3'; 3: Result := 'IN4'; 4: Result := 'OUT'; end;
+    lkSqrt..lkFrac, lkNegate, lkInvW, lkLen, lkSMove:
+      case I of 0: Result := 'IN'; 1: Result := 'OUT'; end;
+    lkExpt, lkMod, lkAndW, lkOrW, lkXorW, lkConcat, lkFind:
+      case I of 0: Result := 'IN1'; 1: Result := 'IN2'; 2: Result := 'OUT'; end;
+    lkShl..lkRor:
+      case I of 0: Result := 'IN'; 1: Result := 'N'; 2: Result := 'OUT'; end;
+    lkLeft, lkRight:
+      case I of 0: Result := 'IN'; 1: Result := 'L'; 2: Result := 'OUT'; end;
+    lkMid:
+      case I of 0: Result := 'IN'; 1: Result := 'L'; 2: Result := 'P'; 3: Result := 'OUT'; end;
+    lkInc, lkDec: Result := 'IN_OUT';
+    lkRS: Result := 'R1';
+    lkSR: Result := 'R';
   end;
 end;
 
@@ -693,6 +800,7 @@ begin
   inherited Create;
   Kind := AKind;
   Number := ANumber;
+  Version := '0.1';
   Name := AName;
   Networks := TList.Create;
   Iface := TDataBlock.Create(ANumber, AName);
@@ -866,6 +974,7 @@ var
   Pass, SaveP: Integer;
 begin
   if FBusy then Exit;   // a recursive PLC data type: the caller marks the member invalid
+  if (StrMax > 0) or (IecVar <> dtNone) then Exit;   // a string / timer / counter type: its size is fixed
   FBusy := True;
   if (InstanceOf > 0) and (Owner <> nil) then SyncInstance;
   SaveP := 0;
@@ -891,6 +1000,8 @@ begin
     begin
       Vars[I].Valid := ParseDataType(Vars[I].TypeText, T, Lo, Hi);
       U := nil;
+      if Vars[I].Valid and (T in [dtString, dtWString]) then U := StrUdt(StringMaxOf(Vars[I].TypeText), T = dtWString);
+      if Vars[I].Valid and (T in [dtIECTimer, dtIECCounter]) then U := IecUdt(Vars[I].TypeText);
     end;
     if Vars[I].Valid and (U <> nil) then
     begin
@@ -904,6 +1015,8 @@ begin
     Vars[I].IsArray := Vars[I].Valid and (Hi >= Lo);
     Vars[I].Lo := Lo;
     Vars[I].Hi := Hi;
+    Vars[I].Dims := nil;
+    if Vars[I].IsArray and (Length(ArrayDims(Vars[I].TypeText)) > 1) then Vars[I].Dims := ArrayDims(Vars[I].TypeText);
     if not Vars[I].Valid then
     begin
       Vars[I].Ofs := ByteP;
@@ -911,7 +1024,7 @@ begin
       Continue;
     end;
     Sz := DataTypeSize(T);
-    if T = dtStruct then Sz := U.Size;
+    if (T in [dtStruct, dtString, dtWString]) or ((T in [dtIECTimer, dtIECCounter]) and (U <> nil)) then Sz := U.Size;
     if Vars[I].IsArray then
     begin
       AlignEven;
@@ -924,7 +1037,7 @@ begin
         ByteP := ByteP + N * ElemStride(T, U);  // elements of a struct array stay even
       AlignEven;
     end
-    else if T = dtStruct then
+    else if T in [dtStruct, dtString, dtWString] then
     begin
       AlignEven;
       Vars[I].Ofs := ByteP;
@@ -1003,6 +1116,9 @@ begin
   Udts.Clear;
   SetLength(Tags, 0);
   SetLength(Watch, 0);
+  SetLength(Signals, 0);
+  SetLength(TagGroups, 0);
+  SetLength(WatchGroups, 0);
   for I := 0 to High(DIch) do
   begin
     DIch[I].InType := itToggle;
@@ -1163,6 +1279,251 @@ begin
   if S = '' then Exit;
   for I := 0 to Udts.Count - 1 do
     if SameText(Udt(I).Name, S) then Exit(Udt(I));
+  Result := SysUdt(S);
+end;
+
+var
+  SysUdts: TList = nil;
+
+{ the system FBs that are structs of bits: R_TRIG / F_TRIG (CLK, Q, the edge memory M), RS (S, R1, Q1)
+  and SR (S1, R, Q1); not in the project's list of PLC data types }
+function SysUdt(const AName: string): TDataBlock;
+const
+  Names: array[0..4] of string = ('R_TRIG', 'F_TRIG', 'RS', 'SR', 'DTL');
+  Mems: array[0..4] of string = ('CLK,Q,M', 'CLK,Q,M', 'S,R1,Q1', 'S1,R,Q1',
+    // DTL: 12 bytes as on the CPU (DTL#1970-01-01-00:00:00, a Thursday)
+    'YEAR:UInt:1970,MONTH:USInt:1,DAY:USInt:1,WEEKDAY:USInt:5,HOUR:USInt,MINUTE:USInt,SECOND:USInt,NANOSECOND:UDInt');
+var
+  I, K: Integer;
+  L: TStringList;
+  Pt: TStringArray;
+begin
+  Result := nil;
+  if SysUdts = nil then
+  begin
+    SysUdts := TList.Create;
+    for I := 0 to High(Names) do
+    begin
+      Result := TDataBlock.Create(0, Names[I]);
+      Result.IsUdt := True;
+      L := TStringList.Create;
+      try
+        L.CommaText := Mems[I];
+        for K := 0 to L.Count - 1 do
+        begin
+          // name, or name:type[:start]
+          Pt := L[K].Split(':');
+          if Length(Pt) = 1 then Result.AddVar(L[K], 'Bool', 'FALSE', '')
+          else if Length(Pt) = 2 then Result.AddVar(Pt[0], Pt[1], '0', '')
+          else Result.AddVar(Pt[0], Pt[1], Pt[2], '');
+        end;
+      finally
+        L.Free;
+      end;
+      Result.Layout;
+      SysUdts.Add(Result);
+    end;
+    Result := nil;
+  end;
+  for I := 0 to SysUdts.Count - 1 do
+    if SameText(TDataBlock(SysUdts[I]).Name, AName) then Exit(TDataBlock(SysUdts[I]));
+end;
+
+var
+  StrUdts: TStringList = nil;
+
+function StrUdt(AMax: Integer; Wide: Boolean): TDataBlock;
+var
+  Nm: string;
+  K: Integer;
+begin
+  if AMax < 1 then AMax := 254;
+  if Wide then Nm := Format('WString[%d]', [AMax]) else Nm := Format('String[%d]', [AMax]);
+  if StrUdts = nil then StrUdts := TStringList.Create;
+  K := StrUdts.IndexOf(Nm);
+  if K >= 0 then Exit(TDataBlock(StrUdts.Objects[K]));
+  Result := TDataBlock.Create(0, Nm);
+  Result.IsUdt := True;
+  Result.StrMax := AMax;
+  Result.StrWide := Wide;
+  if Wide then Result.Size := 4 + 2 * AMax else Result.Size := 2 + AMax;
+  StrUdts.AddObject(Nm, Result);
+end;
+
+var
+  IecUdts: TStringList = nil;
+
+function IecUdt(const TypeText: string): TDataBlock;
+var
+  VT: TDataType;
+  Nm: string;
+  K, Sz: Integer;
+  IsT: Boolean;
+begin
+  Result := nil;
+  VT := IecVarType(TypeText);
+  if VT in [dtNone, dtTime, dtInt] then Exit;
+  IsT := VT = dtLTime;
+  Nm := UpperCase(Trim(TypeText));
+  if Pos(' OF ', Nm) > 0 then Nm := Trim(Copy(Nm, Pos(' OF ', Nm) + 4, MaxInt));
+  if IecUdts = nil then IecUdts := TStringList.Create;
+  K := IecUdts.IndexOf(Nm);
+  if K >= 0 then Exit(TDataBlock(IecUdts.Objects[K]));
+  Result := TDataBlock.Create(0, Nm);
+  Result.IsUdt := True;
+  Result.IecVar := VT;
+  if IsT then Result.Size := 18
+  else
+  begin
+    Sz := Max(2, DataTypeSize(VT));
+    Result.Size := 2 + 2 * Sz;
+  end;
+  IecUdts.AddObject(Nm, Result);
+end;
+
+procedure IecOffsets(U: TDataBlock; IsTimer: Boolean; out OPv, OCv, OEt, OBits: Integer; out VT: TDataType);
+begin
+  if IsTimer then
+  begin
+    OPv := 0;
+    OCv := 0;
+    if (U <> nil) and (U.IecVar = dtLTime) then
+    begin
+      VT := dtLTime;
+      OEt := 8;
+      OBits := 16;
+    end
+    else
+    begin
+      VT := dtTime;
+      OEt := 4;
+      OBits := 8;
+    end;
+    Exit;
+  end;
+  OEt := 0;
+  OBits := 0;
+  OPv := 2;
+  if (U <> nil) and (U.IecVar <> dtNone) then VT := U.IecVar else VT := dtInt;
+  OCv := 2 + Max(2, DataTypeSize(VT));
+end;
+
+{ "Old" -> "New" in S (not case sensitive), the count in Cnt }
+function SwapQuoted(const S, Old, New: string; var Cnt: Integer): string;
+var
+  U, Q: string;
+  K: Integer;
+begin
+  Result := '';
+  U := UpperCase(S);
+  Q := '"' + UpperCase(Old) + '"';
+  K := 1;
+  while K <= Length(S) do
+  begin
+    if (S[K] = '"') and (Copy(U, K, Length(Q)) = Q) then
+    begin
+      Result := Result + '"' + New + '"';
+      Inc(K, Length(Q));
+      Inc(Cnt);
+    end
+    else
+    begin
+      Result := Result + S[K];
+      Inc(K);
+    end;
+  end;
+end;
+
+{ #Old -> #New (a whole word) }
+function SwapLocal(const S, Old, New: string; var Cnt: Integer): string;
+var
+  K, L: Integer;
+begin
+  Result := '';
+  L := Length(Old);
+  K := 1;
+  while K <= Length(S) do
+  begin
+    if (S[K] = '#') and SameText(Copy(S, K + 1, L), Old) and
+      ((K + L + 1 > Length(S)) or not (S[K + L + 1] in ['A'..'Z', 'a'..'z', '0'..'9', '_'])) then
+    begin
+      Result := Result + '#' + New;
+      Inc(K, L + 1);
+      Inc(Cnt);
+    end
+    else
+    begin
+      Result := Result + S[K];
+      Inc(K);
+    end;
+  end;
+end;
+
+function RenameBlockInCode(P: TPlcProject; B: TBlock; const NewName: string): Integer;
+var
+  I, J, K, R, C, Q: Integer;
+  Bk: TBlock;
+  N: TNetwork;
+  Ce: TLadCell;
+  Old, T: string;
+  D: TDataBlock;
+
+  procedure FixTypes(Db: TDataBlock);
+  var
+    V: Integer;
+  begin
+    for V := 0 to High(Db.Vars) do Db.Vars[V].TypeText := SwapQuoted(Db.Vars[V].TypeText, Old, NewName, Result);
+  end;
+
+begin
+  Result := 0;
+  Old := B.Name;
+  if (Trim(NewName) = '') or (Old = NewName) then Exit;
+  for I := 0 to P.BlockCount - 1 do
+  begin
+    Bk := P.Block(I);
+    for J := 0 to Bk.NetCount - 1 do
+    begin
+      N := Bk.Net(J);
+      for K := 0 to N.Stl.Count - 1 do
+      begin
+        T := SwapQuoted(N.Stl[K], Old, NewName, Result);
+        // the value of an FC is #<its name> in its own code
+        if (Bk = B) and (B.Kind = bkFC) and (B.Iface.FindVar(Old) < 0) then T := SwapLocal(T, Old, NewName, Result);
+        if T <> N.Stl[K] then N.Stl[K] := T;
+      end;
+      for R := 0 to N.Rows - 1 do
+        for C := 0 to N.Cols - 1 do
+        begin
+          Ce := N.Cell(R, C);
+          if Ce.Kind = lkEmpty then Continue;
+          Q := Result;
+          Ce.Opnd := SwapQuoted(Ce.Opnd, Old, NewName, Result);
+          for K := 0 to 4 do Ce.P[K] := SwapQuoted(Ce.P[K], Old, NewName, Result);
+          Ce.Args := SwapQuoted(Ce.Args, Old, NewName, Result);
+          if Result <> Q then N.SetCell(R, C, Ce);
+        end;
+    end;
+    FixTypes(Bk.Iface);
+  end;
+  for I := 0 to P.DBCount - 1 do
+  begin
+    D := P.DB(I);
+    FixTypes(D);
+  end;
+  for I := 0 to P.UdtCount - 1 do FixTypes(P.Udt(I));
+  for I := 0 to High(P.Watch) do P.Watch[I].Address := SwapQuoted(P.Watch[I].Address, Old, NewName, Result);
+  B.Name := NewName;
+end;
+
+function IsSysFb(U: TDataBlock): Boolean;
+begin
+  Result := IsSysUdt(U) and not SameText(U.Name, 'DTL');
+end;
+
+function IsSysUdt(U: TDataBlock): Boolean;
+begin
+  Result := (U <> nil) and (SysUdts <> nil) and (SysUdts.IndexOf(U) >= 0);
 end;
 
 function TPlcProject.AddUdt(ANumber: Integer; const AName: string): TDataBlock;
@@ -1216,7 +1577,12 @@ var
 begin
   AUdt := nil;
   Result := ParseDataType(S, T, Lo, Hi);
-  if Result then Exit;
+  if Result then
+  begin
+    if T in [dtString, dtWString] then AUdt := StrUdt(StringMaxOf(S), T = dtWString);
+    if T in [dtIECTimer, dtIECCounter] then AUdt := IecUdt(S);
+    Exit;
+  end;
   if not SplitArrayType(S, Lo, Hi, Elem) then Exit;
   AUdt := FindUdt(Elem);
   if AUdt = nil then
@@ -1251,6 +1617,100 @@ begin
   Tags[N].TypeText := AType;
   Tags[N].Address := AAddress;
   Tags[N].Comment := AComment;
+  Tags[N].GroupId := 0;
+end;
+
+function GroupAdd(var G: TItemGroups; const AName: string): Integer;
+var
+  K, Id: Integer;
+begin
+  Id := 1;
+  for K := 0 to High(G) do
+    if G[K].Id >= Id then Id := G[K].Id + 1;
+  Result := Length(G);
+  SetLength(G, Result + 1);
+  G[Result].Id := Id;
+  G[Result].Name := AName;
+end;
+
+function GroupOfId(const G: TItemGroups; Id: Integer): Integer;
+var
+  K: Integer;
+begin
+  for K := 0 to High(G) do
+    if G[K].Id = Id then Exit(K);
+  Result := -1;
+end;
+
+function GroupNameTwice(const G: TItemGroups; I: Integer): Boolean;
+var
+  K: Integer;
+begin
+  Result := False;
+  for K := 0 to High(G) do
+    if (K <> I) and SameText(Trim(G[K].Name), Trim(G[I].Name)) then Exit(True);
+end;
+
+function GroupNameOk(const AName, Root: string; out Err: string): Boolean;
+begin
+  Err := '';
+  if Trim(AName) = '' then Err := 'a group needs a name'
+  else if SameText(Trim(AName), AllTagsName) or SameText(Trim(AName), Root) then
+    Err := Format('"%s" is the name of the root of the tree: choose another', [Trim(AName)]);
+  Result := Err = '';
+end;
+
+function GroupsToJson(const G: TItemGroups): TJSONArray;
+var
+  K: Integer;
+  J: TJSONObject;
+begin
+  Result := TJSONArray.Create;
+  for K := 0 to High(G) do
+  begin
+    J := TJSONObject.Create;
+    J.Add('id', G[K].Id);
+    J.Add('name', G[K].Name);
+    Result.Add(J);
+  end;
+end;
+
+procedure GroupsFromJson(A: TJSONArray; var G: TItemGroups);
+var
+  K, N: Integer;
+begin
+  SetLength(G, 0);
+  if A = nil then Exit;
+  for K := 0 to A.Count - 1 do
+    if A.Items[K] is TJSONObject then
+    begin
+      N := Length(G);
+      SetLength(G, N + 1);
+      G[N].Id := A.Objects[K].Get('id', N + 1);
+      G[N].Name := A.Objects[K].Get('name', '');
+    end;
+end;
+
+procedure TPlcProject.DeleteTagGroup(I: Integer);
+var
+  K: Integer;
+begin
+  if (I < 0) or (I > High(TagGroups)) then Exit;
+  for K := 0 to High(Tags) do
+    if Tags[K].GroupId = TagGroups[I].Id then Tags[K].GroupId := 0;
+  for K := I to High(TagGroups) - 1 do TagGroups[K] := TagGroups[K + 1];
+  SetLength(TagGroups, High(TagGroups));
+end;
+
+procedure TPlcProject.DeleteWatchGroup(I: Integer);
+var
+  K: Integer;
+begin
+  if (I < 0) or (I > High(WatchGroups)) then Exit;
+  for K := 0 to High(Watch) do
+    if Watch[K].GroupId = WatchGroups[I].Id then Watch[K].GroupId := 0;
+  for K := I to High(WatchGroups) - 1 do WatchGroups[K] := WatchGroups[K + 1];
+  SetLength(WatchGroups, High(WatchGroups));
 end;
 
 procedure TPlcProject.DeleteTag(I: Integer);
@@ -1260,6 +1720,52 @@ begin
   if (I < 0) or (I > High(Tags)) then Exit;
   for K := I to High(Tags) - 1 do Tags[K] := Tags[K + 1];
   SetLength(Tags, Length(Tags) - 1);
+end;
+
+function TPlcProject.AddSignal(const AAddress: string; AKind: TSigKind; ALo, AHi, APeriod, ADuty: Double): Integer;
+begin
+  Result := Length(Signals);
+  SetLength(Signals, Result + 1);
+  Signals[Result].Address := AAddress;
+  Signals[Result].Kind := AKind;
+  Signals[Result].Lo := ALo;
+  Signals[Result].Hi := AHi;
+  Signals[Result].PeriodMs := APeriod;
+  Signals[Result].Duty := ADuty;
+  Signals[Result].On := False;
+  Signals[Result].Comment := '';
+end;
+
+procedure TPlcProject.DeleteSignal(I: Integer);
+var
+  K: Integer;
+begin
+  if (I < 0) or (I > High(Signals)) then Exit;
+  for K := I to High(Signals) - 1 do Signals[K] := Signals[K + 1];
+  SetLength(Signals, High(Signals));
+end;
+
+function SignalValue(const S: TSimSignal; T: Double; Rnd: Double): Double;
+var
+  Ph, Per: Double;
+begin
+  Per := Max(1, S.PeriodMs) / 1000;
+  Ph := Frac(T / Per);
+  case S.Kind of
+    sgSquare: if Ph * 100 < EnsureRange(S.Duty, 0, 100) then Result := S.Hi else Result := S.Lo;
+    sgSine: Result := S.Lo + (S.Hi - S.Lo) * (0.5 + 0.5 * Sin(2 * Pi * Ph));
+    sgTriangle: if Ph < 0.5 then Result := S.Lo + (S.Hi - S.Lo) * Ph * 2 else Result := S.Hi - (S.Hi - S.Lo) * (Ph - 0.5) * 2;
+    sgRamp: Result := S.Lo + (S.Hi - S.Lo) * Ph;
+    sgRandom: Result := S.Lo + (S.Hi - S.Lo) * Rnd;
+    sgStep:
+      begin
+        // Lo, Lo + 1, .. Hi, Lo again: one step per period
+        if S.Hi > S.Lo then Result := S.Lo + Trunc(T / Per) mod (Trunc(S.Hi - S.Lo) + 1)
+        else Result := S.Lo;
+      end;
+  else
+    Result := S.Hi;
+  end;
 end;
 
 procedure TPlcProject.AddWatch(const AAddress: string; AFmt: TDispFmt; const AModify: string);
@@ -1273,6 +1779,7 @@ begin
   Watch[N].ModifyValue := AModify;
   Watch[N].ModifyOn := False;
   Watch[N].ForceOn := False;
+  Watch[N].GroupId := 0;
 end;
 
 procedure TPlcProject.DeleteWatch(I: Integer);
@@ -1376,6 +1883,7 @@ begin
   Result.Add('number', B.Number);
   Result.Add('name', B.Name);
   Result.Add('comment', B.Comment);
+  if B.Version <> '0.1' then Result.Add('version', B.Version);
   if Length(B.Iface.Vars) > 0 then
   begin
     AVars := TJSONArray.Create;
@@ -1437,6 +1945,7 @@ begin
     JW.Add('address', Watch[I].Address);
     JW.Add('format', DispFmtNames[Watch[I].Fmt]);
     JW.Add('modify', Watch[I].ModifyValue);
+    if Watch[I].GroupId > 0 then JW.Add('group', Watch[I].GroupId);
     Result.Add(JW);
   end;
 end;
@@ -1454,6 +1963,7 @@ begin
       JW := A.Objects[I];
       S := JW.Get('format', 'DEC');
       AddWatch(JW.Get('address', ''), dfDec, JW.Get('modify', ''));
+      Watch[High(Watch)].GroupId := JW.Get('group', 0);
       for F := Low(TDispFmt) to High(TDispFmt) do
         if DispFmtNames[F] = S then Watch[High(Watch)].Fmt := F;
     end;
@@ -1472,6 +1982,7 @@ begin
     Root.Add('cpu', Models[ModelIdx].Name);
     Root.Add('project', Name);
     Root.Add('watch', WatchToJson);
+    if Length(WatchGroups) > 0 then Root.Add('groups', GroupsToJson(WatchGroups));
     SL := TStringList.Create;
     try
       SL.Text := Root.FormatJSON;
@@ -1503,6 +2014,7 @@ begin
     A := TJSONObject(Data).Get('watch', TJSONArray(nil));
     if A = nil then raise Exception.Create('the file has no watch rows');
     SetLength(Watch, 0);
+    GroupsFromJson(TJSONObject(Data).Get('groups', TJSONArray(nil)), WatchGroups);
     WatchFromJson(A);
   finally
     Data.Free;
@@ -1565,11 +2077,32 @@ begin
       JT.Add('type', Tags[I].TypeText);
       JT.Add('address', Tags[I].Address);
       JT.Add('comment', Tags[I].Comment);
+      if Tags[I].GroupId > 0 then JT.Add('group', Tags[I].GroupId);
       ATags.Add(JT);
     end;
     Root.Add('tags', ATags);
+    if Length(TagGroups) > 0 then Root.Add('tagGroups', GroupsToJson(TagGroups));
+    if Length(WatchGroups) > 0 then Root.Add('watchGroups', GroupsToJson(WatchGroups));
     AWatch := WatchToJson;
     Root.Add('watch', AWatch);
+    if Length(Signals) > 0 then
+    begin
+      AIo := TJSONArray.Create;
+      for I := 0 to High(Signals) do
+      begin
+        JW := TJSONObject.Create;
+        JW.Add('address', Signals[I].Address);
+        JW.Add('kind', SigKindNames[Signals[I].Kind]);
+        JW.Add('lo', Signals[I].Lo);
+        JW.Add('hi', Signals[I].Hi);
+        JW.Add('period', Signals[I].PeriodMs);
+        JW.Add('duty', Signals[I].Duty);
+        JW.Add('on', Signals[I].On);
+        if Signals[I].Comment <> '' then JW.Add('comment', Signals[I].Comment);
+        AIo.Add(JW);
+      end;
+      Root.Add('signals', AIo);
+    end;
     AIo := TJSONArray.Create;
     for I := 0 to High(DIch) do AIo.Add(Ord(DIch[I].InType));
     Root.Add('diTypes', AIo);
@@ -1627,6 +2160,7 @@ var
   D: TDataBlock;
   Kind: TBlockKind;
   Sec, Sc: TVarSection;
+  Sk: TSigKind;
   F: TDispFmt;
   T: TDataType;
   Lo, Hi: Integer;
@@ -1658,6 +2192,7 @@ begin
         else Kind := bkOB;
         B := TBlock.Create(Kind, JB.Get('number', 1), JB.Get('name', ''));
         B.Comment := JB.Get('comment', '');
+        B.Version := JB.Get('version', '0.1');
         B.Iface.Owner := Self;
         Blocks.Add(B);
         AVars := JB.Get('interface', TJSONArray(nil));
@@ -1770,9 +2305,24 @@ begin
       begin
         JT := ATags.Objects[I];
         AddTag(JT.Get('name', ''), JT.Get('type', 'Bool'), JT.Get('address', ''), JT.Get('comment', ''));
+        Tags[High(Tags)].GroupId := JT.Get('group', 0);
       end;
+    GroupsFromJson(Root.Get('tagGroups', TJSONArray(nil)), TagGroups);
+    GroupsFromJson(Root.Get('watchGroups', TJSONArray(nil)), WatchGroups);
     AWatch := Root.Get('watch', TJSONArray(nil));
     if AWatch <> nil then WatchFromJson(AWatch);
+    AIo := Root.Get('signals', TJSONArray(nil));
+    if AIo <> nil then
+      for I := 0 to AIo.Count - 1 do
+      begin
+        JW := AIo.Objects[I];
+        K := AddSignal(JW.Get('address', ''), sgConst, JW.Get('lo', 0.0), JW.Get('hi', 1.0), JW.Get('period', 1000.0),
+          JW.Get('duty', 50.0));
+        for Sk := Low(TSigKind) to High(TSigKind) do
+          if SameText(SigKindNames[Sk], JW.Get('kind', '')) then Signals[K].Kind := Sk;
+        Signals[K].On := JW.Get('on', False);
+        Signals[K].Comment := JW.Get('comment', '');
+      end;
     AIo := Root.Get('diTypes', TJSONArray(nil));
     if AIo <> nil then
       for I := 0 to Min(High(DIch), AIo.Count - 1) do

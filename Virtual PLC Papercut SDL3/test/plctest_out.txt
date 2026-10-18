@@ -1,0 +1,902 @@
+--- groups of tags / watch rows, SCL import of types and DBs ---
+  ok   a new group gets a new Id
+  ok   a name used twice is seen (red in the tree)
+  ok   renamed: no longer twice
+  ok   "All tag" is the root's name
+  ok   not empty; another name is fine
+  ok   "All rows" is the root of the watch tree
+  ok   tag groups in the project file
+  ok   the group of each tag
+  ok   watch groups and rows
+  ok   a group deleted: its tags stay
+  ok   the other group keeps its Id
+  ok   a watch group deleted: its rows stay
+  ok   Data blocks: a source of blocks alone is refused
+  ok   Data blocks: TYPE and DATA_BLOCK imported: no TYPE or DATA_BLOCK in the source (its blocks are imported on the Program screen)
+  ok   the type and the DB are there
+  ok   the FUNCTION is left out
+  ok   the report says so
+  ok   BEGIN: the start value
+--- I/O: next address, next name, signals ---
+  ok   M100.7 -> M101.0
+  ok   I0.3 -> I0.4
+  ok   MW20 -> MW22
+  ok   MD20 -> MD24 (its size)
+  ok   IW64 -> IW66
+  ok   Tag_3 -> Tag_4
+  ok   Motor -> Motor_2 (Motor_1 is taken)
+  ok   not case sensitive: tag_4 is taken
+  ok   square 25 %
+  ok   sine 0..100
+  ok   triangle: top at half
+  ok   ramp
+  ok   step 0,1,2,3,0
+  ok   random: Lo + (Hi - Lo) * rnd
+  ok   the signals in the project file
+  ok   row 1 back
+  ok   row 2 back
+  ok   delete a row
+  ok   SetSimRaw: big endian
+== LAD boxes and STL calls of the SCL functions
+  ok   the LAD / STL project compiles
+  ok   RUN
+  ok   LAD SEL(G := TRUE, 1, 2) = 2
+  ok   ENO = EN
+  ok   LAD MUX(K := 2) = 30
+  ok   LAD LIMIT(0, 50, 20) = 20
+  ok   LAD MIN = 4, MAX = 9 (IN4 left empty)
+  ok   LAD SQRT(16.0) = 4.0
+  ok   LAD EXPT(2.0, 3.0) = 8.0
+  ok   LAD MOD(17, 5) = 2
+  ok   LAD SHL(1, 3) = 8
+  ok   LAD AND words = 16#0F00
+  ok   LAD INV = 16#FF00
+  ok   LAD CONCAT = 'abcd'
+  ok   LAD LEN = 4
+  ok   LAD MID = 'ell'
+  ok   LAD SEL with EN = 0: OUT stays, ENO = 0
+  ok   STL CALL SEL = 6
+  ok   STL CALL MAX (OUT :=) = 8
+  ok   STL CALL CONCAT = 'xyz'
+  ok   STL CALL LIMIT = 100
+  ok   CTU_DINT box: CV 0
+  ok   LAD R_TRIG box + INC: 3 rising edges (3)
+  ok   LAD F_TRIG box: 3 falling edges (3)
+  ok   LAD CTU with a CTU_DINT instance: CV 3 (3)
+  ok   LAD TON with a TON_LTIME instance: Q after LT#50MS
+  ok   TON_LTIME: ET in ns
+  ok   STL CALL of a TON_TIME instance: Q
+  ok   LAD RS box: set
+  ok   LAD RS box: reset wins
+  ok   SEL box without OUT: an error
+  ok   its message: SEL: OUT missing
+  ok   FC "Avg2" -> "Mean": 2 places follow (the call, #Avg2 in the FC)
+  ok   the call is "Mean"(..)
+  ok   its value #Mean := ..
+  ok   the renamed project compiles
+  ok   the version in the .scl source
+  ok   the project file has the new name
+  ok   the project file has the version
+== .scl sources: export, import (phase 4)
+  ok   the TIA source imports: imported: type "Mixer_State", type "Recipe", FB7 "Mixer" (2 networks), OB1 "Main" (1 networks), DB1 "Mixer_DB", DB2 "Plant"
+  ok   TYPE "Recipe" with 2 members and a comment
+  ok   the anonymous Struct became the PLC data type "Mixer_State"
+  ok   FB "Mixer" took the number of its "// FB7" line
+  ok   two REGIONs: two networks (2)
+  ok   the network titles from the REGIONs, the first comment line of a REGION
+  ok   VAR CONSTANT at the top of the first network
+  ok   the comment of a declaration
+  ok   State : "Mixer_State"
+  ok   VAR_TEMP into the interface
+  ok   the instance DB of FB7
+  ok   DB "Plant": the BEGIN value as start value, VAR RETAIN
+  ok   the imported project compiles
+  ok   it runs: 7 edges, counted to the constant 5 (5)
+  ok   the anonymous Struct: Step = 5 * 100 (500)
+  ok   export: FUNCTION_BLOCK "Mixer"
+  ok   export: the networks as REGIONs
+  ok   export: VAR CONSTANT in the declaration part
+  ok   export: VAR RETAIN of a DB
+  ok   the export imports again: imported: type "Mixer_State", type "Recipe", FB7 "Mixer" (2 networks), OB1 "Main" (1 networks), DB1 "Mixer_DB", DB2 "Plant"
+  ok   the round trip gives the same source
+  ok   the round trip compiles
+  ok   01_Motor_start_stop_S7-1200.vplc: its export (without the LAD / STL networks) imports: imported: type "SpeedSample", FC1 "SpeedStats" (1 networks), FC2 "Clamp" (1 networks), FB1 "RunMeter" (1 networks), OB1 "Main" (1 networks), OB30 "Cyclic interrupt" (1 networks), OB100 "Startup" (1 networks), DB2 "RunMeter_DB", DB1 "Motor"
+  ok   02_Motor_start_stop_S7-1500.vplc: its export (without the LAD / STL networks) imports: imported: type "SpeedSample", FC1 "SpeedStats" (1 networks), FC2 "Clamp" (1 networks), FB1 "RunMeter" (1 networks), OB1 "Main" (1 networks), OB30 "Cyclic interrupt" (1 networks), OB100 "Startup" (1 networks), DB2 "RunMeter_DB", DB1 "Motor"
+  ok   03_Motor_start_stop_S7-300.vplc: its export (without the LAD / STL networks) imports: imported: type "SpeedSample", FC1 "SpeedStats" (1 networks), FC2 "Clamp" (1 networks), FB1 "RunMeter" (1 networks), OB1 "Main" (1 networks), OB35 "Cyclic interrupt" (1 networks), OB100 "Complete restart" (1 networks), DB2 "RunMeter_DB", DB1 "Motor"
+  ok   04_Motor_start_stop_S7-400.vplc: its export (without the LAD / STL networks) imports: imported: type "SpeedSample", FC1 "SpeedStats" (1 networks), FC2 "Clamp" (1 networks), FB1 "RunMeter" (1 networks), OB1 "Main" (1 networks), OB35 "Cyclic interrupt" (1 networks), OB100 "Complete restart" (1 networks), DB2 "RunMeter_DB", DB1 "Motor"
+  ok   05_Traffic_light_S7-1200.vplc: its export imports: imported: OB1 "Main" (2 networks), DB1 "Traffic"
+  ok   05_Traffic_light_S7-1200.vplc: SCL only, the import compiles
+  ok   06_Tank_level_control_S7-1200.vplc: its export (without the LAD / STL networks) imports: imported: OB1 "Main" (2 networks), DB1 "Tank"
+  ok   07_Conveyor_box_counter_S7-1200.vplc: its export (without the LAD / STL networks) imports: imported: OB1 "Main" (1 networks), DB1 "Belt"
+  ok   08_Star_delta_starter_S7-300.vplc: its export (without the LAD / STL networks) imports: imported: OB1 "Main" (1 networks)
+  ok   09_Pump_duty_standby_S7-1500.vplc: its export imports: imported: OB1 "Main" (2 networks), DB1 "Pumps"
+  ok   09_Pump_duty_standby_S7-1500.vplc: SCL only, the import compiles
+  ok   10_Garage_door_S7-1200.vplc: its export (without the LAD / STL networks) imports: imported: OB1 "Main" (1 networks)
+  ok   11_Car_wash_sequence_S7-1500.vplc: its export imports: imported: OB1 "Main" (2 networks), DB1 "Wash"
+  ok   11_Car_wash_sequence_S7-1500.vplc: SCL only, the import compiles
+  ok   12_Mixing_batch_recipes_S7-1500.vplc: its export imports: imported: type "Recipe", OB1 "Main" (2 networks), OB30 "Tank simulation" (1 networks), DB1 "Batch"
+  ok   12_Mixing_batch_recipes_S7-1500.vplc: SCL only, the import compiles
+  ok   13_Parking_garage_counter_S7-1200.vplc: its export (without the LAD / STL networks) imports: imported: OB1 "Main" (1 networks), DB1 "Garage"
+  ok   14_Alarm_handling_S7-1200.vplc: its export imports: imported: OB1 "Main" (1 networks), DB1 "Alarms"
+  ok   14_Alarm_handling_S7-1200.vplc: SCL only, the import compiles
+  ok   15_Running_light_S7-1200.vplc: its export imports: imported: OB1 "Main" (1 networks), DB1 "Chaser"
+  ok   15_Running_light_S7-1200.vplc: SCL only, the import compiles
+  ok   16_Temperature_control_S7-1500.vplc: its export imports: imported: OB1 "Main" (2 networks), DB1 "Temp"
+  ok   16_Temperature_control_S7-1500.vplc: SCL only, the import compiles
+  ok   17_STL_basics_S7-300.vplc: its export (without the LAD / STL networks) imports: imported: OB1 "Main" (1 networks)
+  ok   18_Hand_auto_mode_S7-400.vplc: its export (without the LAD / STL networks) imports: imported: OB1 "Main" (1 networks), OB35 "Run time" (1 networks)
+  ok   19_Timers_LAD_S7-1200.vplc: its export (without the LAD / STL networks) imports: imported: OB1 "Main" (1 networks), DB1 "Timers"
+  ok   20_Counters_LAD_S7-1200.vplc: its export (without the LAD / STL networks) imports: imported: OB1 "Main" (1 networks), DB1 "Counters"
+  ok   21_Timers_LAD_S7-1500.vplc: its export (without the LAD / STL networks) imports: imported: OB1 "Main" (1 networks), DB1 "Timers"
+  ok   22_Counters_LAD_S7-1500.vplc: its export (without the LAD / STL networks) imports: imported: OB1 "Main" (1 networks), DB1 "Counters"
+  ok   23_Timers_LAD_S7-300.vplc: its export (without the LAD / STL networks) imports: imported: OB1 "Main" (1 networks), DB1 "Timers"
+  ok   24_Counters_LAD_S7-300.vplc: its export (without the LAD / STL networks) imports: imported: OB1 "Main" (1 networks), DB1 "Counters"
+  ok   25_Timers_LAD_S7-400.vplc: its export (without the LAD / STL networks) imports: imported: OB1 "Main" (1 networks), DB1 "Timers"
+  ok   26_Counters_LAD_S7-400.vplc: its export (without the LAD / STL networks) imports: imported: OB1 "Main" (1 networks), DB1 "Counters"
+  ok   27_Data_type_conversion_S7-1200.vplc: its export (without the LAD / STL networks) imports: imported: OB1 "Main" (4 networks), DB1 "Conv"
+  ok   28_Data_type_conversion_STL_S7-300.vplc: its export (without the LAD / STL networks) imports: imported: OB1 "Main" (1 networks)
+  ok   29_Math_S7-1200.vplc: its export (without the LAD / STL networks) imports: imported: OB1 "Main" (6 networks), DB1 "Math"
+  ok   30_Large_FB_motor_control_S7-1500.vplc: its export (without the LAD / STL networks) imports: imported: FB1 "MotorCtrl" (4 networks), OB1 "Main" (1 networks), DB1 "M1_DB", DB2 "M2_DB", DB3 "M3_DB"
+  ok   31_SCL_elements_S7-1500.vplc: its export imports: imported: FC1 "Avg2" (1 networks), FB1 "Signals" (1 networks), OB1 "Main" (3 networks), DB2 "Signals_DB", DB1 "Elems"
+  ok   31_SCL_elements_S7-1500.vplc: SCL only, the import compiles
+  ok   32_SCL_strings_S7-1500.vplc: its export imports: imported: FC1 "Hello" (1 networks), OB1 "Main" (2 networks), DB1 "Text"
+  ok   32_SCL_strings_S7-1500.vplc: SCL only, the import compiles
+  ok   33_SCL_64_bit_dates_S7-1500.vplc: its export imports: imported: FB1 "Runner" (1 networks), OB1 "Main" (2 networks), DB2 "Runner_DB", DB1 "Long"
+  ok   33_SCL_64_bit_dates_S7-1500.vplc: SCL only, the import compiles
+  ok   34_LAD_STL_SCL_functions_S7-1500.vplc: its export (without the LAD / STL networks) imports: imported: OB1 "Main" (1 networks), DB1 "Box"
+  ok   10 examples in SCL only went round
+  ok   an error: its line, nothing imported (1 blocks, 1 data blocks, 0 PLC data types; 9 LAD / STL networks have no SCL text (left out))
+  ok   nothing imported
+== SCL 64 bit and the long times / dates (phase 3)
+  ok   64 bit project compiles
+  ok   DTL variable
+  ok   DTL takes 12 bytes
+  ok   RUN
+  ok   LInt start value 2^53 + 1, exact
+  ok   LInt + 2 exact (9007199254740995)
+  ok   LINT_TO_INT(2^53 + 1) = 1 (the low 16 bits)
+  ok   LINT_TO_DINT(5000000000) = 705032704 (705032704)
+  ok   ULInt max - 1
+  ok   ULInt compares unsigned
+  ok   LWord.%D1 = 16#FFFF0000 (FFFF0000)
+  ok   LWord.%X0 := TRUE
+  ok   LReal 0.1 * 3.0 in double precision (0.3)
+  ok   LT#1D2H3M4S5MS6US7NS in ns
+  ok   LTime + LT#1NS
+  ok   LTIME_TO_TIME: ms (93784005)
+  ok   TIME_TO_LTIME(T#2S) = 2e9 ns
+  ok   TOD#23:00 + T#2H = TOD#1:00 (3600000)
+  ok   TOD - TOD = T#30M
+  ok   DT + T#1D: the BCD of 2024-02-01 12:00:00.500 (2402011200005005)
+  ok   DT_TO_DATE
+  ok   DT_TO_TOD = 12:00:00.500
+  ok   LTOD#23:59:59.999999999 + 1 ns = midnight
+  ok   DT_TO_LDT: ns since 1970
+  ok   LDT start value with ns
+  ok   LDT compare with one ns less
+  ok   DTL.YEAR := 2025
+  ok   DTL start: DAY 1
+  ok   DTL start: a Thursday
+  ok   array of LInt with a variable index: exact
+  ok   MUX of LInt exact
+  ok   SEL of LInt exact
+  ok   MAX of LInt exact
+  ok   VAR CONSTANT LInt exact
+  ok   LREAL_TO_REAL
+  ok   CTUD_LINT loaded with PV 5000000000
+  ok   TON_LTIME: Q after LT#50MS
+  ok   TON_LTIME: ET = PT in ns
+  ok   CTU_DINT counts
+  ok   CTUD_LINT counts past 2^32
+  ok   Time := LTime needs a conversion
+  ok   TIME + LTIME is not allowed
+  ok   Real := LReal needs LREAL_TO_REAL
+  ok   TOD * 2 is not allowed
+  ok   TOD + TOD is not allowed
+  ok   LINT# out of range
+  ok   LInt, LTime ... do not exist on the S7-1200
+== SCL strings (phase 2)
+  ok   string project compiles
+  ok   String[20] takes 22 bytes
+  ok   String takes 256 bytes
+  ok   WString[20] takes 44 bytes
+  ok   RUN
+  ok   the head of String[20]: max length 20
+  ok   start value 'Hello'
+  ok   s2 := s1
+  ok   CONCAT = 'Hello world' (Hello world)
+  ok   LEN = 11
+  ok   FIND('Hello world', 'wor') = 7 (7)
+  ok   LEFT 5 = 'Hello'
+  ok   RIGHT 5 = 'world'
+  ok   MID(L := 3, P := 2) through a VAR_TEMP String = 'ell'
+  ok   String[4] := 'Hello world' keeps 4 characters
+  ok   'Hello' = 'Hello'
+  ok   'Hello' < 'Help'
+  ok   Char = 'A'
+  ok   'Hello' > Char 'A'
+  ok   Char 'A' < 'Hello' (the Char first)
+  ok   'world' <> 'world' = FALSE
+  ok   String := Char
+  ok   CONCAT(Char, 'B') = 'AB' (AB)
+  ok   Array of String: start values, arr["S".k] := 'zz'
+  ok   $' in a literal
+  ok   '' and $54 in a literal (a'bT)
+  ok   WString start value with $00FC$00DF (GrA¬AYe)
+  ok   CONCAT of WStrings
+  ok   WCHAR#'$03A9' = 937 (937)
+  ok   FC String Output: 'Hi Hello'
+  ok   FC String Return value as #Greet: 'Hi Hello!'
+  ok   FB String Input into a String[10] Static: LEN = 10 (10)
+  ok   the Static keeps 10 characters
+  ok   FB InOut String: LEFT 3 + '-x' (ef-x)
+  ok   the variable after the strings is not overwritten
+  ok   modify a String[20]: 20 characters kept (Modified text that i)
+  ok   the program copies it into a String[10]
+  ok   Int := String: type mismatch
+  ok   String := 5: type mismatch
+  ok   LEN(5): a String expected
+  ok   LEFT: L must be an integer
+  ok   String = 5 cannot be compared
+  ok   String + String: not a number operation
+  ok   SEL of strings
+== SCL elements of the SCL Compiler (phase 1)
+  ok   phase 1 project compiles
+  ok   RUN
+  ok   INT#-5 + #K10 = 5 (5)
+  ok   8#17 + 2#1010 = 25 (25)
+  ok   UDINT#4000000000 (4000000000)
+  ok   a number above the DInt range is a UDInt
+  ok   UDInt start value 4000000001
+  ok   D#2024-01-31 = 12448 days since 1990 (12448)
+  ok   TOD#12:30:15.5 = 45015500 ms (45015500)
+  ok   VAR CONSTANT KT : Time := T#2S
+  ok   VAR CONSTANT KR : Real := -1.5, * 4 = -6 (FFFA)
+  ok   INT#100 + USINT#200 - SINT#-1 = 301 (301)
+  ok   BOOL#1
+  ok   CHAR#'A' = 65
+  ok   MUX(K := 2, ..) = IN2 = 30 (30)
+  ok   MUX(7, 1, 2, 3): K outside, no INELSE = 0 (0)
+  ok   MUX in MUX = 6 (6)
+  ok   MUX: K outside -> INELSE = -1
+  ok   MIN of 6 inputs = 5 (5)
+  ok   MAX of 7 positional inputs = 7
+  ok   w.%X3 := TRUE; w.%B1 := 16#AB -> 16#AB08 (AB08)
+  ok   w.%X11 of 16#AB08 = TRUE
+  ok   DW#16#11223344.%B2 = 16#22 (22)
+  ok   DW#16#11223344.%W1 = 16#1122 (1122)
+  ok   Int -1 with .%X15 := FALSE = 32767 (7FFF)
+  ok   arrw[#k].%X0 / .%B1 with a variable index = 16#C001 (C001)
+  ok   arrw[#k].%X15 = TRUE
+  ok   m[1, 2] := 5
+  ok   m["D".k, 3] := 7
+  ok   m[1, 2] + m[2, 3] + m[0, 3] = 312 (312)
+  ok   start values [1, 2, 3(7)]
+  ok   start value INT#-3
+  ok   #Add2 := #a + #b; "Add2"(2, 3, ..) = 5 (5)
+  ok   positional Output o = 6
+  ok   positional InOut io: 0 + 1 + 1 = 2 (2)
+  ok   named call: Return 9, o 20
+  ok   CTD_INT loaded with PV 5 (5)
+  ok   TON_TIME: Q after PT
+  ok   TP_TIME: Q during the pulse
+  ok   R_TRIG: one rising edge (1)
+  ok   CTU_INT: CV = 1 (CV => %MW24)
+  ok   CTD_INT: CV = 4
+  ok   RS / SR set
+  ok   R_TRIG in a global DB: "D".ft(CLK := ..)
+  ok   RS: reset wins (S and R1)
+  ok   SR: set wins (S1 and R)
+  ok   F_TRIG: one falling edge
+  ok   SR: reset when S1 = 0 and R = 1
+  ok   TON_TIME: Q off with IN
+  ok   R_TRIG: 3 rising edges (3)
+  ok   CTU_INT: Q at CV >= PV
+  ok   CTU_INT: CV = 3
+  ok   R_TRIG in a DB: 3 edges
+  ok   a constant cannot be written
+  ok   VAR CONSTANT needs a value
+  ok   VAR CONSTANT Int := 1.5: type mismatch
+  ok   no .%X16 in a Word
+  ok   no .%W0 in a Byte
+  ok   no slice of a Time_Of_Day
+  ok   MUX: K must be an integer
+  ok   MUX needs two inputs
+  ok   INT#40000 is out of range
+  ok   D#2024-02-30 is no date
+  ok   m[1]: two indexes expected
+  ok   m[3, 1]: outside the array
+  ok   positional Output needs a variable
+  ok   too many positional parameters
+== SCL
+  ok   SCL compiles
+  ok   SCL RUN
+  ok   2 + 3 * 4 = 14
+  ok   (2 + 3) * 4 = 20
+  ok   -2.0 ** 2.0 = -4 (unary after **)
+  ok   17 MOD 5 + 17 / 5 = 2 + 3
+  ok   INT 30000 + 30000 wraps to -5536
+  ok   DINT 30000 + 30000 = 60000
+  ok   INT_TO_REAL(7) / 2.0 + SQRT(16.0) = 7.500
+  ok   1 + 2 = 3 AND NOT FALSE OR FALSE
+  ok   5 > 3 XOR TRUE = FALSE
+  ok   IF / ELSIF / ELSE
+  ok   CASE 7..9
+  ok   FOR with a variable array index
+  ok   CONTINUE skips 7*7
+  ok   FOR BY -3 down to 1
+  ok   WHILE with EXIT
+  ok   REPEAT UNTIL
+  ok   Bool array with an index expression
+  ok   LIMIT MAX MIN with named parameters
+  ok   REAL_TO_INT rounds halves to even
+  ok   SHL
+  ok   bit string AND
+  ok   SCALE_X(0.25, 0..400) = 100
+  ok   NORM_X(13824 of 27648) * 100 > 49
+  ok   FC1 in SCL called every cycle, RETURN skips the rest (41)
+  ok   TON not yet done
+  ok   SCL TON: Q after 200 ms
+  ok   ET => "D".T1 = 200 ms
+  ok   SCL CTU counted the TON edge
+  ok   S7-1500: array index 12 outside [0..9] -> STOP
+    diag: Power on: CPU 1516-3 PN/DP, V2.9 - STOP (no user program)
+    diag: Download: 1 blocks, 1 DBs, 68 bytes code, 54 bytes data
+    diag: STOP -> STARTUP (warm restart)
+    diag: STARTUP -> RUN
+    diag: Array index 12 outside [0..9] ("D".Arr) in OB1 network 1 line 3
+    diag: RUN -> STOP: programming error, OB121 not loaded
+    ERR OB1 nw 1 line 1: REAL to Int needs a conversion: REAL_TO_INT(...) (%MW0)
+    ERR OB1 nw 1 line 2: a condition must be BOOL (not Int)
+    ERR OB1 nw 1 line 3: #x is not declared (VAR_TEMP x : Int; END_VAR, or in the interface)
+    ERR OB1 nw 1 line 4: type mismatch: Bool := DInt (%M0.0)
+    ERR OB1 nw 1 line 5: operand expected, found ";"
+  ok   compile errors found (5)
+== PLC data types (UDT), arrays of structs, arrays in VAR_TEMP
+  ok   "Axis": Int, Bool, Real, Array[0..2] of Int, "Pair", IEC_TIMER, IEC_COUNTER = 34 bytes (34)
+  ok   DB layout: M at 2, One at 138, Tm at 172, 212 bytes (2, 138, 172, 212)
+  ok   UDT program compiles
+  ok   UDT program RUN
+  ok   VAR_TEMP Array of Int with a variable index
+  ok   VAR_TEMP Array of Bool, #bits[#i] and #bits[#i - 1]
+  ok   array of structs: "D".M[#i].Speed and .Hist[1]
+  ok   "D".M[2].Speed = 200 (constant index path)
+  ok   Bool member in the array: M[1].On, M[2].On
+  ok   nested struct in the array: M[3].P.a = 21, .P.b
+  ok   start value of a struct member (Speed = 5)
+  ok   Real start value 1.5 in the array, * 2.0 = 3.0
+  ok   "D".One.Hist[#i + 1] := "D".M[#i + 2].P.a
+  ok   VAR_TEMP struct: #a.Speed, #a.P.b
+  ok   VAR_TEMP Array of "Pair": #arr[#i].a
+  ok   save / load: 2 PLC data types, DB 212 bytes
+  ok   loaded UDT project compiles
+  ok   a PLC data type cannot contain itself
+  ok   a whole struct is no operand
+  ok   two variable indexes in one operand compile
+  ok   .TON needs an IEC_TIMER (P is a "Pair")
+  ok   Speed is not an array
+  ok   unknown member
+  ok   a struct temp needs a member
+  ok   constant temp index outside the bounds
+  ok   VAR_TEMP over 256 bytes
+  ok   S7-300: array of UDT1 in SCL
+== variable indexes: timers in arrays of structs, "DB".M[#i].Hist[#j]
+  ok   variable index program compiles
+  ok   RUN
+  ok   "D".M[#i].Hist[#j]: two variable indexes (M[3].Hist[2] = 32, M[1].Hist[0] = 10)
+  ok   "D".M[#j].Hist[#j - 1] + "D".M[3].Hist[#j] = 53
+  ok   PT := 100 * (#i + 1) lands in M[2].T.PT (300)
+  ok   "D".M[#i].T.TON: each element has its own timer (100, 200 done; 300, 400 running)
+  ok   M[3].T.ET runs: 251 ms
+  ok   "D".M[#i].C.CTU counted the TON of its own element, CV => M[#i].Speed
+  ok   read "D".M[#j - 2].T.Q
+  ok   "D".Tm[#j] (Array of IEC_TIMER) idle with IN = FALSE
+  ok   "D".Tm[#j].TON: Q after 50 ms
+  ok   ET => "D".M[#j + 1].T.PT = 50
+  ok   only Tm[2] ran
+  ok   Hist[3] outside [0..2] -> STOP
+    diag: Power on: CPU 1516-3 PN/DP, V2.9 - STOP (no user program)
+    diag: Download: 1 blocks, 1 DBs, 84 bytes code, 212 bytes data
+    diag: STOP -> STARTUP (warm restart)
+    diag: STARTUP -> RUN
+    diag: Array index 3 outside [0..2] ("D".M[..].Hist) in OB1 network 1 line 4
+    diag: RUN -> STOP: programming error, OB121 not loaded
+== whole struct / array assignment (a := b)
+  ok   struct assignments compile
+  ok   RUN
+  ok   "D".M[2] := "D".M[1] copies every member (Int, Real, array, nested struct, Bool)
+  ok   #a := "D".M[1]; "D".M[#i] := #a (a temp struct, a variable index on the target)
+  ok   "D".One := "D".M[#i - 2] (a variable index on the source)
+  ok   nested struct and array copies leave the other members (Speed 5)
+  ok   "D".Tm[1] := "D".Tm[0] (IEC_TIMER instance)
+  ok   type mismatch: "Axis" := "Pair"
+  ok   a struct cannot take a number
+  ok   Array[0..3] := Array[0..2]: mismatch
+  ok   "Axis" := IEC_TIMER: mismatch
+  ok   a struct is no value for an Int
+== FB with parameters, instance DBs, multi-instances
+  ok   instance DB follows the interface: Input, Output, InOut, Static, no Temp (7 vars)
+  ok   Meter_DB: 30 bytes (30)
+  ok   FB project compiles
+  ok   RUN
+  ok   Busy => "D".Bz (output after the call)
+  ok   Pt := T#100MS lands in the instance
+  ok   #T.TON in the FB static: 5 pulses of 100 ms -> Count => "D".Cnt
+  ok   InOut Total := "D".Tot copied in and back (1000 + Count)
+  ok   FB static array #Hist[#k] shifted with a temp loop
+  ok   STL CALL FB1, DB4: a second instance counts on its own (5)
+  ok   LAD CALL "Meter3": Run = FALSE, no count
+  ok   Group idle while Go = FALSE
+  ok   multi-instance #A (50 ms) in "Group_DB": 6
+  ok   #B[#i](..): an array of multi-instances, own timers (3, 1)
+  ok   #Sum := #A.Count + #B[0].Count + #B[1].Count
+  ok   LAD CALL "Meter3" counts with Run = %I0.2
+  ok   save / load: FB interface sections, instance DBs
+  ok   loaded FB project compiles
+    ERR OB1 nw 1 line 1: Count is an output: Count => target
+    ERR OB1 nw 1 line 2: Run is an Input: Run := ..
+    ERR OB1 nw 1 line 3: FB1 "Meter" has no parameter Nope
+    ERR OB1 nw 1 line 4: T is a Static of FB1: no parameter
+    ERR OB1 nw 1 line 5: Meter is an FB: call it with an instance ("Inst_DB"(...), #inst(...), CALL FB1, DB10)
+    ERR OB1 nw 1 line 6: Total is an InOut: a variable expected
+    ERR OB1 nw 1 line 7: DB "D" is a global DB, no instance of an FB
+  ok   FB call errors: output with :=, input with =>, unknown, static, no instance, InOut constant, no instance DB (7)
+  ok   an FB cannot contain an instance of itself
+  ok   S7-300: FB project compiles
+== FC with parameters (Input, Output, InOut, Return)
+  ok   FC project compiles
+  ok   RUN
+  ok   Return value: "D".R := "Clamp"(150, 0..100) = 100, Limited => TRUE
+  ok   an FC call inside an expression: "Clamp"(50) * 2.0 + 1.0 = 101, Limited => FALSE
+  ok   InOut: "Swap"(a := #a, b := #b) swaps the temps (21)
+  ok   an array InOut: "Fill" changes "D".Arr5 in and back, sum => 35
+  ok   an Output the FC does not write keeps the target value
+  ok   STL in an FC: L #x, + 1, T #y (FC6(x := 41) = 42)
+  ok   an FC calls an FC in its Return expression
+  ok   save / load: the Return section
+  ok   loaded FC project compiles
+  ok   an FC needs every parameter
+  ok   an InOut needs a variable
+  ok   an Output with :=
+  ok   no Return value in an expression
+  ok   a parameter given twice
+  ok   InOut type mismatch (DInt for an Int)
+    ERR OB1 nw 2 line 1: FC3 has parameters: give them (STL: lines "Name := operand" after CALL; LAD: the CALL box pins; SCL: "Swap"(a := ..))
+    ERR FC5 nw 0 line 0: FC5.S: an FC has no Static (no instance): use an FB or a DB
+  ok   STL CALL of an FC with parameters, a Static in an FC: errors
+== STL CALL with parameters, LAD CALL box pins
+  ok   S7-300: STL CALL with parameter lines compiles
+  ok   RUN
+  ok   CALL "Clamp": Value := "D".R, Lo := 0.0, Hi := 100.0 -> Ret_Val := "D".R2 = 100, Limited TRUE
+  ok   CALL FC3 with InOuts a := MW30, b := MW32 swaps every cycle (21)
+  ok   CALL "Fill" once (JC around it): an array InOut, sum := "D".S = 35
+  ok   CALL FC6: x := MW34 (0), y := MW36 = 1 (STL inside the FC)
+  ok   STL: an FC needs every parameter
+  ok   STL: MD0 does not fit an Int
+  ok   STL: a constant for an InOut
+  ok   STL: unknown parameter
+  ok   STL: CALL without the parameter lines of an FC with parameters
+  ok   STL CALL FB1, DB4 with parameters compiles
+  ok   STL FB call: Run := I0.0, Count := MD40 (4)
+    ERR OB1 nw 4 line 1: block "Meter_DB" does not exist
+  ok   LAD CALL of an unknown instance: error
+  ok   LAD CALL boxes with parameter pins compile
+  ok   LAD CALL "Clamp": Ret_Val pin -> %MD70 = 100
+  ok   LAD CALL with EN = FALSE: no parameters copied
+  ok   EN = TRUE: Ret_Val 50, Limited TRUE
+  ok   LAD: an FC box with empty pins
+  ok   S7-1200: LAD CALL "Meter3" with Run / Pt pins compiles
+  ok   LAD FB box: Run pin = %I0.2 counts (3)
+== LAD networks wider than 8 columns
+  ok   SetCols(12): one row of 12 cells
+  ok   SetRows keeps the 12 columns
+  ok   SetCols(14) keeps every cell at its row and column
+  ok   a 12 column network compiles
+  ok   coil in column 12 off while the contacts are open
+  ok   I1.1 (column 10) still open: off
+  ok   all 11 contacts closed: Q4.0 in column 12 on
+  ok   save / load keeps the 12 columns
+== LAD comparators (IN_RANGE, OUT_RANGE) and converters (CONV, ROUND, TRUNC, CEIL, FLOOR)
+  ok   the comparator and converter networks compile
+  ok   IN_RANGE 0 <= 50 <= 100: TRUE
+  ok   OUT_RANGE 0..100 of 50: FALSE
+  ok   IN_RANGE 60..100 of 50: FALSE
+  ok   CONV Int 50 to Real: 50
+  ok   TRUNC -2.7 = -2 (-2)
+  ok   CEIL -2.7 = -2 (-2)
+  ok   FLOOR -2.7 = -3 (-3)
+  ok   ROUND -2.7 = -3 (-3)
+  ok   CONV DInt 40000 to Int: too big, ENO = 0, OUT unchanged
+  ok   CONV DInt 40000 to Real: ENO = 1
+  ok   ROUND 2.5 to Int = 2 (a half to the even) (2)
+  ok   save / load: IN_RANGE, TRUNC, CONV DInt to Int
+== Example projects
+  ok   01_Motor_start_stop_S7-1200.vplc compiles (0 errors)
+  ok   01_Motor_start_stop_S7-1200.vplc runs (still in RUN after 0.3 s)
+  ok   01_Motor_start_stop_S7-1200.vplc saved and loaded: still compiles
+  ok   02_Motor_start_stop_S7-1500.vplc compiles (0 errors)
+  ok   02_Motor_start_stop_S7-1500.vplc runs (still in RUN after 0.3 s)
+  ok   02_Motor_start_stop_S7-1500.vplc saved and loaded: still compiles
+  ok   03_Motor_start_stop_S7-300.vplc compiles (0 errors)
+  ok   03_Motor_start_stop_S7-300.vplc runs (still in RUN after 0.3 s)
+  ok   03_Motor_start_stop_S7-300.vplc saved and loaded: still compiles
+  ok   04_Motor_start_stop_S7-400.vplc compiles (0 errors)
+  ok   04_Motor_start_stop_S7-400.vplc runs (still in RUN after 0.3 s)
+  ok   04_Motor_start_stop_S7-400.vplc saved and loaded: still compiles
+  ok   05_Traffic_light_S7-1200.vplc compiles (0 errors)
+  ok   05_Traffic_light_S7-1200.vplc runs (still in RUN after 0.3 s)
+  ok   05_Traffic_light_S7-1200.vplc saved and loaded: still compiles
+  ok   06_Tank_level_control_S7-1200.vplc compiles (0 errors)
+  ok   06_Tank_level_control_S7-1200.vplc runs (still in RUN after 0.3 s)
+  ok   06_Tank_level_control_S7-1200.vplc saved and loaded: still compiles
+  ok   07_Conveyor_box_counter_S7-1200.vplc compiles (0 errors)
+  ok   07_Conveyor_box_counter_S7-1200.vplc runs (still in RUN after 0.3 s)
+  ok   07_Conveyor_box_counter_S7-1200.vplc saved and loaded: still compiles
+  ok   08_Star_delta_starter_S7-300.vplc compiles (0 errors)
+  ok   08_Star_delta_starter_S7-300.vplc runs (still in RUN after 0.3 s)
+  ok   08_Star_delta_starter_S7-300.vplc saved and loaded: still compiles
+  ok   09_Pump_duty_standby_S7-1500.vplc compiles (0 errors)
+  ok   09_Pump_duty_standby_S7-1500.vplc runs (still in RUN after 0.3 s)
+  ok   09_Pump_duty_standby_S7-1500.vplc saved and loaded: still compiles
+  ok   10_Garage_door_S7-1200.vplc compiles (0 errors)
+  ok   10_Garage_door_S7-1200.vplc runs (still in RUN after 0.3 s)
+  ok   10_Garage_door_S7-1200.vplc saved and loaded: still compiles
+  ok   11_Car_wash_sequence_S7-1500.vplc compiles (0 errors)
+  ok   11_Car_wash_sequence_S7-1500.vplc runs (still in RUN after 0.3 s)
+  ok   11_Car_wash_sequence_S7-1500.vplc saved and loaded: still compiles
+  ok   12_Mixing_batch_recipes_S7-1500.vplc compiles (0 errors)
+  ok   12_Mixing_batch_recipes_S7-1500.vplc runs (still in RUN after 0.3 s)
+  ok   12_Mixing_batch_recipes_S7-1500.vplc saved and loaded: still compiles
+  ok   13_Parking_garage_counter_S7-1200.vplc compiles (0 errors)
+  ok   13_Parking_garage_counter_S7-1200.vplc runs (still in RUN after 0.3 s)
+  ok   13_Parking_garage_counter_S7-1200.vplc saved and loaded: still compiles
+  ok   14_Alarm_handling_S7-1200.vplc compiles (0 errors)
+  ok   14_Alarm_handling_S7-1200.vplc runs (still in RUN after 0.3 s)
+  ok   14_Alarm_handling_S7-1200.vplc saved and loaded: still compiles
+  ok   15_Running_light_S7-1200.vplc compiles (0 errors)
+  ok   15_Running_light_S7-1200.vplc runs (still in RUN after 0.3 s)
+  ok   15_Running_light_S7-1200.vplc saved and loaded: still compiles
+  ok   16_Temperature_control_S7-1500.vplc compiles (0 errors)
+  ok   16_Temperature_control_S7-1500.vplc runs (still in RUN after 0.3 s)
+  ok   16_Temperature_control_S7-1500.vplc saved and loaded: still compiles
+  ok   17_STL_basics_S7-300.vplc compiles (0 errors)
+  ok   17_STL_basics_S7-300.vplc runs (still in RUN after 0.3 s)
+  ok   17_STL_basics_S7-300.vplc saved and loaded: still compiles
+  ok   18_Hand_auto_mode_S7-400.vplc compiles (0 errors)
+  ok   18_Hand_auto_mode_S7-400.vplc runs (still in RUN after 0.3 s)
+  ok   18_Hand_auto_mode_S7-400.vplc saved and loaded: still compiles
+  ok   19_Timers_LAD_S7-1200.vplc compiles (0 errors)
+  ok   19_Timers_LAD_S7-1200.vplc runs (still in RUN after 0.3 s)
+  ok   19_Timers_LAD_S7-1200.vplc saved and loaded: still compiles
+  ok   20_Counters_LAD_S7-1200.vplc compiles (0 errors)
+  ok   20_Counters_LAD_S7-1200.vplc runs (still in RUN after 0.3 s)
+  ok   20_Counters_LAD_S7-1200.vplc saved and loaded: still compiles
+  ok   21_Timers_LAD_S7-1500.vplc compiles (0 errors)
+  ok   21_Timers_LAD_S7-1500.vplc runs (still in RUN after 0.3 s)
+  ok   21_Timers_LAD_S7-1500.vplc saved and loaded: still compiles
+  ok   22_Counters_LAD_S7-1500.vplc compiles (0 errors)
+  ok   22_Counters_LAD_S7-1500.vplc runs (still in RUN after 0.3 s)
+  ok   22_Counters_LAD_S7-1500.vplc saved and loaded: still compiles
+  ok   23_Timers_LAD_S7-300.vplc compiles (0 errors)
+  ok   23_Timers_LAD_S7-300.vplc runs (still in RUN after 0.3 s)
+  ok   23_Timers_LAD_S7-300.vplc saved and loaded: still compiles
+  ok   24_Counters_LAD_S7-300.vplc compiles (0 errors)
+  ok   24_Counters_LAD_S7-300.vplc runs (still in RUN after 0.3 s)
+  ok   24_Counters_LAD_S7-300.vplc saved and loaded: still compiles
+  ok   25_Timers_LAD_S7-400.vplc compiles (0 errors)
+  ok   25_Timers_LAD_S7-400.vplc runs (still in RUN after 0.3 s)
+  ok   25_Timers_LAD_S7-400.vplc saved and loaded: still compiles
+  ok   26_Counters_LAD_S7-400.vplc compiles (0 errors)
+  ok   26_Counters_LAD_S7-400.vplc runs (still in RUN after 0.3 s)
+  ok   26_Counters_LAD_S7-400.vplc saved and loaded: still compiles
+  ok   27_Data_type_conversion_S7-1200.vplc compiles (0 errors)
+  ok   27_Data_type_conversion_S7-1200.vplc runs (still in RUN after 0.3 s)
+  ok   27_Data_type_conversion_S7-1200.vplc saved and loaded: still compiles
+  ok   28_Data_type_conversion_STL_S7-300.vplc compiles (0 errors)
+  ok   28_Data_type_conversion_STL_S7-300.vplc runs (still in RUN after 0.3 s)
+  ok   28_Data_type_conversion_STL_S7-300.vplc saved and loaded: still compiles
+  ok   29_Math_S7-1200.vplc compiles (0 errors)
+  ok   29_Math_S7-1200.vplc runs (still in RUN after 0.3 s)
+  ok   29_Math_S7-1200.vplc saved and loaded: still compiles
+  ok   30_Large_FB_motor_control_S7-1500.vplc compiles (0 errors)
+  ok   30_Large_FB_motor_control_S7-1500.vplc runs (still in RUN after 0.3 s)
+  ok   30_Large_FB_motor_control_S7-1500.vplc saved and loaded: still compiles
+  ok   31_SCL_elements_S7-1500.vplc compiles (0 errors)
+  ok   31_SCL_elements_S7-1500.vplc runs (still in RUN after 0.3 s)
+  ok   31_SCL_elements_S7-1500.vplc saved and loaded: still compiles
+  ok   32_SCL_strings_S7-1500.vplc compiles (0 errors)
+  ok   32_SCL_strings_S7-1500.vplc runs (still in RUN after 0.3 s)
+  ok   32_SCL_strings_S7-1500.vplc saved and loaded: still compiles
+  ok   33_SCL_64_bit_dates_S7-1500.vplc compiles (0 errors)
+  ok   33_SCL_64_bit_dates_S7-1500.vplc runs (still in RUN after 0.3 s)
+  ok   33_SCL_64_bit_dates_S7-1500.vplc saved and loaded: still compiles
+  ok   34_LAD_STL_SCL_functions_S7-1500.vplc compiles (0 errors)
+  ok   34_LAD_STL_SCL_functions_S7-1500.vplc runs (still in RUN after 0.3 s)
+  ok   34_LAD_STL_SCL_functions_S7-1500.vplc saved and loaded: still compiles
+== Example projects: their behaviour
+  ok   conversion: INT_TO_REAL 13824 = 5.000 V
+  ok   conversion: REAL_TO_INT back = 13824
+  ok   conversion: LAD CONV Int -> Real
+  ok   conversion: 2.5 -> ROUND 2, TRUNC 2, CEIL 3, FLOOR 2, LAD ROUND 2
+  ok   conversion: DINT_TO_INT 70000 = 4464
+  ok   conversion: WORD_TO_INT 16#FFFF = -1, INT_TO_WORD -1 = 16#FFFF, WORD_TO_DWORD, DWORD_TO_DINT 65536
+  ok   STL conversion: ITD DTR /R = 5.000 V
+  ok   STL conversion: ITB 123 = W#16#0123, BTI back, W#16#FFFF as Int = -1
+  ok   math: 7 + 3 = 10, 7 / 3 = 2, 7 MOD 3 = 1, LIMIT(0, 21, 20) = 20
+  ok   math: SQRT(9 + 16) = 5.000, 3 ** 3 = 27.00, SIN(30) = 0.5000, LOG(1000) = 3.0000
+  ok   math: the average of 1.5 .. 7.5 = 4.5, 2*9 - 9 + 1 = 10
+  ok   math: LAD ADD 10, SUB 100000 - 70000, MUL 3 * 4
+  ok   large FB: start -> state 1 (start warning)
+  ok   large FB: after 1 s running, the contactor on, 1 start
+  ok   large FB: no feedback for 3 s -> fault 2, off, the fault lamp
+  ok   large FB: reset -> state 0
+  ok   timers S7-1200: after 1 s TON still off, TP on
+  ok   timers S7-1200: after 3.4 s TON on, TP over
+  ok   counters S7-1200: 5 x up -> CTU Q, CTUD QU (CV 5)
+  ok   counters S7-1200: reset -> 0
+  ok   timers S7-1500: S5 pulse SP %T1 on
+  ok   timers S7-300: SD not yet, SE pulse on after IN went
+  ok   timers S7-300: after 2 s SD on, SE over
+  ok   counters S7-400: SC C#3 -> the counter bit C1 on
+  ok   counters S7-400: 3 x CD -> C1 = 0, the bit off
+  ok   tank 10 %: the pump fills (level 10.0)
+  ok   tank 50 %: the pump keeps filling (hysteresis)
+  ok   tank 90 %: the pump stops
+  ok   tank 97 %: the high level alarm flashes
+  ok   car wash: start -> step 1, water on
+  ok   car wash: the emergency stop -> step 0
+  ok   alarms: alarm 1 sounds the horn
+  ok   alarms: acknowledged: horn off, lamp 1 steady
+  ok   alarms: gone and acknowledged: lamp 1 off
+  ok   running light: one lamp on 1
+  ok   running light: it has moved on 4
+== Claude assistant tools
+  ok   13 tool definitions, valid JSON (13)
+  ok   the system prompt describes the dialects
+  ok   get_project: every block, compiles without errors
+  ok   get_block FC1: the SCL code
+  ok   get_block by name: LAD cells
+  ok   nothing to undo before a change
+  ok   create_block FC3 "Twice": created FC3 "Twice"
+  ok   write_network SCL: compiles { "written" : "FC3 network 1", "compile" : { "errors" : 0, "warnings" : 0, "block" : "FC3", "messages" : [] } }
+  ok   write_network LAD: a self-holding rung appended, compiles
+  ok   an unknown LAD element is refused, nothing changed
+  ok   a network out of range is refused
+  ok   add_tags
+  ok   add_db_variables creates the DB: DB3 "Pumps" has 1 variables, 4 bytes
+  ok   compile: the whole project
+  ok   read_values: %Q0.5 and "Pump" TRUE in RUN, a bad operand says why
+  ok   set_inputs: a digital input and an analog channel (manual 13824): { "%I0.6" : "TRUE", "%IW512" : 13824 }
+  ok   set_inputs refuses an output
+  ok   get_diagnostics: the buffer
+  ok   Claude's changes can be undone
+  ok   UndoChanges: the block, the network, the tag and the DB are gone
+== simulated ports (S7 ISO-on-TCP, Modbus TCP)
+  ok   both servers listen: listening on 127.0.0.1, TCP 11102
+  ok   S7-300 refuses rack 0 slot 1: connection refused by the CPU (connection closed)
+  ok   S7 connect rack 0 slot 2, PDU 480
+  ok   PDU 480
+  ok   SZL 0x0424: RUN
+  ok   SZL 0x0011: order code 6ES7 315-2EH14-0AB0
+  ok   S7 write MW100 = 4321
+  ok   Modbus connect
+  ok   Modbus holding 50 = MW100 = 4321 (written by S7)
+  ok   S7 reads MW102 = 777 (written by Modbus)
+  ok   S7 read DB1.DBD0 (SpeedRpm REAL) = 750.00
+  ok   S7 read bit I0.1 (NC stop button) = 1
+  ok   Modbus discrete inputs I0.0..I0.7 = 6
+  ok   Modbus coil 32 = Q4.0 (motor) = 1
+  ok   S7 read counter C1 = C#1 (BCD)
+  ok   Modbus FC16 -> MW120..MW124
+  ok   S7 read DB5 (missing): 0x0A object does not exist
+  ok   S7 read MB5000: 0x05 address out of range
+  ok   Modbus register 30000: exception 2
+  ok   Modbus function 7: exception 1
+  ok   S7 PLC stop
+  ok   CPU in STOP after the S7 stop
+  ok   SZL 0x0424: STOP
+  ok   S7 PLC start
+  ok   CPU in RUN after the S7 start
+  ok   2 connections (2)
+  ok   connections closed
+  ok   S7-1200 connect rack 0 slot 1
+  ok   S7-1200 read DB1.DBW8 (Startups) = 1 with PUT/GET
+  ok   S7-1200 optimized DB9: absolute access refused (0x03)
+  ok   S7-1200 without PUT/GET: read refused (error class 0x81 code 0x04)
+    traffic: refused: PUT/GET access is not permitted on this S7-1200
+== STL semantics (CPU 315)
+  ok   RUN
+  ok   A/O/A all 0 -> 0
+  ok   I0.0 OR (I0.1 AND I0.2) with I0.1, I0.2
+  ok   I0.0 AND (I0.1 OR I0.2) = 0 without I0.0
+  ok   I0.1 alone: AND binds before OR
+  ok   I0.0 alone -> 1
+  ok   O alone: (I0.0 AND I0.1) OR ...
+  ok   nesting I0.0 AND (I0.1 OR I0.2)
+  ok   XOR 1,1 = 0
+  ok   100 - 23 = 77
+  ok   ==I
+  ok   30000 + 30000 wraps
+  ok   OV after the overflow
+  ok   *D
+  ok   /I: remainder high, quotient low (10003)
+  ok   RND(3.0) = 3
+  ok   RND(2.5) = 2 (to even)
+  ok   ITB 123
+  ok   SLW 4
+  ok   CAD
+  ok   JC not taken (5 > 9 false)
+  ok   LOOP 5 times
+  ok   SET
+  ok   CLR
+  ok   MB0 not written
+  ok   big-endian: MB50 = 16#12, MB51 = 16#34
+    ERR OB1 nw 1 line 1: address out of range (M has 2048 bytes)
+  ok   compile refuses MW4000 on the 315 (2048 bytes): no RUN
+  ok   S7-300: area length error at runtime -> STOP
+    diag: Power on: CPU 315-2 PN/DP, V3.2 - STOP (no user program)
+    diag: Download: 1 blocks, 1 DBs, 56 bytes code, 10 bytes data
+    diag: STOP -> STARTUP (complete restart, OB100)
+    diag: STARTUP -> RUN
+    diag: Area length error when reading DBW 100 (DB1 has 10 bytes) in OB1 network 1 line 2
+    diag: RUN -> STOP: programming error, OB121 not loaded
+== S7-1500 rules
+  ok   S7-1500: programming error without OB121 -> STOP
+  ok   S7-1500 runs STL with S5 timer T2047 (2048 timers)
+  ok   S7-1500 4 accumulators: 7 + 5 * 2 = 17
+  ok   S7-1500 L 100000 is a DINT
+== S7-400 accumulators
+  ok   400: 2 + 3 = 5
+  ok   400: POP after the pull: ACCU3 -> ACCU2 -> ACCU1 (MW2=1)
+== LAD branches + S7-1200 rules
+  ok   LAD compiles
+  ok   no input: off
+  ok   I0.1 via the lower branch
+  ok   I0.2 breaks it
+  ok   I0.3 bridges NOT I0.2
+  ok   S7-1200 refuses STL
+  ok   S7-1200 refuses S5 timers
+  ok   save / load
+  ok   LAD boxes survive
+  ok   loaded project compiles
+== sample on CPU 315-2 PN/DP
+  ok   compiles without errors
+  ok   RUN
+  ok   OB100 ran once (Startups = 1)
+  ok   motor off
+  ok   motor on after start (self holding)
+  ok   starting lamp follows the clock
+  ok   not yet full speed
+  ok   speed 13824 -> 750.00 rpm
+  ok   full speed after 5 s
+  ok   FC1 (SCL) CASE: speed class 2 for 750 rpm
+  ok   FC1 (SCL) FOR over the history: average 750.0 rpm
+  ok   FC1 (SCL): History is an array of "SpeedSample" (Rpm 750, Running)
+  ok   OB1 LAD CALL box FC2 "Clamp" with pins: SpeedLim 750, OverLimit FALSE
+  ok   FC1 (SCL) TON pulses: 5 motor seconds
+  ok   starting lamp off at full speed
+  ok   run time in the cyclic OB: 52 x 100 ms
+  ok   cyclic interrupt ran 53 times
+  ok   overspeed above 1200 rpm
+  ok   motor off after stop
+  ok   full speed off
+  ok   C1 counted 5 starts (5)
+  ok   MW20 = 5
+  ok   service due
+  ok   counter reset
+  ok   still RUN
+    cycles/s 994, host 9.6 us, model 215.7 us, 173 ops
+  ok   STOP
+  ok   outputs off in STOP
+    diag: Power on: CPU 315-2 PN/DP, V3.2 - STOP (no user program)
+    diag: Download: 6 blocks, 2 DBs, 1382 bytes code, 66 bytes data
+    diag: STOP -> STARTUP (complete restart, OB100)
+    diag: STARTUP -> RUN
+    diag: RUN -> STOP: STOP by the operator
+== sample on CPU 414-3 PN/DP
+  ok   compiles without errors
+  ok   RUN
+  ok   OB100 ran once (Startups = 1)
+  ok   motor off
+  ok   motor on after start (self holding)
+  ok   starting lamp follows the clock
+  ok   not yet full speed
+  ok   speed 13824 -> 750.00 rpm
+  ok   full speed after 5 s
+  ok   FC1 (SCL) CASE: speed class 2 for 750 rpm
+  ok   FC1 (SCL) FOR over the history: average 750.0 rpm
+  ok   FC1 (SCL): History is an array of "SpeedSample" (Rpm 750, Running)
+  ok   OB1 LAD CALL box FC2 "Clamp" with pins: SpeedLim 750, OverLimit FALSE
+  ok   FC1 (SCL) TON pulses: 5 motor seconds
+  ok   starting lamp off at full speed
+  ok   run time in the cyclic OB: 52 x 100 ms
+  ok   cyclic interrupt ran 53 times
+  ok   overspeed above 1200 rpm
+  ok   motor off after stop
+  ok   full speed off
+  ok   C1 counted 5 starts (5)
+  ok   MW20 = 5
+  ok   service due
+  ok   counter reset
+  ok   S7-400 ENT: MW22 = 31
+  ok   still RUN
+    cycles/s 992, host 11.4 us, model 83.7 us, 181 ops
+  ok   STOP
+  ok   outputs off in STOP
+    diag: Power on: CPU 414-3 PN/DP, V6.0 - STOP (no user program)
+    diag: Download: 6 blocks, 2 DBs, 1414 bytes code, 66 bytes data
+    diag: STOP -> STARTUP (complete restart, OB100)
+    diag: STARTUP -> RUN
+    diag: RUN -> STOP: STOP by the operator
+== sample on CPU 1214C DC/DC/DC
+  ok   compiles without errors
+  ok   RUN
+  ok   OB100 ran once (Startups = 1)
+  ok   motor off
+  ok   motor on after start (self holding)
+  ok   starting lamp follows the clock
+  ok   not yet full speed
+  ok   speed 13824 -> 750.00 rpm
+  ok   full speed after 5 s
+  ok   FC1 (SCL) CASE: speed class 2 for 750 rpm
+  ok   FC1 (SCL) FOR over the history: average 750.0 rpm
+  ok   FC1 (SCL): History is an array of "SpeedSample" (Rpm 750, Running)
+  ok   OB1 LAD CALL box FC2 "Clamp" with pins: SpeedLim 750, OverLimit FALSE
+  ok   FC1 (SCL) TON pulses: 5 motor seconds
+  ok   starting lamp off at full speed
+  ok   run time in the cyclic OB: 52 x 100 ms
+  ok   cyclic interrupt ran 53 times
+  ok   overspeed above 1200 rpm
+  ok   motor off after stop
+  ok   full speed off
+  ok   CTU counted 5 starts (5)
+  ok   MW20 = 5
+  ok   service due
+  ok   counter reset
+  ok   still RUN
+    cycles/s 994, host 16.7 us, model 504.0 us, 261 ops
+  ok   STOP
+  ok   outputs off in STOP
+    diag: Power on: CPU 1214C DC/DC/DC, V4.6 - STOP (no user program)
+    diag: Download: 6 blocks, 2 DBs, 1932 bytes code, 82 bytes data
+    diag: STOP -> STARTUP (warm restart)
+    diag: STARTUP -> RUN
+    diag: RUN -> STOP: STOP by the operator
+== sample on CPU 1516-3 PN/DP
+  ok   compiles without errors
+  ok   RUN
+  ok   OB100 ran once (Startups = 1)
+  ok   motor off
+  ok   motor on after start (self holding)
+  ok   starting lamp follows the clock
+  ok   not yet full speed
+  ok   speed 13824 -> 750.00 rpm
+  ok   full speed after 5 s
+  ok   FC1 (SCL) CASE: speed class 2 for 750 rpm
+  ok   FC1 (SCL) FOR over the history: average 750.0 rpm
+  ok   FC1 (SCL): History is an array of "SpeedSample" (Rpm 750, Running)
+  ok   OB1 LAD CALL box FC2 "Clamp" with pins: SpeedLim 750, OverLimit FALSE
+  ok   FC1 (SCL) TON pulses: 5 motor seconds
+  ok   starting lamp off at full speed
+  ok   run time in the cyclic OB: 52 x 100 ms
+  ok   cyclic interrupt ran 53 times
+  ok   overspeed above 1200 rpm
+  ok   motor off after stop
+  ok   full speed off
+  ok   CTU counted 5 starts (5)
+  ok   MW20 = 5
+  ok   service due
+  ok   counter reset
+  ok   S7-400 ENT: MW22 = 31
+  ok   S7-1500 STL clock T5 / C5: 6 seconds of motor run
+  ok   still RUN
+    cycles/s 996, host 19.6 us, model 44.5 us, 280 ops
+  ok   STOP
+  ok   outputs off in STOP
+    diag: Power on: CPU 1516-3 PN/DP, V2.9 - STOP (no user program)
+    diag: Download: 6 blocks, 2 DBs, 2008 bytes code, 82 bytes data
+    diag: STOP -> STARTUP (warm restart)
+    diag: STARTUP -> RUN
+    diag: RUN -> STOP: STOP by the operator
+
+813 passed, 0 failed

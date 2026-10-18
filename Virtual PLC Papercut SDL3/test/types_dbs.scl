@@ -1,0 +1,45 @@
+// PLC data types and data blocks as TIA Portal writes them (Data blocks: Import SCL ...)
+TYPE "Valve_T"
+VERSION : 0.1
+   STRUCT
+      Open : Bool;   // open command
+      Opened : Bool;   // feedback
+      Position : Int := 0;   // 0..27648
+      Fault : Bool;
+   END_STRUCT;
+
+END_TYPE
+
+TYPE "Recipe_T"
+VERSION : 0.1
+   STRUCT
+      Name : String[20];
+      Temp : Real := 65.0;
+      Time : Time := T#30S;
+      Steps : Array[0..3] of Int;
+   END_STRUCT;
+
+END_TYPE
+
+DATA_BLOCK "Plant"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+NON_RETAIN
+   VAR
+      Inlet : "Valve_T";
+      Outlet : "Valve_T";
+      Recipe : "Recipe_T";
+      Batch : DInt := 0;   // batch counter
+      Running : Bool;
+   END_VAR
+
+BEGIN
+   Batch := 100;
+   Recipe.Temp := 72.5;
+
+END_DATA_BLOCK
+
+FUNCTION "NotHere" : Void
+BEGIN
+   ;
+END_FUNCTION

@@ -63,6 +63,11 @@ type
     // SCL: a value stack (Double holds every S7 value exactly up to 32 bit)
     opSPush, opSPushK, opSPushIdx, opSStore, opSStoreIdx, opSBin, opSUn, opSTern,
     opSJmp, opSJz, opSPop, opSSetReg, opSGetReg, opSTimer, opSCounter, opSIndex, opSCopy,
+    // SCL strings: a stack of their own; Sub 1 = WString, Ext 1 = a variable index (its offset on the value
+    // stack), Hi = the max length of the target
+    opStrPush, opStrPushK, opStrStore, opStrOp,
+    // SCL inside LAD / STL (the boxes of SCL functions): the RLO onto the stack, the stack into the RLO
+    opSRloPush, opSRloSet,
     opCALLFB,    // Ext = FB, Opd = the instance (arDB: an instance DB, arDI: a multi-instance), Sub 1 = on RLO
     opCallIf,    // LAD CALL box with parameters: RLO = 0 skips to Ext (ENO = 0)
     opCallEnd);  // ... and after the call ENO = 1
@@ -93,6 +98,7 @@ type
     Weight: Byte;       // instruction count for the model time
     DType: TDataType;   // box type; SCL: the value type of the op
     K: Double;          // SCL: constant
+    KI: Int64;          // SCL: the exact constant of a 64 bit type
     Lo, Hi: Integer;    // SCL opSIndex: array bounds (Sub = element stride in bits)
   end;
 
@@ -178,6 +184,8 @@ type
     Udt: TDataBlock;      // T = dtStruct
     IsArray: Boolean;
     Lo, Hi: Integer;
+    Dims: TArrDims;       // more than one dimension: Lo..Hi = 0..n-1
+    TypeText: string;     // as declared (TON_TIME, CTU_INT ...)
   end;
 
   TResolver = class
@@ -565,6 +573,8 @@ begin
         V.IsArray := Dv.IsArray;
         V.Lo := Dv.Lo;
         V.Hi := Dv.Hi;
+        V.Dims := Dv.Dims;
+        V.TypeText := Dv.TypeText;
         Result := Walk(V, Rest, Err);
         Exit;
       end;
@@ -583,6 +593,8 @@ begin
     V.IsArray := Hi >= Lo;
     V.Lo := Lo;
     V.Hi := Hi;
+    V.TypeText := FTemps.ValueFromIndex[K];
+    if Length(ArrayDims(V.TypeText)) > 1 then V.Dims := ArrayDims(V.TypeText);
     V.A := MakeAddr(arL, TypeOpSize(V.T), PtrInt(FTemps.Objects[K]) div 8, PtrInt(FTemps.Objects[K]) mod 8);
     Result := Walk(V, Rest, Err);
     Exit;
@@ -640,14 +652,53 @@ begin
   V.IsArray := Dv.IsArray;
   V.Lo := Dv.Lo;
   V.Hi := Dv.Hi;
+  V.Dims := Dv.Dims;
+  V.TypeText := Dv.TypeText;
   Result := Walk(V, Rest, Err);
+end;
+
+{ the element number of "i, j, .." in an array of more dimensions }
+function FlatIndex(const Dims: TArrDims; const Txt: string; out Idx: Integer; out Err: string): Boolean;
+var
+  L: TStringList;
+  K, V: Integer;
+begin
+  Result := False;
+  Idx := 0;
+  L := TStringList.Create;
+  try
+    L.CommaText := StringReplace(Txt, ' ', '', [rfReplaceAll]);
+    if L.Count <> Length(Dims) then
+    begin
+      Err := Format('%d indexes expected [%s]', [Length(Dims), Txt]);
+      Exit;
+    end;
+    for K := 0 to High(Dims) do
+    begin
+      if not TryStrToInt(L[K], V) then
+      begin
+        Err := 'constant array index expected';
+        Exit;
+      end;
+      if (V < Dims[K].Lo) or (V > Dims[K].Hi) then
+      begin
+        Err := Format('index %d outside [%d..%d]', [V, Dims[K].Lo, Dims[K].Hi]);
+        Exit;
+      end;
+      Idx := Idx * (Dims[K].Hi - Dims[K].Lo + 1) + V - Dims[K].Lo;
+    end;
+  finally
+    L.Free;
+  end;
+  Result := True;
 end;
 
 function TResolver.Walk(var V: TVarInfo; Rest: string; out Err: string): Boolean;
 var
   P, Q, Idx, I, BitOfs: Integer;
   Mem: string;
-  Sub: TDataType;
+  Sub, VT: TDataType;
+  OPv, OCv, OEt, OBits: Integer;
   M: TDbVar;
 begin
   Result := False;
@@ -667,11 +718,17 @@ begin
         Err := '] missing';
         Exit;
       end;
-      if not TryStrToInt(Trim(Copy(Rest, 2, Q - 2)), Idx) then
+      if Length(V.Dims) > 1 then
+      begin
+        // [i, j, ..]: row by row, the last index fastest
+        if not FlatIndex(V.Dims, Copy(Rest, 2, Q - 2), Idx, Err) then Exit;
+      end
+      else if not TryStrToInt(Trim(Copy(Rest, 2, Q - 2)), Idx) then
       begin
         Err := 'constant array index expected';
         Exit;
       end;
+      V.Dims := nil;
       Rest := Copy(Rest, Q + 1, MaxInt);
       if (Idx < V.Lo) or (Idx > V.Hi) then
       begin
@@ -727,17 +784,21 @@ begin
       V.IsArray := M.IsArray;
       V.Lo := M.Lo;
       V.Hi := M.Hi;
+      V.Dims := M.Dims;
+      V.TypeText := M.TypeText;
       Continue;
     end;
     // members of IEC_TIMER / IEC_COUNTER
     Mem := UpperCase(Mem);
     Sub := dtNone;
+    IecOffsets(V.Udt, V.T = dtIECTimer, OPv, OCv, OEt, OBits, VT);
     if V.T = dtIECTimer then
     begin
-      if Mem = 'PT' then begin Sub := dtTime; V.A.Size := osDWord; end
-      else if Mem = 'ET' then begin Sub := dtTime; V.A.Size := osDWord; V.A.Ofs := V.A.Ofs + 4; end
-      else if Mem = 'IN' then begin Sub := dtBool; V.A.Size := osBit; V.A.Ofs := V.A.Ofs + 8; V.A.Bit := 0; end
-      else if Mem = 'Q' then begin Sub := dtBool; V.A.Size := osBit; V.A.Ofs := V.A.Ofs + 8; V.A.Bit := 1; end;
+      // IEC_TIMER / TON_TIME: PT 0, ET 4, IN 8.0, Q 8.1; TON_LTIME: PT 0, ET 8, IN 16.0, Q 16.1
+      if Mem = 'PT' then begin Sub := VT; V.A.Size := osDWord; end
+      else if Mem = 'ET' then begin Sub := VT; V.A.Size := osDWord; V.A.Ofs := V.A.Ofs + OEt; end
+      else if Mem = 'IN' then begin Sub := dtBool; V.A.Size := osBit; V.A.Ofs := V.A.Ofs + OBits; V.A.Bit := 0; end
+      else if Mem = 'Q' then begin Sub := dtBool; V.A.Size := osBit; V.A.Ofs := V.A.Ofs + OBits; V.A.Bit := 1; end;
     end
     else if V.T = dtIECCounter then
     begin
@@ -749,8 +810,8 @@ begin
         V.A.Bit := I;
       end
       else if Mem = 'Q' then begin Sub := dtBool; V.A.Size := osBit; V.A.Bit := 4; end
-      else if Mem = 'PV' then begin Sub := dtInt; V.A.Size := osWord; V.A.Ofs := V.A.Ofs + 2; end
-      else if Mem = 'CV' then begin Sub := dtInt; V.A.Size := osWord; V.A.Ofs := V.A.Ofs + 4; end;
+      else if Mem = 'PV' then begin Sub := VT; V.A.Size := TypeOpSize(VT); V.A.Ofs := V.A.Ofs + OPv; end
+      else if Mem = 'CV' then begin Sub := VT; V.A.Size := TypeOpSize(VT); V.A.Ofs := V.A.Ofs + OCv; end;
     end;
     if Sub = dtNone then
     begin
@@ -758,6 +819,7 @@ begin
       Exit;
     end;
     V.T := Sub;
+    V.Udt := nil;
   end;
   Result := True;
 end;
@@ -807,7 +869,17 @@ type
     FFixups: TStringList;     // label=op index of the jump
     FTemps: TStringList;      // SCL VAR_TEMP of the block: name=type, object = L offset
     FTempOfs: Integer;
+    FInline: Boolean;         // CompileSclText: SCL in LAD / STL
+    FInlineWhat: string;
+    FConsts: TStringList;     // SCL VAR CONSTANT of the block: name, object = index in FConstV / FConstT
+    FConstV: array of Double;
+    FConstI: array of Int64;  // the exact value of a 64 bit constant
+    FConstT: array of TDataType;
     procedure CompileScl(N: TNetwork);
+    { SCL code inside a LAD / STL network (a box of an SCL function, CALL SEL ..): no monitor slots, the
+      messages on the cell / line with What before them; __RLO__ is the RLO; True without an error }
+    function CompileSclText(const Code, What: string): Boolean;
+    function StlSclCall(const Tgt: string; const Names, Acts: array of string): Boolean;
     procedure Msg(const AText: string; AErr: Boolean = True);
     function Emit(ACode: TOpCode; ACat: TTimeCat; AWeight: Integer = 1): Integer;
     procedure CompileStl(N: TNetwork);
@@ -841,6 +913,7 @@ begin
   FFixups := TStringList.Create;
   FTemps := TStringList.Create;
   FRes.Temps := FTemps;
+  FConsts := TStringList.Create;
 end;
 
 destructor TCompiler.Destroy;
@@ -849,6 +922,7 @@ begin
   FLabels.Free;
   FFixups.Free;
   FTemps.Free;
+  FConsts.Free;
   inherited Destroy;
 end;
 
@@ -861,7 +935,8 @@ begin
   if FSrc <> nil then FProg.Msgs[N].Block := FSrc.Title else FProg.Msgs[N].Block := '';
   FProg.Msgs[N].Net := FNet + 1;
   FProg.Msgs[N].Line := FLine + 1;
-  FProg.Msgs[N].Text := AText;
+  if FInline and (FInlineWhat <> '') then FProg.Msgs[N].Text := FInlineWhat + ': ' + AText
+  else FProg.Msgs[N].Text := AText;
   FProg.Msgs[N].IsError := AErr;
   if AErr then Inc(FProg.ErrorCount) else Inc(FProg.WarnCount);
 end;
@@ -1257,6 +1332,72 @@ begin
 end;
 
 { STL: CALL with parameter lines (CALL FC2 / CALL FB1, DB2 / CALL "Inst_DB" / CALL #inst) }
+{ STL: CALL of an SCL function (CALL SEL with G := .., IN0 := .., RET_VAL := ..; also OUT := ..) or of a system FB
+  instance (CALL #Delay with IN := .., PT := .., Q := ..; TON_TIME, CTU_INT, R_TRIG, RS ..): compiled as SCL }
+function TCompiler.StlSclCall(const Tgt: string; const Names, Acts: array of string): Boolean;
+const
+  Fns: array[0..37] of string = ('SEL', 'MUX', 'LIMIT', 'MIN', 'MAX', 'NORM_X', 'SCALE_X', 'CONCAT', 'LEN', 'LEFT',
+    'RIGHT', 'MID', 'FIND', 'SHL', 'SHR', 'ROL', 'ROR', 'ABS', 'SQR', 'SQRT', 'EXP', 'LN', 'LOG', 'SIN', 'COS', 'TAN',
+    'ASIN', 'ACOS', 'ATAN', 'FRAC', 'TRUNC', 'ROUND', 'CEIL', 'FLOOR', 'S_MOVE', 'EXPT', 'MOD', 'NEG');
+  Outs: array[0..7] of string = ('Q', 'ET', 'QU', 'QD', 'CV', 'Q1', 'RET_VAL', 'OUT');
+var
+  U, Res, Args, Code: string;
+  K, J: Integer;
+  IsFn, IsOut: Boolean;
+  V: TVarInfo;
+  Er: string;
+begin
+  Result := False;
+  U := UpperCase(Trim(Tgt));
+  IsFn := Pos('_TO_', U) > 0;
+  for K := 0 to High(Fns) do
+    if Fns[K] = U then IsFn := True;
+  if not IsFn then
+  begin
+    // a system FB instance: a timer / counter of TIA or R_TRIG / F_TRIG / RS / SR
+    if not FRes.ResolveVar(Trim(Tgt), V, Er) then Exit;
+    if not ((V.T in [dtIECTimer, dtIECCounter]) and (SysFbMethod(V.TypeText) <> '')) and
+      not ((V.T = dtStruct) and IsSysFb(V.Udt)) then Exit;
+  end;
+  Result := True;
+  Res := '';
+  Args := '';
+  for K := 0 to High(Names) do
+  begin
+    // value_type := Int (TIA writes the type of the instruction): the types come from the operands
+    if SameText(Names[K], 'value_type') or SameText(Names[K], 'time_type') or SameText(Names[K], 'count_type') then Continue;
+    IsOut := False;
+    for J := 0 to High(Outs) do
+      if SameText(Names[K], Outs[J]) then IsOut := True;
+    if IsFn and IsOut then
+    begin
+      Res := Acts[K];
+      Continue;
+    end;
+    if Args <> '' then Args := Args + ', ';
+    if IsOut then Args := Args + Names[K] + ' => ' + Acts[K] else Args := Args + Names[K] + ' := ' + Acts[K];
+  end;
+  if IsFn then
+  begin
+    if Res = '' then
+    begin
+      Msg('CALL ' + Tgt + ': RET_VAL := <target> missing (the result)');
+      Exit;
+    end;
+    case U of
+      'S_MOVE': Code := Format('%s := %s;', [Res, Acts[0]]);
+      'EXPT': Code := Format('%s := (%s) ** (%s);', [Res, Acts[0], Acts[1]]);
+      'MOD': Code := Format('%s := (%s) MOD (%s);', [Res, Acts[0], Acts[1]]);
+      'NEG': Code := Format('%s := -(%s);', [Res, Acts[0]]);
+    else
+      Code := Format('%s := %s(%s);', [Res, Trim(Tgt), Args]);
+    end;
+  end
+  else
+    Code := Format('%s(%s);', [Trim(Tgt), Args]);
+  CompileSclText(Code, 'CALL ' + Trim(Tgt));
+end;
+
 procedure TCompiler.CompileStlCall(const Tgt: string; const Names, Acts: array of string; const Lines: array of Integer);
 var
   BI: Integer;
@@ -1266,6 +1407,11 @@ var
   L0: Integer;
 begin
   L0 := FLine;
+  if StlSclCall(Tgt, Names, Acts) then
+  begin
+    FLine := L0;
+    Exit;
+  end;
   if FBInstance(Tgt, BI, Inst, E) then
   begin
     Blk := FProject.FindBlock(bkFB, FProg.Blocks[BI].Number);
@@ -1290,6 +1436,167 @@ begin
 end;
 
 {$I uplcscl.inc}
+
+function TCompiler.CompileSclText(const Code, What: string): Boolean;
+var
+  N: TNetwork;
+  E0, L0: Integer;
+begin
+  E0 := FProg.ErrorCount;
+  L0 := FLine;
+  N := TNetwork.Create(nkSCL);
+  try
+    N.Stl.Text := Code;
+    FInline := True;
+    FInlineWhat := What;
+    try
+      CompileScl(N);
+    finally
+      FInline := False;
+      FInlineWhat := '';
+      FLine := L0;
+    end;
+  finally
+    N.Free;
+  end;
+  Result := FProg.ErrorCount = E0;
+end;
+
+{ the SCL of a box of an SCL function: IF __RLO__ THEN OUT := SEL(..); END_IF; (ENO = EN), an edge / flip-flop:
+  its call with the RLO and the RLO := Q; an empty pin of the optional ones is left out }
+function LadBoxScl(const Ce: TLadCell; out Code, Err: string): Boolean;
+var
+  Out, Fn, Args: string;
+  K, NP: Integer;
+
+  function P(I: Integer): string;
+  begin
+    Result := Trim(Ce.P[I]);
+  end;
+
+  function Need(I: Integer): Boolean;
+  begin
+    Result := P(I) <> '';
+    if not Result then Err := LadParamName(Ce.Kind, I) + ' missing';
+  end;
+
+  procedure Named(const Names: array of string);
+  var
+    J: Integer;
+  begin
+    Args := '';
+    for J := 0 to High(Names) do
+      if P(J) <> '' then
+      begin
+        if Args <> '' then Args := Args + ', ';
+        Args := Args + Names[J] + ' := ' + P(J);
+      end;
+  end;
+
+begin
+  Result := False;
+  Code := '';
+  Err := '';
+  NP := LadParamCount(Ce.Kind);
+  Fn := LadKindNames[Ce.Kind];
+  case Ce.Kind of
+    lkRTrig, lkFTrig, lkRS, lkSR:
+      begin
+        if Trim(Ce.Opnd) = '' then
+        begin
+          Err := 'the instance is missing (a ' + Fn + ' variable: a Static or in a DB)';
+          Exit;
+        end;
+        case Ce.Kind of
+          lkRTrig, lkFTrig: Code := Format('%s(CLK := __RLO__);'#10'__RLO__ := %s.Q;', [Trim(Ce.Opnd), Trim(Ce.Opnd)]);
+          lkRS:
+            begin
+              if not Need(0) then Exit;
+              Code := Format('%s(S := __RLO__, R1 := %s);'#10'__RLO__ := %s.Q1;', [Trim(Ce.Opnd), P(0), Trim(Ce.Opnd)]);
+            end;
+        else
+          begin
+            if not Need(0) then Exit;
+            Code := Format('%s(S1 := __RLO__, R := %s);'#10'__RLO__ := %s.Q1;', [Trim(Ce.Opnd), P(0), Trim(Ce.Opnd)]);
+          end;
+        end;
+        Exit(True);
+      end;
+    lkInc, lkDec:
+      begin
+        if not Need(0) then Exit;
+        if Ce.Kind = lkInc then Code := Format('%s := %s + 1;', [P(0), P(0)])
+        else Code := Format('%s := %s - 1;', [P(0), P(0)]);
+        Code := 'IF __RLO__ THEN'#10 + Code + #10'END_IF;';
+        Exit(True);
+      end;
+  end;
+  // a function: OUT is the last pin; the inputs, the optional ones of MUX / MIN / MAX may be empty
+  if not Need(NP - 1) then Exit;
+  Out := P(NP - 1);
+  for K := 0 to NP - 2 do
+    if not (((Ce.Kind = lkMux) and (K = 3)) or ((Ce.Kind in [lkMin, lkMax]) and (K >= 2))) then
+      if not Need(K) then Exit;
+  case Ce.Kind of
+    lkSel: Named(['G', 'IN0', 'IN1']);
+    lkMux: Named(['K', 'IN0', 'IN1', 'IN2']);
+    lkLimit: Named(['MN', 'IN', 'MX']);
+    lkMin, lkMax: Named(['IN1', 'IN2', 'IN3', 'IN4']);
+    lkShl..lkRor: Named(['IN', 'N']);
+    lkConcat, lkFind: Named(['IN1', 'IN2']);
+    lkLeft, lkRight: Named(['IN', 'L']);
+    lkMid: Named(['IN', 'L', 'P']);
+  end;
+  case Ce.Kind of
+    lkNegate: Code := Format('%s := -(%s);', [Out, P(0)]);
+    lkExpt: Code := Format('%s := %s ** %s;', [Out, P(0), P(1)]);
+    lkMod: Code := Format('%s := %s MOD %s;', [Out, P(0), P(1)]);
+    lkAndW: Code := Format('%s := %s AND %s;', [Out, P(0), P(1)]);
+    lkOrW: Code := Format('%s := %s OR %s;', [Out, P(0), P(1)]);
+    lkXorW: Code := Format('%s := %s XOR %s;', [Out, P(0), P(1)]);
+    lkInvW: Code := Format('%s := NOT %s;', [Out, P(0)]);
+    lkSMove: Code := Format('%s := %s;', [Out, P(0)]);
+    lkSqrt..lkFrac, lkLen: Code := Format('%s := %s(%s);', [Out, Fn, P(0)]);
+  else
+    Code := Format('%s := %s(%s);', [Out, Fn, Args]);
+  end;
+  Code := 'IF __RLO__ THEN'#10 + Code + #10'END_IF;';
+  Result := True;
+end;
+
+{ an IEC timer / counter box whose instance has a layout of its own (TON_LTIME, CTU_DINT ..): as SCL }
+function LadIecScl(const Ce: TLadCell; out Code: string): Boolean;
+var
+  I: string;
+
+  function Pin(const Nm, V: string; IsOut: Boolean): string;
+  begin
+    if Trim(V) = '' then Exit('');
+    if IsOut then Result := ', ' + Nm + ' => ' + Trim(V) else Result := ', ' + Nm + ' := ' + Trim(V);
+  end;
+
+begin
+  Result := True;
+  I := Trim(Ce.Opnd);
+  case Ce.Kind of
+    lkTON, lkTOF, lkTP:
+      Code := Format('%s(IN := __RLO__%s%s);'#10'__RLO__ := %s.Q;', [I, Pin('PT', Ce.P[0], False), Pin('ET', Ce.P[1], True), I]);
+    lkTONR:
+      Code := Format('%s(IN := __RLO__%s%s%s);'#10'__RLO__ := %s.Q;', [I, Pin('R', Ce.P[1], False), Pin('PT', Ce.P[0], False),
+        Pin('ET', Ce.P[2], True), I]);
+    lkCTU:
+      Code := Format('%s(CU := __RLO__%s%s%s);'#10'__RLO__ := %s.QU;', [I, Pin('R', Ce.P[1], False), Pin('PV', Ce.P[0], False),
+        Pin('CV', Ce.P[2], True), I]);
+    lkCTD:
+      Code := Format('%s(CD := __RLO__%s%s%s);'#10'__RLO__ := %s.QD;', [I, Pin('LD', Ce.P[1], False), Pin('PV', Ce.P[0], False),
+        Pin('CV', Ce.P[2], True), I]);
+    lkCTUD:
+      Code := Format('%s(CU := __RLO__%s%s%s%s%s);'#10'__RLO__ := %s.QU;', [I, Pin('CD', Ce.P[1], False), Pin('R', Ce.P[2], False),
+        Pin('LD', Ce.P[3], False), Pin('PV', Ce.P[0], False), Pin('CV', Ce.P[4], True), I]);
+  else
+    Result := False;
+  end;
+end;
 
 { ---------- STL ---------- }
 
@@ -1821,6 +2128,7 @@ end;
 
 procedure TCompiler.CompileLad(N: TNetwork);
 var
+  SclErr: string;
   R, C, Op, I, K, G, Cell: Integer;
   Ce: TLadCell;
   Opd: TOperand;
@@ -1959,6 +2267,15 @@ var
     Result := True;
   end;
 
+  { TON_LTIME / CTU_DINT ..: an instance of another layout }
+  function IecVariant(const S: string): Boolean;
+  var
+    V: TVarInfo;
+    Er: string;
+  begin
+    Result := (Trim(S) <> '') and FRes.ResolveVar(Trim(S), V, Er) and (V.Udt <> nil) and (V.Udt.IecVar <> dtNone);
+  end;
+
   procedure EmitBox(Code: TOpCode; NPar: Integer; Cat: TTimeCat; W: Integer);
   var
     J: Integer;
@@ -1971,6 +2288,18 @@ var
     for J := 0 to NPar - 1 do AddParam(Pars[J]);
   end;
 
+
+  procedure LadIec;
+  begin
+    if Instance(dtIECTimer) and Par(0, Ce.P[0], 4, False, False, False) and
+      Par(1, Ce.P[1], 4, True, True, False) then
+      case Ce.Kind of
+        lkTON: EmitBox(opTON, 2, tcFix, 12);
+        lkTOF: EmitBox(opTOF, 2, tcFix, 12);
+      else
+        EmitBox(opTP, 2, tcFix, 12);
+      end;
+  end;
 begin
   NI := FNet;
   Base := FBlock.Nets[NI].MonBase;
@@ -2074,30 +2403,43 @@ begin
               FBlock.Ops[Op].Opd := Opd;
             end;
           end;
-        lkTON, lkTOF, lkTP:
-          if Instance(dtIECTimer) and Par(0, Ce.P[0], 4, False, False, False) and
-            Par(1, Ce.P[1], 4, True, True, False) then
-            case Ce.Kind of
-              lkTON: EmitBox(opTON, 2, tcFix, 12);
-              lkTOF: EmitBox(opTOF, 2, tcFix, 12);
-            else
-              EmitBox(opTP, 2, tcFix, 12);
-            end;
-        lkTONR:
-          if Instance(dtIECTimer) and Par(0, Ce.P[0], 4, False, False, False) and
-            Par(1, Ce.P[1], 0, False, True, True) and Par(2, Ce.P[2], 4, True, True, False) then
-            EmitBox(opTONR, 3, tcFix, 14);
-        lkCTU, lkCTD:
-          if Instance(dtIECCounter) and Par(0, Ce.P[0], 2, False, False, False) and
-            Par(1, Ce.P[1], 0, False, True, True) and Par(2, Ce.P[2], 2, True, True, False) then
+        lkSel..lkSR:
           begin
-            if Ce.Kind = lkCTU then EmitBox(opCTU, 3, tcFix, 8) else EmitBox(opCTD, 3, tcFix, 8);
+            // a box of an SCL function: its SCL; the pins resolved for the monitor
+            if LadBoxScl(Ce, E, SclErr) then CompileSclText(E, LadKindNames[Ce.Kind])
+            else Msg(LadKindNames[Ce.Kind] + ': ' + SclErr);
+            for I := 0 to LadParamCount(Ce.Kind) - 1 do
+              if (Trim(Ce.P[I]) <> '') and not FRes.Resolve(Ce.P[I], Pars[I], SclErr, True) then Pars[I].Kind := okNone;
+            if (Trim(Ce.Opnd) <> '') and not FRes.Resolve(Ce.Opnd, Opd, SclErr, False) then Opd.Kind := okNone;
           end;
-        lkCTUD:
-          if Instance(dtIECCounter) and Par(0, Ce.P[0], 2, False, False, False) and
-            Par(1, Ce.P[1], 0, False, True, True) and Par(2, Ce.P[2], 0, False, True, True) and
-            Par(3, Ce.P[3], 0, False, True, True) and Par(4, Ce.P[4], 2, True, True, False) then
-            EmitBox(opCTUD, 5, tcFix, 10);
+        lkTON, lkTOF, lkTP, lkTONR, lkCTU, lkCTD, lkCTUD:
+          if IecVariant(Ce.Opnd) then
+          begin
+            // TON_LTIME, CTU_DINT ..: the instance has a layout of its own, the box goes through SCL
+            if LadIecScl(Ce, E) then CompileSclText(E, LadKindNames[Ce.Kind]);
+            if not FRes.Resolve(Ce.Opnd, Opd, SclErr, False) then Opd.Kind := okNone;
+            for I := 0 to LadParamCount(Ce.Kind) - 1 do
+              if (Trim(Ce.P[I]) <> '') and not FRes.Resolve(Ce.P[I], Pars[I], SclErr, True) then Pars[I].Kind := okNone;
+          end
+          else
+            case Ce.Kind of
+              lkTON, lkTOF, lkTP: LadIec;
+              lkTONR:
+                if Instance(dtIECTimer) and Par(0, Ce.P[0], 4, False, False, False) and
+                  Par(1, Ce.P[1], 0, False, True, True) and Par(2, Ce.P[2], 4, True, True, False) then
+                  EmitBox(opTONR, 3, tcFix, 14);
+              lkCTU, lkCTD:
+                if Instance(dtIECCounter) and Par(0, Ce.P[0], 2, False, False, False) and
+                  Par(1, Ce.P[1], 0, False, True, True) and Par(2, Ce.P[2], 2, True, True, False) then
+                begin
+                  if Ce.Kind = lkCTU then EmitBox(opCTU, 3, tcFix, 8) else EmitBox(opCTD, 3, tcFix, 8);
+                end;
+            else
+              if Instance(dtIECCounter) and Par(0, Ce.P[0], 2, False, False, False) and
+                Par(1, Ce.P[1], 0, False, True, True) and Par(2, Ce.P[2], 0, False, True, True) and
+                Par(3, Ce.P[3], 0, False, True, True) and Par(4, Ce.P[4], 2, True, True, False) then
+                EmitBox(opCTUD, 5, tcFix, 10);
+            end;
         lkCmp:
           if Par(0, Ce.P[0], TypeBytes(Ce.DType), False, False, False) and
             Par(1, Ce.P[1], TypeBytes(Ce.DType), False, False, False) then
@@ -2251,6 +2593,10 @@ begin
   FFixups.Clear;
   FTemps.Clear;
   FTempOfs := 0;
+  FConsts.Clear;
+  FConstV := nil;
+  FConstI := nil;
+  FConstT := nil;
   // the interface: Temp in the local data, the rest (FB only) in the instance
   B.Iface.Name := B.Name;
   B.Iface.Number := B.Number;
@@ -2360,6 +2706,63 @@ var
         FProg.DBs[I].Init[Ofs + B] := (Val shr ((Bytes - 1 - B) * 8)) and $FF;
   end;
 
+  procedure Put8(Ofs: Integer; Q: QWord);
+  begin
+    Put(Ofs, 4, LongWord(Q shr 32));
+    Put(Ofs + 4, 4, LongWord(Q));
+  end;
+
+  { the 8 bytes of a 64 bit start value: T#.. into an LTime in ns, a number into an LReal }
+  function Start64(T: TDataType; const Cn: TConst): QWord;
+  var
+    D: Double;
+    I: Int64;
+  begin
+    if T = dtLReal then
+    begin
+      if Cn.Kind = ckReal then D := Cn.R else D := Cn.I;
+      Move(D, Result, 8);
+      Exit;
+    end;
+    I := Cn.I;
+    if (Cn.Kind = ckTime) and (T in [dtLTime, dtLTOD]) then I := I * 1000000;
+    if T = dtDT then Exit(EncodeDT(I));
+    Result := QWord(I);
+  end;
+
+  { a String / WString at Ofs: its max length, the length and the characters of the start value }
+  procedure InitStr(Ofs: Integer; U: TDataBlock; St: string; const Where: string; Report: Boolean);
+  var
+    S: UnicodeString;
+    Q, K, Len: Integer;
+  begin
+    if (U = nil) or (U.StrMax <= 0) then Exit;
+    St := Trim(St);
+    Q := Pos('#', St);
+    if (Q > 0) and (Q < Pos('''', St)) then Delete(St, 1, Q);   // STRING#'..', WSTRING#'..'
+    S := '';
+    if (Length(St) >= 2) and (St[1] = '''') and (St[Length(St)] = '''') then
+      S := UTF8Decode(SclStrDecode(Copy(St, 2, Length(St) - 2), U.StrWide))
+    else if (St <> '') and Report then
+      Msg(Format('%s: start value %s is not a string (''text'')', [Where, St]));
+    Len := Min(Length(S), U.StrMax);
+    if Ofs + U.Size > Length(FProg.DBs[I].Init) then Exit;
+    if U.StrWide then
+    begin
+      Put(Ofs, 2, U.StrMax);
+      Put(Ofs + 2, 2, Len);
+      for K := 1 to Len do Put(Ofs + 2 + 2 * K, 2, Ord(S[K]));
+    end
+    else
+    begin
+      FProg.DBs[I].Init[Ofs] := U.StrMax;
+      FProg.DBs[I].Init[Ofs + 1] := Len;
+      for K := 1 to Len do
+        if Ord(S[K]) > 255 then FProg.DBs[I].Init[Ofs + 1 + K] := Ord('?')
+        else FProg.DBs[I].Init[Ofs + 1 + K] := Ord(S[K]);
+    end;
+  end;
+
   { start values of Src's variables at byte Base; a struct recurses into its members }
   procedure InitVars(Src: TDataBlock; Base: Integer; const Where: string; Report: Boolean);
   var
@@ -2368,6 +2771,8 @@ var
     Cn: TConst;
     Bits: LongWord;
     Sg: Single;
+    Items: TStringArray;
+    St: string;
   begin
     for J := 0 to High(Src.Vars) do
     begin
@@ -2377,7 +2782,11 @@ var
         if Report then Msg(Format('%s.%s: unknown data type "%s"', [Where, V.Name, V.TypeText]));
         Continue;
       end;
-      if Report and not IsTia(FModel.Family) and (V.DType in [dtSInt, dtUSInt, dtUInt, dtUDInt]) then
+      if Report and (FModel.Family <> cfS71500) and (V.DType in [dtLWord, dtLInt, dtULInt, dtLTime, dtLTOD, dtLDT]) then
+        Msg(Format('%s.%s: %s only exists on the S7-1500', [Where, V.Name, DataTypeNames[V.DType]]));
+      if Report and (FModel.Family = cfS71200) and (V.DType = dtDT) then
+        Msg(Format('%s.%s: Date_And_Time does not exist on the S7-1200 (DTL)', [Where, V.Name]));
+      if Report and not IsTia(FModel.Family) and (V.DType in [dtSInt, dtUSInt, dtUInt, dtUDInt, dtWChar, dtWString, dtLReal]) then
         Msg(Format('%s.%s: %s only exists on the S7-1200 / S7-1500', [Where, V.Name, DataTypeNames[V.DType]]));
       if V.IsArray then N := V.Hi - V.Lo + 1 else N := 1;
       Stride := ElemStride(V.DType, V.Udt);
@@ -2387,23 +2796,54 @@ var
           InitVars(V.Udt, Base + V.Ofs + E * Stride, Where + '.' + V.Name, Report and (E = 0));
         Continue;
       end;
-      if Trim(V.Start) = '' then Continue;
-      if V.DType in [dtIECTimer, dtIECCounter] then Continue;
-      if not ParseConst(V.Start, Cn) then
+      if V.DType in [dtString, dtWString] then
       begin
-        if Report then Msg(Format('%s.%s: start value "%s" is not a constant', [Where, V.Name, V.Start]));
+        // the max length in the head of every string, the start value after it
+        if V.IsArray and (Copy(Trim(V.Start), 1, 1) = '[') then Items := ExpandInitList(V.Start) else Items := nil;
+        for E := 0 to N - 1 do
+        begin
+          if Items <> nil then
+          begin
+            if E <= High(Items) then St := Items[E] else St := '';
+          end
+          else
+            St := V.Start;
+          InitStr(Base + V.Ofs + E * Stride, V.Udt, St, Where + '.' + V.Name, Report and (E = 0));
+        end;
         Continue;
       end;
-      Bits := Cn.Bits;
-      if (V.DType = dtReal) and (Cn.Kind in [ckInt, ckDInt]) then
-      begin
-        Sg := Cn.I;
-        Bits := PLongWord(@Sg)^;
-      end;
-      if (V.DType in [dtDInt, dtTime]) and (Cn.Kind = ckInt) then Bits := LongWord(LongInt(Cn.I));
+      if Trim(V.Start) = '' then Continue;
+      if V.DType in [dtIECTimer, dtIECCounter] then Continue;
+      // an array: one value for all elements, or a list "[1, 2, 3(7)]"
+      if V.IsArray and (Copy(Trim(V.Start), 1, 1) = '[') then Items := ExpandInitList(V.Start) else Items := nil;
       Sz := DataTypeSize(V.DType);
       for E := 0 to N - 1 do
       begin
+        if Items <> nil then
+        begin
+          if E > High(Items) then Break;
+          St := Items[E];
+        end
+        else
+          St := V.Start;
+        if not ParseStartValue(St, Cn) then
+        begin
+          if Report then Msg(Format('%s.%s: start value "%s" is not a constant', [Where, V.Name, St]));
+          Break;
+        end;
+        Bits := Cn.Bits;
+        if (V.DType = dtReal) and (Cn.Kind in [ckInt, ckDInt]) then
+        begin
+          Sg := Cn.I;
+          Bits := PLongWord(@Sg)^;
+        end;
+        if (V.DType in [dtDInt, dtTime]) and (Cn.Kind = ckInt) then Bits := LongWord(LongInt(Cn.I));
+        if DataTypeSize(V.DType) = 8 then
+        begin
+          // 64 bit: LReal, DT in BCD, the integers / times as they are
+          Put8(Base + V.Ofs + E * Stride, Start64(V.DType, Cn));
+          Continue;
+        end;
         if V.DType = dtBool then
         begin
           K := V.Bit + E;

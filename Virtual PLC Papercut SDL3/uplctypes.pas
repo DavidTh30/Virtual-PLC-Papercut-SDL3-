@@ -37,8 +37,22 @@ type
   TOpSize = (osBit, osByte, osWord, osDWord);
   TDataType = (dtNone, dtBool, dtByte, dtWord, dtDWord, dtChar, dtSInt, dtUSInt, dtInt, dtUInt,
     dtDInt, dtUDInt, dtReal, dtTime, dtS5Time, dtDate, dtTOD, dtIECTimer, dtIECCounter,
-    dtStruct);   // a PLC data type (UDT) of the project: size and members in uPlcProject
+    dtStruct,    // a PLC data type (UDT) of the project: size and members in uPlcProject
+    dtWChar,     // a 16 bit character (S7-1200 / 1500)
+    dtString, dtWString,    // String[n]: max, length, n bytes; WString[n]: max, length words, n words
+    // 64 bit (S7-1500; LReal also S7-1200, DT S7-300/400/1500): held exactly as Int64 in SCL
+    dtLWord, dtLInt, dtULInt, dtLReal,
+    dtLTime,     // ns
+    dtLTOD,      // ns since midnight
+    dtLDT,       // ns since 1970-01-01
+    dtDT);       // Date_And_Time: 8 BCD bytes, in SCL ms since 1990-01-01
   TAreaSet = set of TArea;
+
+  { the dimensions of an array: Array[0..2, 0..3] of Int has two }
+  TArrDim = record
+    Lo, Hi: Integer;
+  end;
+  TArrDims = array of TArrDim;
 
   TAddr = record
     Area: TArea;
@@ -88,7 +102,11 @@ const
   AreaNames: array[TArea] of string = ('', 'I', 'Q', 'M', 'DB', 'DI', 'L', 'T', 'C', 'PI', 'PQ');
   DataTypeNames: array[TDataType] of string = ('', 'Bool', 'Byte', 'Word', 'DWord', 'Char', 'SInt',
     'USInt', 'Int', 'UInt', 'DInt', 'UDInt', 'Real', 'Time', 'S5Time', 'Date', 'Time_Of_Day',
-    'IEC_TIMER', 'IEC_COUNTER', 'Struct');
+    'IEC_TIMER', 'IEC_COUNTER', 'Struct', 'WChar', 'String', 'WString', 'LWord', 'LInt', 'ULInt', 'LReal',
+    'LTime', 'LTime_Of_Day', 'LDT', 'Date_And_Time');
+  { the 64 bit integers (also the times / dates in them): exact in the Int64 half of the SCL stack }
+  Int64Types = [dtLWord, dtLInt, dtULInt, dtLTime, dtLTOD, dtLDT, dtDT];
+  RealTypes = [dtReal, dtLReal];
 
   ModelCount = 15;
   Models: array[0..ModelCount - 1] of TCpuModel = (
@@ -189,12 +207,47 @@ function MakeAddr(AArea: TArea; ASize: TOpSize; AOfs: Integer; ABit: Integer = 0
 { absolute address; Err is empty on success }
 function ParseAddr(const S: string; out A: TAddr; out Err: string): Boolean;
 function FormatAddr(const A: TAddr; Family: TCpuFamily): string;
+{ the address after A: the next bit, the next byte / word / double word (Bytes: the size of A's value),
+  the next timer / counter }
+function NextAddr(const A: TAddr; Bytes: Integer): TAddr;
+{ the next free name after a name: Tag_3 -> Tag_4, Motor -> Motor_1 (Used: the names taken, not case
+  sensitive) }
+function NextName(const Name: string; Used: TStrings): string;
 function SameAddr(const A, B: TAddr): Boolean;
 function ParseConst(const S: string; out C: TConst): Boolean;
 
 function DataTypeSize(T: TDataType): Integer;      // bytes, 0 for Bool
 function ParseDataType(const S: string; out T: TDataType; out ArrLo, ArrHi: Integer): Boolean;
 function SplitArrayType(const S: string; out ArrLo, ArrHi: Integer; out Elem: string): Boolean;
+{ the dimensions of "Array[a..b, c..d] of ..." (nil: no array or a bad one). An array of more than one
+  dimension is laid out as one dimension 0..n-1 (row by row, the last index fastest, like the CPU) }
+function ArrayDims(const S: string): TArrDims;
+{ the instruction of a system FB type: TON_TIME -> TON, CTU_INT -> CTU ('' for IEC_TIMER / IEC_COUNTER) }
+function SysFbMethod(const TypeText: string): string;
+{ an IEC typed literal of SCL: INT#5, UDINT#16#FF, BOOL#1, REAL#1.5, 8#17, D#2024-01-31, TOD#12:00:00.5,
+  CHAR#'A'; V is its value (DATE: days since 1990-01-01, TOD: ms since midnight), T its type }
+function SclTypedLiteral(const S: string; out V: Double; out T: TDataType): Boolean;
+{ the same with the exact value of a 64 bit integer, time or date (I) }
+function SclTypedLiteralEx(const S: string; out V: Double; out I: Int64; out T: TDataType): Boolean;
+{ the type of the PV / CV of a counter (CTU_DINT -> DInt, IEC_COUNTER -> Int) or of the times of a timer
+  (TON_LTIME -> LTime, IEC_TIMER -> Time); dtNone for other types }
+function IecVarType(const TypeText: string): TDataType;
+{ the 8 bytes of a 64 bit variable as SCL writes it: LInt, ULInt, LW#16#.., an LReal, LT#.., LTOD#.., LDT#.., DT#.. }
+function Format64(T: TDataType; Q: QWord): string;
+{ a text (a number or a literal) into the 8 bytes of a 64 bit type; False when it does not fit }
+function Parse64(T: TDataType; const S: string; out Q: QWord): Boolean;
+{ Date_And_Time: ms since 1990-01-01 <-> the 8 BCD bytes (yy mm dd hh mm ss, ms and weekday) }
+function EncodeDT(MsSince1990: Int64): QWord;
+function DecodeDT(Q: QWord): Int64;
+{ the max length of String[n] / WString[n] (also an array of them): 254 without [n], -1 when it is bad }
+function StringMaxOf(const TypeText: string): Integer;
+{ the text (UTF-8) of an SCL string literal without its quotes: '' -> ', $N $L new line, $R $T $P, $$, $',
+  $hh a character code (Wide: $hhhh, a WString / WChar) }
+function SclStrDecode(const S: string; Wide: Boolean = False): string;
+{ a start value of a DB variable: ParseConst, then the typed literals of SCL and UDInt numbers }
+function ParseStartValue(const S: string; out C: TConst): Boolean;
+{ the start values of an array, "[1, 2, 3(7)]" -> 1, 2, 7, 7, 7 (n(v): v repeated n times) }
+function ExpandInitList(const S: string): TStringArray;
 function DataTypeText(T: TDataType; ArrLo, ArrHi: Integer; IsArray: Boolean): string;
 function TypeOpSize(T: TDataType): TOpSize;
 
@@ -475,6 +528,66 @@ begin
   Err := 'unknown operand "' + S + '"';
 end;
 
+function NextAddr(const A: TAddr; Bytes: Integer): TAddr;
+begin
+  Result := A;
+  if A.Area in [arT, arC] then
+  begin
+    Inc(Result.Num);
+    Exit;
+  end;
+  if A.Size = osBit then
+  begin
+    if A.Bit >= 7 then
+    begin
+      Result.Bit := 0;
+      Inc(Result.Ofs);
+    end
+    else
+      Inc(Result.Bit);
+    Exit;
+  end;
+  if Bytes <= 0 then
+    case A.Size of
+      osByte: Bytes := 1;
+      osWord: Bytes := 2;
+    else
+      Bytes := 4;
+    end;
+  Inc(Result.Ofs, Bytes);
+end;
+
+function NextName(const Name: string; Used: TStrings): string;
+var
+  Base: string;
+  K, N: Integer;
+
+  function Taken(const S: string): Boolean;
+  var
+    J: Integer;
+  begin
+    for J := 0 to Used.Count - 1 do
+      if SameText(Used[J], S) then Exit(True);
+    Result := False;
+  end;
+
+begin
+  // the number at the end goes up; none: _1
+  K := Length(Name);
+  while (K > 0) and (Name[K] in ['0'..'9']) do Dec(K);
+  if (K < Length(Name)) and TryStrToInt(Copy(Name, K + 1, MaxInt), N) then
+    Base := Copy(Name, 1, K)
+  else
+  begin
+    if Name = '' then Base := 'Tag_' else Base := Name + '_';
+    N := 0;
+  end;
+  repeat
+    Inc(N);
+    Result := Base + IntToStr(N);
+  until not Taken(Result);
+end;
+
 function FormatAddr(const A: TAddr; Family: TCpuFamily): string;
 const
   SizeCh: array[TOpSize] of string = ('X', 'B', 'W', 'D');
@@ -523,8 +636,9 @@ begin
   case T of
     dtBool: Result := 0;
     dtByte, dtChar, dtSInt, dtUSInt: Result := 1;
-    dtWord, dtInt, dtUInt, dtS5Time, dtDate: Result := 2;
+    dtWord, dtInt, dtUInt, dtS5Time, dtDate, dtWChar: Result := 2;
     dtDWord, dtDInt, dtUDInt, dtReal, dtTime, dtTOD: Result := 4;
+    dtLWord, dtLInt, dtULInt, dtLReal, dtLTime, dtLTOD, dtLDT, dtDT: Result := 8;
     dtIECTimer: Result := 10;    // PT Time, ET Time, IN 8.0, Q 8.1
     dtIECCounter: Result := 6;   // CU CD R LD QU QD bits in byte 0, PV Int 2, CV Int 4
   else
@@ -534,6 +648,7 @@ end;
 
 function TypeOpSize(T: TDataType): TOpSize;
 begin
+  if T in [dtString, dtWString] then Exit(osByte);   // the start of the string (its max length byte)
   case DataTypeSize(T) of
     0: Result := osBit;
     1: Result := osByte;
@@ -543,10 +658,771 @@ begin
   end;
 end;
 
+function ArrayDims(const S: string): TArrDims;
+var
+  U, Inner, Part: string;
+  P, Q, N, Total: Integer;
+begin
+  Result := nil;
+  U := UpperCase(Trim(S));
+  if Copy(U, 1, 6) <> 'ARRAY[' then Exit;
+  P := Pos(']', U);
+  if P = 0 then Exit;
+  Inner := Copy(U, 7, P - 7) + ',';
+  Total := 1;
+  while Inner <> '' do
+  begin
+    Q := Pos(',', Inner);
+    Part := Trim(Copy(Inner, 1, Q - 1));
+    Delete(Inner, 1, Q);
+    N := Length(Result);
+    SetLength(Result, N + 1);
+    Q := Pos('..', Part);
+    if (Q = 0) or not TryStrToInt(Trim(Copy(Part, 1, Q - 1)), Result[N].Lo) or
+      not TryStrToInt(Trim(Copy(Part, Q + 2, MaxInt)), Result[N].Hi) or (Result[N].Hi < Result[N].Lo) then
+      Exit(nil);
+    Total := Total * (Result[N].Hi - Result[N].Lo + 1);
+    if (Total > 10000) or (N >= 5) then Exit(nil);
+  end;
+end;
+
+{ the element range of an array type: one dimension as written, more flattened to 0..n-1 }
+function ArrayRange(const S: string; out ArrLo, ArrHi: Integer): Boolean;
+var
+  D: TArrDims;
+  K, N: Integer;
+begin
+  D := ArrayDims(S);
+  Result := Length(D) > 0;
+  if not Result then Exit;
+  if Length(D) = 1 then
+  begin
+    ArrLo := D[0].Lo;
+    ArrHi := D[0].Hi;
+    Exit;
+  end;
+  N := 1;
+  for K := 0 to High(D) do N := N * (D[K].Hi - D[K].Lo + 1);
+  ArrLo := 0;
+  ArrHi := N - 1;
+end;
+
+function SysFbMethod(const TypeText: string): string;
+var
+  U, Pfx, Sfx: string;
+  P: Integer;
+begin
+  Result := '';
+  U := UpperCase(Trim(TypeText));
+  if Copy(U, 1, 6) = 'ARRAY[' then
+  begin
+    P := Pos(' OF ', U);
+    if P = 0 then Exit('');
+    U := Trim(Copy(U, P + 4, MaxInt));
+  end;
+  // TON_TIME, TON_LTIME, TON; CTU_INT, CTU_DINT, CTU_ULINT, CTU ...
+  P := Pos('_', U);
+  if P > 0 then
+  begin
+    Pfx := Copy(U, 1, P - 1);
+    Sfx := Copy(U, P + 1, MaxInt);
+  end
+  else
+  begin
+    Pfx := U;
+    Sfx := '';
+  end;
+  if (Pfx = 'TON') or (Pfx = 'TOF') or (Pfx = 'TP') or (Pfx = 'TONR') then
+  begin
+    if (Sfx = '') or (Sfx = 'TIME') or (Sfx = 'LTIME') then Result := Pfx;
+  end
+  else if (Pfx = 'CTU') or (Pfx = 'CTD') or (Pfx = 'CTUD') then
+    case Sfx of
+      '', 'SINT', 'USINT', 'INT', 'UINT', 'DINT', 'UDINT', 'LINT', 'ULINT': Result := Pfx;
+    end;
+end;
+
+function IecVarType(const TypeText: string): TDataType;
+var
+  U: string;
+  P: Integer;
+begin
+  Result := dtNone;
+  U := UpperCase(Trim(TypeText));
+  if Copy(U, 1, 6) = 'ARRAY[' then
+  begin
+    P := Pos(' OF ', U);
+    if P = 0 then Exit;
+    U := Trim(Copy(U, P + 4, MaxInt));
+  end;
+  if U = 'IEC_TIMER' then Exit(dtTime);
+  if U = 'IEC_COUNTER' then Exit(dtInt);
+  case SysFbMethod(U) of
+    'TON', 'TOF', 'TP', 'TONR':
+      if Pos('_LTIME', U) > 0 then Result := dtLTime else Result := dtTime;
+    'CTU', 'CTD', 'CTUD':
+      case Copy(U, Pos('_', U) + 1, MaxInt) of
+        'SINT': Result := dtSInt;
+        'USINT': Result := dtUSInt;
+        'UINT': Result := dtUInt;
+        'DINT': Result := dtDInt;
+        'UDINT': Result := dtUDInt;
+        'LINT': Result := dtLInt;
+        'ULINT': Result := dtULInt;
+      else
+        Result := dtInt;
+      end;
+  end;
+end;
+
+{ the fraction of a second: .5, .123456789 (no zeros at the end), '' for none }
+function FracText(Units: Int64; Digits: Integer): string;
+begin
+  if Units = 0 then Exit('');
+  Result := IntToStr(Units);
+  Result := StringOfChar('0', Digits - Length(Result)) + Result;
+  while (Result <> '') and (Result[Length(Result)] = '0') do SetLength(Result, Length(Result) - 1);
+  Result := '.' + Result;
+end;
+
+function DayTimeText(Ns: Int64): string;
+begin
+  Result := Format('%.2d:%.2d:%.2d', [Ns div 3600000000000, Ns div 60000000000 mod 60, Ns div 1000000000 mod 60]) +
+    FracText(Ns mod 1000000000, 9);
+end;
+
+function Format64(T: TDataType; Q: QWord): string;
+var
+  Fs: TFormatSettings;
+  D: Double;
+  I, N: Int64;
+  Ms: Int64;
+begin
+  I := Int64(Q);
+  case T of
+    dtLInt: Result := IntToStr(I);
+    dtULInt: Result := UIntToStr(Q);
+    dtLWord: Result := 'LW#16#' + IntToHex(Q, 16);
+    dtLReal:
+      begin
+        // 15 digits: what an LReal holds
+        Move(Q, D, 8);
+        if IsNan(D) or IsInfinite(D) then Exit(FloatToStrDot(D));
+        Fs := DefaultFormatSettings;
+        Fs.DecimalSeparator := '.';
+        Result := FloatToStrF(D, ffGeneral, 15, 0, Fs);
+        if (Pos('.', Result) = 0) and (Pos('E', Result) = 0) then Result := Result + '.0';
+      end;
+    dtLTime:
+      begin
+        // LT#1D_2H_3M_4S_5MS_6US_7NS
+        if I = 0 then Exit('LT#0NS');
+        if I < 0 then Result := 'LT#-' else Result := 'LT#';
+        N := Abs(I);
+        if N >= 86400000000000 then Result := Result + IntToStr(N div 86400000000000) + 'D_';
+        if N div 3600000000000 mod 24 > 0 then Result := Result + IntToStr(N div 3600000000000 mod 24) + 'H_';
+        if N div 60000000000 mod 60 > 0 then Result := Result + IntToStr(N div 60000000000 mod 60) + 'M_';
+        if N div 1000000000 mod 60 > 0 then Result := Result + IntToStr(N div 1000000000 mod 60) + 'S_';
+        if N div 1000000 mod 1000 > 0 then Result := Result + IntToStr(N div 1000000 mod 1000) + 'MS_';
+        if N div 1000 mod 1000 > 0 then Result := Result + IntToStr(N div 1000 mod 1000) + 'US_';
+        if N mod 1000 > 0 then Result := Result + IntToStr(N mod 1000) + 'NS_';
+        SetLength(Result, Length(Result) - 1);
+      end;
+    dtLTOD: Result := 'LTOD#' + DayTimeText(I mod 86400000000000);
+    dtLDT:
+      Result := 'LDT#' + FormatDateTime('yyyy-mm-dd', EncodeDate(1970, 1, 1) + I div 86400000000000) + '-' +
+        DayTimeText(I mod 86400000000000);
+    dtDT:
+      begin
+        Ms := DecodeDT(Q);
+        Result := 'DT#' + FormatDateTime('yyyy-mm-dd', EncodeDate(1990, 1, 1) + Ms div 86400000) + '-' +
+          DayTimeText((Ms mod 86400000) * 1000000);
+      end;
+  else
+    Result := IntToStr(I);
+  end;
+end;
+
+function Parse64(T: TDataType; const S: string; out Q: QWord): Boolean;
+var
+  V: Double;
+  I: Int64;
+  Lt: TDataType;
+begin
+  Result := False;
+  Q := 0;
+  if T = dtLReal then
+  begin
+    if not StrToFloatDot(Trim(S), V) then
+    begin
+      if not SclTypedLiteralEx(S, V, I, Lt) or not (Lt in RealTypes) then Exit;
+    end;
+    Move(V, Q, 8);
+    Exit(True);
+  end;
+  if TryStrToInt64(Trim(S), I) then
+  begin
+    if T = dtDT then Q := EncodeDT(I) else Q := QWord(I);
+    Exit(True);
+  end;
+  if TryStrToQWord(Trim(S), Q) then Exit(T in [dtULInt, dtLWord]);
+  if not SclTypedLiteralEx(S, V, I, Lt) then Exit;
+  if not ((Lt = T) or (Lt in [dtLInt, dtULInt, dtLWord, dtDWord, dtWord]) and (T in [dtLInt, dtULInt, dtLWord])) then Exit;
+  if T = dtDT then Q := EncodeDT(I) else Q := QWord(I);
+  Result := True;
+end;
+
+function ToBcd2(V: Integer): Integer;
+begin
+  Result := (V div 10) shl 4 or (V mod 10);
+end;
+
+function FromBcd2(V: Integer): Integer;
+begin
+  Result := (V shr 4) * 10 + V and $F;
+end;
+
+function EncodeDT(MsSince1990: Int64): QWord;
+var
+  Dt: TDateTime;
+  Y, Mo, D, H, Mi, S, Ms: Word;
+  Wd: Integer;
+begin
+  if MsSince1990 < 0 then MsSince1990 := 0;
+  Dt := EncodeDate(1990, 1, 1) + MsSince1990 div 86400000;
+  DecodeDate(Dt, Y, Mo, D);
+  H := MsSince1990 div 3600000 mod 24;
+  Mi := MsSince1990 div 60000 mod 60;
+  S := MsSince1990 div 1000 mod 60;
+  Ms := MsSince1990 mod 1000;
+  Wd := DayOfWeek(Dt);   // 1 = Sunday, as on the CPU
+  Result := (QWord(ToBcd2(Y mod 100)) shl 56) or (QWord(ToBcd2(Mo)) shl 48) or (QWord(ToBcd2(D)) shl 40) or
+    (QWord(ToBcd2(H)) shl 32) or (QWord(ToBcd2(Mi)) shl 24) or (QWord(ToBcd2(S)) shl 16) or
+    (QWord(ToBcd2(Ms div 10)) shl 8) or (QWord((Ms mod 10) shl 4)) or QWord(Wd);
+end;
+
+function DecodeDT(Q: QWord): Int64;
+var
+  Y, Mo, D, H, Mi, S, Ms: Integer;
+  Dt: TDateTime;
+begin
+  Y := FromBcd2((Q shr 56) and $FF);
+  if Y >= 90 then Inc(Y, 1900) else Inc(Y, 2000);
+  Mo := FromBcd2((Q shr 48) and $FF);
+  D := FromBcd2((Q shr 40) and $FF);
+  H := FromBcd2((Q shr 32) and $FF);
+  Mi := FromBcd2((Q shr 24) and $FF);
+  S := FromBcd2((Q shr 16) and $FF);
+  Ms := FromBcd2((Q shr 8) and $FF) * 10 + ((Q shr 4) and $F);
+  if not TryEncodeDate(Y, Mo, D, Dt) then Exit(0);
+  Result := Int64(Round(Dt - EncodeDate(1990, 1, 1))) * 86400000 + (H * 3600 + Mi * 60 + S) * Int64(1000) + Ms;
+end;
+
+function SclTypedLiteral(const S: string; out V: Double; out T: TDataType): Boolean;
+var
+  I: Int64;
+begin
+  Result := SclTypedLiteralEx(S, V, I, T);
+end;
+
+{ hh:mm:ss[.fraction]: the fraction in units of 10^-Digits s; Ok when the time is inside a day }
+function DayTime(const S: string; Digits: Integer; out Units: Int64): Boolean;
+var
+  Parts: TStringArray;
+  Hh, Mi, Ss, K: Integer;
+  Fr: string;
+  Scale, F: Int64;
+begin
+  Result := False;
+  Units := 0;
+  Parts := S.Split(':');
+  if (Length(Parts) < 2) or (Length(Parts) > 3) or not TryStrToInt(Parts[0], Hh) or not TryStrToInt(Parts[1], Mi) then Exit;
+  Ss := 0;
+  Fr := '';
+  if Length(Parts) = 3 then
+  begin
+    K := Pos('.', Parts[2]);
+    if K > 0 then
+    begin
+      Fr := Copy(Parts[2], K + 1, MaxInt);
+      Parts[2] := Copy(Parts[2], 1, K - 1);
+    end;
+    if not TryStrToInt(Parts[2], Ss) then Exit;
+  end;
+  if (Hh < 0) or (Hh > 23) or (Mi < 0) or (Mi > 59) or (Ss < 0) or (Ss > 59) then Exit;
+  Scale := 1;
+  for K := 1 to Digits do Scale := Scale * 10;
+  // the fraction: as many digits as the unit has
+  Fr := Copy(Fr + StringOfChar('0', Digits), 1, Digits);
+  F := 0;
+  if (Digits > 0) and not TryStrToInt64(Fr, F) then Exit;
+  Units := ((Int64(Hh) * 60 + Mi) * 60 + Ss) * Scale + F;
+  Result := True;
+end;
+
+{ LT#1D2H3M4S5MS6US7NS (also with _ and a leading -): ns }
+function ParseLTime(const S: string; out Ns: Int64): Boolean;
+var
+  U, Un: string;
+  K, J: Integer;
+  N: Int64;
+  Neg: Boolean;
+begin
+  Result := False;
+  Ns := 0;
+  U := UpperCase(StringReplace(Trim(S), '_', '', [rfReplaceAll]));
+  Neg := (U <> '') and (U[1] = '-');
+  if Neg then Delete(U, 1, 1);
+  if U = '' then Exit;
+  K := 1;
+  while K <= Length(U) do
+  begin
+    J := K;
+    while (J <= Length(U)) and (U[J] in ['0'..'9']) do Inc(J);
+    if (J = K) or not TryStrToInt64(Copy(U, K, J - K), N) then Exit;
+    K := J;
+    while (J <= Length(U)) and (U[J] in ['A'..'Z']) do Inc(J);
+    Un := Copy(U, K, J - K);
+    case Un of
+      'D': Ns := Ns + N * 86400000000000;
+      'H': Ns := Ns + N * 3600000000000;
+      'M': Ns := Ns + N * 60000000000;
+      'S': Ns := Ns + N * 1000000000;
+      'MS': Ns := Ns + N * 1000000;
+      'US': Ns := Ns + N * 1000;
+      'NS': Ns := Ns + N;
+    else
+      Exit;
+    end;
+    K := J;
+  end;
+  if Neg then Ns := -Ns;
+  Result := True;
+end;
+
+function SclTypedLiteralEx(const S: string; out V: Double; out I: Int64; out T: TDataType): Boolean;
+var
+  U, Pfx, Body: string;
+  P, Y, Mo, Dd, Hh, Mi: Integer;
+  Lo, Hi, Dm: Int64;
+  Q: QWord;
+  Sec: Double;
+  Dt: TDateTime;
+  Neg: Boolean;
+  Parts: TStringArray;
+  Ws: UnicodeString;
+
+  { decimal, or 2# / 8# / 16# digits: the magnitude up to 64 bit }
+  function Num(const B: string; out R: QWord): Boolean;
+  var
+    K, Rd, Dg: Integer;
+    Tx: string;
+  begin
+    Result := False;
+    R := 0;
+    Tx := UpperCase(StringReplace(B, '_', '', [rfReplaceAll]));
+    K := Pos('#', Tx);
+    Rd := 10;
+    if K > 0 then
+    begin
+      if not TryStrToInt(Copy(Tx, 1, K - 1), Rd) or not ((Rd = 2) or (Rd = 8) or (Rd = 16)) then Exit;
+      Tx := Copy(Tx, K + 1, MaxInt);
+    end;
+    if Tx = '' then Exit;
+    for K := 1 to Length(Tx) do
+    begin
+      case Tx[K] of
+        '0'..'9': Dg := Ord(Tx[K]) - Ord('0');
+        'A'..'F': Dg := Ord(Tx[K]) - Ord('A') + 10;
+      else
+        Exit;
+      end;
+      if Dg >= Rd then Exit;
+      if R > (High(QWord) - QWord(Dg)) div QWord(Rd) then Exit;   // more than 64 bit
+      R := R * QWord(Rd) + QWord(Dg);
+    end;
+    Result := True;
+  end;
+
+  { a date yyyy-mm-dd: days since 1990-01-01 }
+  function DateOf(const B: string; out Days: Int64): Boolean;
+  var
+    Pt: TStringArray;
+  begin
+    Result := False;
+    Days := 0;
+    Pt := B.Split('-');
+    if (Length(Pt) <> 3) or not TryStrToInt(Pt[0], Y) or not TryStrToInt(Pt[1], Mo) or
+      not TryStrToInt(Pt[2], Dd) or not TryEncodeDate(Y, Mo, Dd, Dt) then Exit;
+    Days := Round(Dt - EncodeDate(1990, 1, 1));
+    Result := True;
+  end;
+
+begin
+  Result := False;
+  V := 0;
+  I := 0;
+  T := dtNone;
+  U := UpperCase(Trim(S));
+  P := Pos('#', U);
+  if P < 2 then Exit;
+  Pfx := Copy(U, 1, P - 1);
+  Body := Copy(Trim(S), P + 1, MaxInt);
+  case Pfx of
+    '2', '8', '16':
+      begin
+        // an integer in another base: a bit string like 16#FF
+        if not Num(U, Q) or (Q > $FFFFFFFF) then Exit;
+        I := Q;
+        V := I;
+        if I > $FFFF then T := dtDWord else T := dtWord;
+        Exit(True);
+      end;
+    'LT', 'LTIME':
+      begin
+        if not ParseLTime(Body, I) then Exit;
+        V := I;
+        T := dtLTime;
+        Exit(True);
+      end;
+    'LTOD', 'LTIME_OF_DAY':
+      begin
+        if not DayTime(Body, 9, I) then Exit;
+        V := I;
+        T := dtLTOD;
+        Exit(True);
+      end;
+    'DT', 'DATE_AND_TIME', 'LDT', 'LDATE_AND_TIME':
+      begin
+        // yyyy-mm-dd-hh:mm:ss[.f]: DT in ms since 1990, LDT in ns since 1970
+        P := Pos('-', Body);
+        if P > 0 then P := P + Pos('-', Copy(Body, P + 1, MaxInt));
+        if P > 0 then P := P + Pos('-', Copy(Body, P + 1, MaxInt));
+        if (P = 0) or not DateOf(Copy(Body, 1, P - 1), Dm) then Exit;
+        if Pfx[1] = 'L' then
+        begin
+          if not DayTime(Copy(Body, P + 1, MaxInt), 9, I) then Exit;
+          I := (Dm + 7305) * 86400000000000 + I;      // 7305 days from 1970 to 1990
+          T := dtLDT;
+        end
+        else
+        begin
+          if not DayTime(Copy(Body, P + 1, MaxInt), 3, I) or (Y > 2089) then Exit;
+          I := Dm * 86400000 + I;
+          T := dtDT;
+        end;
+        V := I;
+        Exit(True);
+      end;
+    'BOOL':
+      begin
+        Body := UpperCase(Body);
+        if (Body = 'TRUE') or (Body = '1') then V := 1
+        else if (Body = 'FALSE') or (Body = '0') then V := 0
+        else Exit;
+        I := Round(V);
+        T := dtBool;
+        Exit(True);
+      end;
+    'REAL', 'LREAL':
+      begin
+        if not StrToFloatDot(Body, Sec) then Exit;
+        V := Sec;
+        if Pfx = 'LREAL' then T := dtLReal else T := dtReal;
+        Exit(True);
+      end;
+    'CHAR':
+      begin
+        if (Length(Body) <> 3) or (Body[1] <> '''') or (Body[3] <> '''') then Exit;
+        V := Ord(Body[2]);
+        I := Round(V);
+        T := dtChar;
+        Exit(True);
+      end;
+    'WCHAR':
+      begin
+        if (Length(Body) < 3) or (Body[1] <> '''') or (Body[Length(Body)] <> '''') then Exit;
+        Ws := UTF8Decode(SclStrDecode(Copy(Body, 2, Length(Body) - 2), True));
+        if Length(Ws) <> 1 then Exit;
+        V := Ord(Ws[1]);
+        I := Round(V);
+        T := dtWChar;
+        Exit(True);
+      end;
+    'D', 'DATE':
+      begin
+        if not DateOf(Body, I) or (I < 0) or (I > 65535) then Exit;
+        V := I;
+        T := dtDate;
+        Exit(True);
+      end;
+    'TOD', 'TIME_OF_DAY':
+      begin
+        Parts := Body.Split(':');
+        if (Length(Parts) < 2) or (Length(Parts) > 3) or not TryStrToInt(Parts[0], Hh) or
+          not TryStrToInt(Parts[1], Mi) then Exit;
+        Sec := 0;
+        if (Length(Parts) = 3) and not StrToFloatDot(Parts[2], Sec) then Exit;
+        if (Hh < 0) or (Hh > 23) or (Mi < 0) or (Mi > 59) or (Sec < 0) or (Sec >= 60) then Exit;
+        V := Hh * 3600000 + Mi * 60000 + Round(Sec * 1000);
+        I := Round(V);
+        T := dtTOD;
+        Exit(True);
+      end;
+  end;
+  // INT#5, INT#-5, UDINT#16#FF, BYTE#200 ...
+  case Pfx of
+    'SINT': begin T := dtSInt; Lo := -128; Hi := 127; end;
+    'USINT': begin T := dtUSInt; Lo := 0; Hi := 255; end;
+    'BYTE': begin T := dtByte; Lo := -128; Hi := 255; end;
+    'INT': begin T := dtInt; Lo := -32768; Hi := 32767; end;
+    'UINT': begin T := dtUInt; Lo := 0; Hi := 65535; end;
+    'WORD': begin T := dtWord; Lo := -32768; Hi := 65535; end;
+    'DINT': begin T := dtDInt; Lo := -2147483648; Hi := 2147483647; end;
+    'UDINT': begin T := dtUDInt; Lo := 0; Hi := 4294967295; end;
+    'DWORD', 'DW': begin T := dtDWord; Lo := -2147483648; Hi := 4294967295; end;
+    'LINT': begin T := dtLInt; Lo := Low(Int64); Hi := High(Int64); end;
+    'ULINT', 'LWORD', 'LW': begin if Pfx = 'ULINT' then T := dtULInt else T := dtLWord; Lo := 0; Hi := -1; end;
+  else
+    Exit;
+  end;
+  Neg := (Body <> '') and (Body[1] = '-');
+  if (Body <> '') and (Body[1] in ['-', '+']) then Delete(Body, 1, 1);
+  if not Num(Body, Q) then
+  begin
+    T := dtNone;
+    Exit;
+  end;
+  if T in [dtULInt, dtLWord] then
+  begin
+    // all 64 bit (the pattern in an Int64); LWord also negative
+    if Neg and (T = dtULInt) then
+    begin
+      T := dtNone;
+      Exit;
+    end;
+    I := Int64(Q);
+    if Neg then I := -I;
+    V := Q;
+    Exit(True);
+  end;
+  if Neg then
+  begin
+    if Q > QWord(High(Int64)) + 1 then
+    begin
+      T := dtNone;
+      Exit;
+    end;
+    I := -Int64(Q);
+  end
+  else
+  begin
+    if Q > QWord(High(Int64)) then
+    begin
+      T := dtNone;
+      Exit;
+    end;
+    I := Q;
+  end;
+  if (I < Lo) or (I > Hi) then
+  begin
+    T := dtNone;
+    Exit;
+  end;
+  V := I;
+  Result := True;
+end;
+
+function StringMaxOf(const TypeText: string): Integer;
+var
+  U: string;
+  P, Q, Lim: Integer;
+begin
+  U := UpperCase(Trim(TypeText));
+  if Copy(U, 1, 6) = 'ARRAY[' then
+  begin
+    P := Pos(' OF ', U);
+    if P = 0 then Exit(-1);
+    U := Trim(Copy(U, P + 4, MaxInt));
+  end;
+  if Copy(U, 1, 1) = 'W' then Lim := 16382 else Lim := 254;
+  P := Pos('[', U);
+  if P = 0 then Exit(254);
+  Q := Pos(']', U);
+  if (Q < P) or (Trim(Copy(U, Q + 1, MaxInt)) <> '') or not TryStrToInt(Trim(Copy(U, P + 1, Q - P - 1)), Result) or
+    (Result < 1) or (Result > Lim) then
+    Result := -1;
+end;
+
+{ a character code as UTF-8 bytes (kept as bytes in any string) }
+function CodeUtf8(H: Integer): string;
+begin
+  if H < $80 then Result := Chr(H)
+  else if H < $800 then Result := Chr($C0 or (H shr 6)) + Chr($80 or (H and $3F))
+  else Result := Chr($E0 or (H shr 12)) + Chr($80 or ((H shr 6) and $3F)) + Chr($80 or (H and $3F));
+end;
+
+function SclStrDecode(const S: string; Wide: Boolean): string;
+var
+  K, H, Nd: Integer;
+begin
+  Result := '';
+  K := 1;
+  while K <= Length(S) do
+  begin
+    if (S[K] = '''') and (K < Length(S)) and (S[K + 1] = '''') then
+    begin
+      Result := Result + '''';
+      Inc(K, 2);
+      Continue;
+    end;
+    if (S[K] = '$') and (K < Length(S)) then
+    begin
+      Inc(K);
+      case UpCase(S[K]) of
+        'N', 'L': Result := Result + #10;
+        'R': Result := Result + #13;
+        'T': Result := Result + #9;
+        'P': Result := Result + #12;
+        '$': Result := Result + '$';
+        '''': Result := Result + '''';
+      else
+        if Wide then Nd := 4 else Nd := 2;
+        if (K + Nd - 1 <= Length(S)) and TryStrToInt('$' + Copy(S, K, Nd), H) then
+        begin
+          Result := Result + CodeUtf8(H);
+          Inc(K, Nd - 1);
+        end
+        else
+          Result := Result + S[K];
+      end;
+      Inc(K);
+      Continue;
+    end;
+    Result := Result + S[K];
+    Inc(K);
+  end;
+end;
+
+function ParseStartValue(const S: string; out C: TConst): Boolean;
+var
+  V: Double;
+  T: TDataType;
+  Sg: Single;
+  I: Int64;
+  Q: QWord;
+begin
+  Result := ParseConst(S, C);
+  if Result then Exit;
+  FillChar(C, SizeOf(C), 0);
+  if TryStrToInt64(Trim(S), I) and (I > 2147483647) and (I <= 4294967295) then
+  begin
+    // a UDInt / DWord number
+    C.Kind := ckDInt;
+    C.I := I;
+    C.Bits := LongWord(I);
+    C.Size := osDWord;
+    Exit(True);
+  end;
+  if TryStrToQWord(Trim(S), Q) then
+  begin
+    // a 64 bit number: the pattern in I
+    C.Kind := ckDInt;
+    C.I := Int64(Q);
+    C.Bits := LongWord(Q);
+    C.Size := osDWord;
+    Exit(True);
+  end;
+  if not SclTypedLiteralEx(S, V, I, T) then Exit;
+  if T in Int64Types then
+  begin
+    C.Kind := ckDInt;
+    C.I := I;
+    C.R := V;
+    C.Bits := LongWord(I);
+    C.Size := osDWord;
+    Exit(True);
+  end;
+  if T in RealTypes then
+  begin
+    C.Kind := ckReal;
+    C.R := V;
+    Sg := V;
+    C.Bits := PLongWord(@Sg)^;
+  end
+  else
+  begin
+    C.Kind := ckDInt;
+    C.I := Round(V);
+    C.Bits := LongWord(C.I and $FFFFFFFF);
+  end;
+  C.Size := osDWord;
+  Result := True;
+end;
+
+function ExpandInitList(const S: string): TStringArray;
+var
+  U, It: string;
+  K, N, Q, Cnt, Depth: Integer;
+  InStr: Boolean;
+
+  procedure Add(const V: string; Times: Integer);
+  var
+    J: Integer;
+  begin
+    for J := 1 to Times do
+    begin
+      if N > 100000 then Exit;
+      SetLength(Result, N + 1);
+      Result[N] := V;
+      Inc(N);
+    end;
+  end;
+
+  procedure Item(It: string);
+  begin
+    It := Trim(It);
+    if It = '' then Exit;
+    // n(v): v repeated n times
+    Q := Pos('(', It);
+    if (Q > 1) and (It[Length(It)] = ')') and TryStrToInt(Trim(Copy(It, 1, Q - 1)), Cnt) and (Cnt > 0) then
+      Add(Trim(Copy(It, Q + 1, Length(It) - Q - 1)), Cnt)
+    else
+      Add(It, 1);
+  end;
+
+begin
+  Result := nil;
+  N := 0;
+  U := Trim(S);
+  if (U = '') or (U[1] <> '[') then Exit;
+  Delete(U, 1, 1);
+  if (U <> '') and (U[Length(U)] = ']') then SetLength(U, Length(U) - 1);
+  It := '';
+  Depth := 0;
+  InStr := False;
+  for K := 1 to Length(U) do
+  begin
+    if U[K] = '''' then InStr := not InStr;
+    if not InStr then
+    begin
+      if U[K] = '(' then Inc(Depth) else if U[K] = ')' then Dec(Depth);
+      if (U[K] = ',') and (Depth = 0) then
+      begin
+        Item(It);
+        It := '';
+        Continue;
+      end;
+    end;
+    It := It + U[K];
+  end;
+  Item(It);
+end;
+
 function ParseDataType(const S: string; out T: TDataType; out ArrLo, ArrHi: Integer): Boolean;
 var
-  U, Inner, LoS, HiS: string;
-  P, Q: Integer;
+  U: string;
+  P: Integer;
   D: TDataType;
 begin
   Result := False;
@@ -558,21 +1434,43 @@ begin
   begin
     P := Pos(']', U);
     if P = 0 then Exit;
-    Inner := Copy(U, 7, P - 7);
-    Q := Pos('..', Inner);
-    if Q = 0 then Exit;
-    LoS := Trim(Copy(Inner, 1, Q - 1));
-    HiS := Trim(Copy(Inner, Q + 2, MaxInt));
-    if not TryStrToInt(LoS, ArrLo) or not TryStrToInt(HiS, ArrHi) then Exit;
-    if (ArrHi < ArrLo) or (ArrHi - ArrLo > 9999) then Exit;
+    if not ArrayRange(U, ArrLo, ArrHi) then Exit;
     U := Trim(Copy(U, P + 1, MaxInt));
     if Copy(U, 1, 3) <> 'OF ' then Exit;
     U := Trim(Copy(U, 4, MaxInt));
   end;
   if U = 'TOD' then U := 'TIME_OF_DAY';
   if U = 'BOOLEAN' then U := 'BOOL';
-  for D := Succ(dtNone) to Pred(dtStruct) do
-    if UpperCase(DataTypeNames[D]) = U then
+  if U = 'LTOD' then U := 'LTIME_OF_DAY';
+  if U = 'DT' then U := 'DATE_AND_TIME';
+  if U = 'LDATE_AND_TIME' then U := 'LDT';
+  // the system FBs of the S7-1200 / 1500: an IEC timer / counter whose call names the instruction
+  case SysFbMethod(U) of
+    'TON', 'TOF', 'TP', 'TONR':
+      begin
+        T := dtIECTimer;
+        Exit(True);
+      end;
+    'CTU', 'CTD', 'CTUD':
+      begin
+        T := dtIECCounter;
+        Exit(True);
+      end;
+  end;
+  // strings: String, String[20], WString[100]; WChar
+  if U = 'WCHAR' then
+  begin
+    T := dtWChar;
+    Exit(True);
+  end;
+  if (U = 'STRING') or (Copy(U, 1, 7) = 'STRING[') or (U = 'WSTRING') or (Copy(U, 1, 8) = 'WSTRING[') then
+  begin
+    if StringMaxOf(U) < 0 then Exit;
+    if U[1] = 'W' then T := dtWString else T := dtString;
+    Exit(True);
+  end;
+  for D := Succ(dtNone) to High(TDataType) do
+    if not (D in [dtStruct, dtString, dtWString]) and (UpperCase(DataTypeNames[D]) = U) then
     begin
       T := D;
       Result := True;
@@ -583,8 +1481,8 @@ end;
 { Array[lo..hi] of <Elem>: False for a malformed array, Lo > Hi and Elem = S when S is no array }
 function SplitArrayType(const S: string; out ArrLo, ArrHi: Integer; out Elem: string): Boolean;
 var
-  U, Inner: string;
-  P, Q: Integer;
+  U: string;
+  P: Integer;
 begin
   Result := False;
   ArrLo := 0;
@@ -594,12 +1492,7 @@ begin
   if Copy(U, 1, 6) <> 'ARRAY[' then Exit(True);
   P := Pos(']', U);
   if P = 0 then Exit;
-  Inner := Copy(U, 7, P - 7);
-  Q := Pos('..', Inner);
-  if Q = 0 then Exit;
-  if not TryStrToInt(Trim(Copy(Inner, 1, Q - 1)), ArrLo) or
-    not TryStrToInt(Trim(Copy(Inner, Q + 2, MaxInt)), ArrHi) then Exit;
-  if (ArrHi < ArrLo) or (ArrHi - ArrLo > 9999) then Exit;
+  if not ArrayRange(U, ArrLo, ArrHi) then Exit;
   Elem := Trim(Copy(Elem, P + 1, MaxInt));
   if UpperCase(Copy(Elem, 1, 3)) <> 'OF ' then Exit;
   Elem := Trim(Copy(Elem, 4, MaxInt));

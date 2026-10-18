@@ -117,6 +117,7 @@ type
     Int2: Integer;      // serial number of the command
     Prog: TCProgram;
     Req: PAreaReq;      // ckAreaIO
+    Str: string;        // ckModify of a String / WString: the text (UTF-8)
   end;
 
   TPlcRuntime = class;
@@ -150,8 +151,12 @@ type
     FNestN: Integer;
     { SCL value stack, CASE registers, the last value for the monitor }
     FSt: array[0..255] of Double;
+    FSti: array[0..255] of Int64;   // SCL: the exact integer of every stack value (the 64 bit types use it)
     FSp: Integer;
-    FReg: array[0..15] of Double;   // SCL: 0..7 CASE selectors, 8 the offset of a timer instance
+    FSS: array[0..63] of UnicodeString;   // SCL: the string stack
+    FSSp: Integer;
+    FReg: array[0..15] of Double;
+    FRegI: array[0..15] of Int64;   // SCL: 0..7 CASE selectors, 8 the offset of a timer instance
     FSclLast: Double;
     FDepth: Integer;
     FCurBlock: array[0..MaxDepth] of Integer;
@@ -183,6 +188,19 @@ type
     function SclIdx(const Op: TOp; BitOfs: Int64; const Base: TOperand): TOperand; overload;
     procedure SPush(V: Double); inline;
     function SPop: Double; inline;
+    procedure SPushI(V: Int64);
+    function SPopI: Int64;
+    procedure SclPushVar(const O: TOperand; DT: TDataType);
+    procedure SclStoreVar(const O: TOperand; DT: TDataType);
+    function Read8(const A: TAddr): QWord;
+    procedure Write8(const A: TAddr; QW: QWord);
+    function ReadIntA(const A: TAddr; T: TDataType): Int64;
+    procedure WriteIntA(const A: TAddr; T: TDataType; V: Int64);
+    procedure SSPush(const S: UnicodeString);
+    function SSPop: UnicodeString;
+    function StrRead(const O: TOperand; Wide: Boolean): UnicodeString;
+    procedure StrWrite(const O: TOperand; Wide: Boolean; AMax: Integer; const S: UnicodeString);
+    procedure StrOp(const Op: TOp);
     procedure ProcessCommands;
     procedure DoCommand(const C: TPlcCmd);
     procedure AllocMemory;
@@ -206,8 +224,10 @@ type
     procedure TimerOp(Code: TOpCode; const A: TAddr; S: Boolean);
     function IecState(const A: TAddr): Integer;
     function InstMember(const Inst: TAddr; AOfs, ABit: Integer; ASize: TOpSize): TAddr;
-    function IecTimer(Code: TOpCode; const Inst: TAddr; E: Boolean; PT: Int64; R: Boolean; out ET: Int64): Boolean;
-    function IecCounter(Code: TOpCode; const Inst: TAddr; CU, CD, R, LD: Boolean; PV: Int64; out CV: Int64): Boolean;
+    function IecTimer(Code: TOpCode; const Inst: TAddr; E: Boolean; PT: Int64; R: Boolean; out ET: Int64;
+      Long: Boolean = False): Boolean;
+    function IecCounter(Code: TOpCode; const Inst: TAddr; CU, CD, R, LD: Boolean; PV: Int64; out CV: Int64;
+      CT: TDataType = dtInt): Boolean;
     { memory }
     function AreaPtr(const A: TAddr; Bytes: Integer; ForWrite: Boolean): PByte;
     function ReadBitA(const A: TAddr): Boolean;
@@ -270,6 +290,7 @@ type
     procedure CmdMres;
     procedure CmdDownload(AProg: TCProgram);
     procedure CmdModify(const O: TOperand; V: LongWord);
+    procedure CmdModifyStr(const O: TOperand; const S: string);   // a String / WString variable
     procedure CmdForce(const O: TOperand; V: LongWord);
     procedure CmdUnforce(const O: TOperand);
     procedure CmdUnforceAll;
@@ -282,6 +303,10 @@ type
     function DiagCount: Integer;
     { reading for the UI (any thread, values may be one cycle old) }
     function PeekRaw(const O: TOperand; out V: LongWord): Boolean;
+    { the text of a String / WString (UTF-8), for the monitor }
+    function PeekString(const O: TOperand; Wide: Boolean; out S: string): Boolean;
+    { the 8 bytes of a 64 bit variable, for the monitor }
+    function Peek8(const O: TOperand; out QW: QWord): Boolean;
     function PeekBit(const O: TOperand; out V: Boolean): Boolean;
     function IsForced(const O: TOperand): Boolean;
     function TimerRemainMs(N: Integer): Double;
@@ -292,6 +317,8 @@ type
     function GetSimBit(ByteOfs, Bit: Integer): Boolean;
     function GetOutBit(ByteOfs, Bit: Integer): Boolean;
     procedure SetSimWord(ByteOfs: Integer; V: SmallInt);
+    procedure SetSimRaw(ByteOfs, Bytes: Integer; V: LongWord);   // 1, 2 or 4 bytes of the input modules
+    function GetOutRaw(ByteOfs, Bytes: Integer): LongWord;     // ... of the output modules
     function GetOutWord(ByteOfs: Integer): SmallInt;
     function NowMs: Double;
     { communication: blocks until the PLC thread has done the request (False = timeout) }
@@ -736,6 +763,16 @@ begin
   Post(C);
 end;
 
+procedure TPlcRuntime.CmdModifyStr(const O: TOperand; const S: string);
+var
+  C: TPlcCmd;
+begin
+  C := NewCmd(ckModify);
+  C.Opd := O;
+  C.Str := S;
+  Post(C);
+end;
+
 procedure TPlcRuntime.CmdForce(const O: TOperand; V: LongWord);
 var
   C: TPlcCmd;
@@ -881,6 +918,7 @@ procedure TPlcRuntime.DoCommand(const C: TPlcCmd);
 var
   Old: TCProgram;
   Was: TRunMode;
+  P: PByte;
   Ar: TArea;
 begin
   case C.Kind of
@@ -915,7 +953,17 @@ begin
       end;
     ckModify:
       try
-        if C.Opd.Kind = okAddr then
+        if (C.Opd.Kind = okAddr) and (DataTypeSize(C.Opd.DType) = 8) and (C.Opd.DType <> dtNone) then
+          // a 64 bit variable: its 8 bytes as a number
+          Write8(C.Opd.A, StrToQWordDef(C.Str, 0))
+        else if (C.Opd.Kind = okAddr) and (C.Opd.DType in [dtString, dtWString]) then
+        begin
+          // the max length is the head of the string in the memory
+          P := AreaPtr(C.Opd.A, 4, False);
+          if C.Opd.DType = dtWString then StrWrite(C.Opd, True, P[0] shl 8 or P[1], UTF8Decode(C.Str))
+          else StrWrite(C.Opd, False, P[0], UTF8Decode(C.Str));
+        end
+        else if C.Opd.Kind = okAddr then
         begin
           if C.Opd.A.Size = osBit then WriteBitA(C.Opd.A, C.Value <> 0) else WriteRaw(C.Opd.A, C.Value);
           if C.Opd.A.Area = arI then
@@ -1756,6 +1804,27 @@ begin
   PWord(@SimIn[ByteOfs])^ := Swap(W);
 end;
 
+procedure TPlcRuntime.SetSimRaw(ByteOfs, Bytes: Integer; V: LongWord);
+var
+  K: Integer;
+begin
+  if (ByteOfs < 0) or (ByteOfs + Bytes > Length(SimIn)) then Exit;
+  for K := Bytes - 1 downto 0 do
+  begin
+    SimIn[ByteOfs + K] := V and $FF;
+    V := V shr 8;
+  end;
+end;
+
+function TPlcRuntime.GetOutRaw(ByteOfs, Bytes: Integer): LongWord;
+var
+  K: Integer;
+begin
+  Result := 0;
+  if (ByteOfs < 0) or (ByteOfs + Bytes > Length(SimOut)) then Exit;
+  for K := 0 to Bytes - 1 do Result := Result shl 8 or SimOut[ByteOfs + K];
+end;
+
 function TPlcRuntime.GetOutWord(ByteOfs: Integer): SmallInt;
 begin
   if (ByteOfs < 0) or (ByteOfs + 1 > High(SimOut)) then Exit(0);
@@ -1927,12 +1996,13 @@ end;
 
 { TON / TOF / TP / TONR on an IEC_TIMER (PT 0, ET 4, IN 8.0, Q 8.1); the result is Q }
 function TPlcRuntime.IecTimer(Code: TOpCode; const Inst: TAddr; E: Boolean; PT: Int64; R: Boolean;
-  out ET: Int64): Boolean;
+  out ET: Int64; Long: Boolean): Boolean;
 var
   St: ^TIecState;
   Now: Double;
   V: Boolean;
-  Ix: Integer;
+  Ix, OB: Integer;
+  Sc: Double;
 
   function Member(AOfs, ABit: Integer; ASize: TOpSize): TAddr;
   begin
@@ -1945,9 +2015,22 @@ begin
   Ix := IecState(Inst);
   St := @FIec[Ix];
   if PT < 0 then PT := 0;
-  WriteRaw(Member(0, 0, osDWord), LongWord(PT));
-  ET := LongInt(ReadRaw(Member(4, 0, osDWord)));
-  V := ReadBitA(Member(8, 1, osBit));
+  // TON_LTIME: the times in ns (PT 0, ET 8), IN / Q in byte 16; IEC_TIMER: ms (PT 0, ET 4), byte 8
+  if Long then
+  begin
+    Sc := 1000000;
+    OB := 16;
+    Write8(Member(0, 0, osDWord), QWord(PT));
+    ET := Int64(Read8(Member(8, 0, osDWord)));
+  end
+  else
+  begin
+    Sc := 1;
+    OB := 8;
+    WriteRaw(Member(0, 0, osDWord), LongWord(PT));
+    ET := LongInt(ReadRaw(Member(4, 0, osDWord)));
+  end;
+  V := ReadBitA(Member(OB, 1, osBit));
     case Code of
       opTON:
         if E then
@@ -1957,7 +2040,7 @@ begin
             St^.StartMs := Now;
             St^.Running := True;
           end;
-          ET := Min(PT, Round(Now - St^.StartMs));
+          ET := Min(PT, Round((Now - St^.StartMs) * Sc));
           V := ET >= PT;
         end
         else
@@ -1982,7 +2065,7 @@ begin
           end;
           if St^.Running then
           begin
-            ET := Min(PT, Round(Now - St^.StartMs));
+            ET := Min(PT, Round((Now - St^.StartMs) * Sc));
             V := ET < PT;
             if not V then St^.Running := False;
           end
@@ -1998,7 +2081,7 @@ begin
           end;
           if St^.Running then
           begin
-            ET := Min(PT, Round(Now - St^.StartMs));
+            ET := Min(PT, Round((Now - St^.StartMs) * Sc));
             if ET >= PT then St^.Running := False;
           end
           else if not E then
@@ -2017,10 +2100,10 @@ begin
         begin
           if not St^.Running then
           begin
-            St^.StartMs := Now - ET;
+            St^.StartMs := Now - ET / Sc;
             St^.Running := True;
           end;
-          ET := Min(PT, Round(Now - St^.StartMs));
+          ET := Min(PT, Round((Now - St^.StartMs) * Sc));
         end
         else
           St^.Running := False;
@@ -2028,18 +2111,20 @@ begin
       end;
     end;
   St^.PrevIn := E;
-  WriteRaw(Member(4, 0, osDWord), LongWord(LongInt(ET)));
-  WriteBitA(Member(8, 0, osBit), E);
-  WriteBitA(Member(8, 1, osBit), V);
+  if Long then Write8(Member(8, 0, osDWord), QWord(ET))
+  else WriteRaw(Member(4, 0, osDWord), LongWord(LongInt(ET)));
+  WriteBitA(Member(OB, 0, osBit), E);
+  WriteBitA(Member(OB, 1, osBit), V);
   Result := V;
 end;
 
 { CTU / CTD / CTUD on an IEC_COUNTER (CU CD R LD QU QD in byte 0, PV 2, CV 4); the result is QU (CTD: QD) }
 function TPlcRuntime.IecCounter(Code: TOpCode; const Inst: TAddr; CU, CD, R, LD: Boolean; PV: Int64;
-  out CV: Int64): Boolean;
+  out CV: Int64; CT: TDataType): Boolean;
 var
-  I1, I2: Int64;
+  I1, I2, Lo, Hi: Int64;
   V, V2, Done: Boolean;
+  OCv: Integer;
 
   function Member(AOfs, ABit: Integer; ASize: TOpSize): TAddr;
   begin
@@ -2047,16 +2132,33 @@ var
   end;
 
 begin
-  I1 := SmallInt(ReadRaw(Member(4, 0, osWord)) and $FFFF);
-  I2 := EnsureRange(PV, -32768, 32767);
-  WriteRaw(Member(2, 0, osWord), LongWord(I2) and $FFFF);
+  // the range of the counter type: IEC_COUNTER / CTU_INT count in Int, CTU_DINT in DInt ...
+  case CT of
+    dtSInt: begin Lo := -128; Hi := 127; end;
+    dtUSInt: begin Lo := 0; Hi := 255; end;
+    dtUInt: begin Lo := 0; Hi := 65535; end;
+    dtDInt: begin Lo := -2147483648; Hi := 2147483647; end;
+    dtUDInt: begin Lo := 0; Hi := 4294967295; end;
+    dtLInt: begin Lo := Low(Int64); Hi := High(Int64); end;
+    dtULInt: begin Lo := 0; Hi := High(Int64); end;
+  else
+    begin
+      CT := dtInt;
+      Lo := -32768;
+      Hi := 32767;
+    end;
+  end;
+  OCv := 2 + Max(2, DataTypeSize(CT));
+  I1 := ReadIntA(Member(OCv, 0, osDWord), CT);
+  I2 := EnsureRange(PV, Lo, Hi);
+  WriteIntA(Member(2, 0, osDWord), CT, I2);
     case Code of
       opCTU:
         begin
           V := ReadBitA(Member(0, 0, osBit));    // old CU
           V2 := R;
           if V2 then I1 := 0
-          else if CU and not V and (I1 < 32767) then Inc(I1);
+          else if CU and not V and (I1 < Hi) then Inc(I1);
           WriteBitA(Member(0, 0, osBit), CU);
           WriteBitA(Member(0, 2, osBit), V2);
           V := I1 >= I2;
@@ -2067,7 +2169,7 @@ begin
           V := ReadBitA(Member(0, 1, osBit));    // old CD
           V2 := LD;
           if V2 then I1 := I2
-          else if CD and not V and (I1 > -32768) then Dec(I1);
+          else if CD and not V and (I1 > Lo) then Dec(I1);
           WriteBitA(Member(0, 1, osBit), CD);
           WriteBitA(Member(0, 3, osBit), V2);
           V := I1 <= 0;
@@ -2082,8 +2184,8 @@ begin
         else if LD then I1 := I2
         else
         begin
-          if CU and not V and (I1 < 32767) then Inc(I1);
-          if Done and not V2 and (I1 > -32768) then Dec(I1);
+          if CU and not V and (I1 < Hi) then Inc(I1);
+          if Done and not V2 and (I1 > Lo) then Dec(I1);
         end;
         WriteBitA(Member(0, 0, osBit), CU);
         WriteBitA(Member(0, 1, osBit), Done);
@@ -2094,7 +2196,7 @@ begin
         WriteBitA(Member(0, 4, osBit), V);
       end;
     end;
-  WriteRaw(Member(4, 0, osWord), LongWord(I1) and $FFFF);
+  WriteIntA(Member(OCv, 0, osDWord), CT, I1);
   CV := I1;
   Result := V;
   if Done then ;
@@ -2185,6 +2287,7 @@ var
   I: Int64;
   Sg: Single;
 begin
+  if DT = dtLReal then Exit(V);
   if DT = dtReal then
   begin
     if IsNan(V) or IsInfinite(V) or (Abs(V) > 3.4E38) then Exit(V);
@@ -2217,6 +2320,83 @@ begin
   end;
 end;
 
+{ the arithmetic of the 64 bit types on the exact Int64 values (ULInt / LWord unsigned) }
+function SclBin64(Op: Integer; DT: TDataType; A, B: Int64): Int64;
+var
+  U: Boolean;
+  N: Integer;
+
+  function Cmp: Integer;
+  begin
+    if U then
+    begin
+      if QWord(A) < QWord(B) then Result := -1 else if QWord(A) > QWord(B) then Result := 1 else Result := 0;
+    end
+    else if A < B then Result := -1
+    else if A > B then Result := 1
+    else Result := 0;
+  end;
+
+begin
+  U := DT in [dtULInt, dtLWord];
+  case Op of
+    0: Result := Int64(QWord(A) + QWord(B));
+    1: Result := Int64(QWord(A) - QWord(B));
+    2: Result := Int64(QWord(A) * QWord(B));
+    3:
+      if B = 0 then Result := 0
+      else if U then Result := Int64(QWord(A) div QWord(B))
+      else if (A = Low(Int64)) and (B = -1) then Result := A
+      else Result := A div B;
+    4:
+      if B = 0 then Result := 0
+      else if U then Result := Int64(QWord(A) mod QWord(B))
+      else if B = -1 then Result := 0
+      else Result := A mod B;
+    9: Result := A and B;
+    10: Result := A or B;
+    11: Result := A xor B;
+    12: Result := Ord(Cmp = 0);
+    13: Result := Ord(Cmp <> 0);
+    14: Result := Ord(Cmp < 0);
+    15: Result := Ord(Cmp > 0);
+    16: Result := Ord(Cmp <= 0);
+    17: Result := Ord(Cmp >= 0);
+    18: if Cmp <= 0 then Result := A else Result := B;
+    19: if Cmp >= 0 then Result := A else Result := B;
+    20..23:
+      begin
+        N := B;
+        if N < 0 then N := 0;
+        case Op of
+          20: if N >= 64 then Result := 0 else Result := Int64(QWord(A) shl N);
+          21: if N >= 64 then Result := 0 else Result := Int64(QWord(A) shr N);
+          22: Result := Int64(RolQWord(QWord(A), N mod 64));
+        else
+          Result := Int64(RorQWord(QWord(A), N mod 64));
+        end;
+      end;
+  else
+    Result := 0;
+  end;
+end;
+
+{ an integer value into a type (the masks of SclWrap on the exact value) }
+function SclWrapI(I: Int64; DT: TDataType): Int64;
+begin
+  case DT of
+    dtBool: Result := Ord(I <> 0);
+    dtSInt: Result := ShortInt(I and $FF);
+    dtByte, dtUSInt, dtChar: Result := I and $FF;
+    dtInt: Result := SmallInt(I and $FFFF);
+    dtWord, dtUInt, dtS5Time, dtDate, dtWChar: Result := I and $FFFF;
+    dtDInt, dtTime, dtTOD: Result := LongInt(I and $FFFFFFFF);
+    dtUDInt, dtDWord: Result := I and $FFFFFFFF;
+  else
+    Result := I;
+  end;
+end;
+
 function SclBin(Op: Integer; DT: TDataType; A, B: Double): Double;
 var
   IA, IB, Mask: Int64;
@@ -2228,7 +2408,7 @@ begin
       1: Result := A - B;
       2: Result := A * B;
       3:
-        if DT = dtReal then
+        if DT in RealTypes then
         begin
           if B = 0 then
           begin
@@ -2312,7 +2492,28 @@ begin
   except
     Result := NaN;
   end;
-  if Fn in [4..13, 20, 21] then Result := SclWrap(Result, dtReal);
+  if Fn in [4..13, 20, 21] then
+  begin
+    if DT = dtLReal then Result := SclWrap(Result, dtLReal) else Result := SclWrap(Result, dtReal);
+  end;
+end;
+
+const
+  stLimitK = 0;
+  stSelK = 1;
+  suNeg = 0; suNotBits = 2; suAbs = 3; suRound = 14; suTrunc = 15; suCeil = 16; suFloor = 17; suWrap = 18;
+  suBool = 19;
+
+function Ceil64(D: Double): Int64;
+begin
+  Result := Trunc(D);
+  if Frac(D) > 0 then Inc(Result);
+end;
+
+function Floor64(D: Double): Int64;
+begin
+  Result := Trunc(D);
+  if Frac(D) < 0 then Dec(Result);
 end;
 
 function SclTern(Fn: Integer; DT: TDataType; A, B, C: Double): Double;
@@ -2324,16 +2525,26 @@ begin
   else
     begin
       Result := B * (C - A) + A;                                      // SCALE_X
-      if DT <> dtReal then Result := Round(Result);
+      if not (DT in RealTypes) then Result := Round(Result);
       Result := SclWrap(Result, DT);
     end;
   end;
+end;
+
+{ the exact integer of a Double (0 for NaN, clamped beyond Int64) }
+function DToI(V: Double): Int64; inline;
+begin
+  if IsNan(V) then Exit(0);
+  if V >= 9.2233720368547758E18 then Exit(High(Int64));
+  if V <= -9.2233720368547758E18 then Exit(Low(Int64));
+  Result := Trunc(V);
 end;
 
 procedure TPlcRuntime.SPush(V: Double);
 begin
   if FSp > High(FSt) then raise EPlcFatal.Create('SCL: expression stack overflow');
   FSt[FSp] := V;
+  FSti[FSp] := DToI(V);
   Inc(FSp);
 end;
 
@@ -2342,6 +2553,306 @@ begin
   if FSp <= 0 then raise EPlcError.Create('SCL: expression stack underflow');
   Dec(FSp);
   Result := FSt[FSp];
+end;
+
+procedure TPlcRuntime.SPushI(V: Int64);
+begin
+  if FSp > High(FSt) then raise EPlcFatal.Create('SCL: expression stack overflow');
+  FSt[FSp] := V;
+  FSti[FSp] := V;
+  Inc(FSp);
+end;
+
+function TPlcRuntime.SPopI: Int64;
+begin
+  if FSp <= 0 then raise EPlcError.Create('SCL: expression stack underflow');
+  Dec(FSp);
+  Result := FSti[FSp];
+end;
+
+function TPlcRuntime.Read8(const A: TAddr): QWord;
+var
+  P: PByte;
+  K: Integer;
+begin
+  P := AreaPtr(A, 8, False);
+  Result := 0;
+  for K := 0 to 7 do Result := Result shl 8 or P[K];
+end;
+
+procedure TPlcRuntime.Write8(const A: TAddr; QW: QWord);
+var
+  P: PByte;
+  K: Integer;
+begin
+  P := AreaPtr(A, 8, True);
+  for K := 7 downto 0 do
+  begin
+    P[K] := QW and $FF;
+    QW := QW shr 8;
+  end;
+end;
+
+{ an integer of the type T at A (1, 2, 4 or 8 bytes, big endian) }
+function TPlcRuntime.ReadIntA(const A: TAddr; T: TDataType): Int64;
+var
+  P: PByte;
+begin
+  case DataTypeSize(T) of
+    1:
+      begin
+        P := AreaPtr(A, 1, False);
+        if T = dtSInt then Result := ShortInt(P[0]) else Result := P[0];
+      end;
+    2:
+      begin
+        P := AreaPtr(A, 2, False);
+        Result := P[0] shl 8 or P[1];
+        if T = dtInt then Result := SmallInt(Result);
+      end;
+    4:
+      begin
+        P := AreaPtr(A, 4, False);
+        Result := Int64(LongWord(P[0]) shl 24 or LongWord(P[1]) shl 16 or LongWord(P[2]) shl 8 or P[3]);
+        if T = dtDInt then Result := LongInt(Result);
+      end;
+  else
+    Result := Int64(Read8(A));
+  end;
+end;
+
+procedure TPlcRuntime.WriteIntA(const A: TAddr; T: TDataType; V: Int64);
+var
+  P: PByte;
+  K, N: Integer;
+begin
+  N := DataTypeSize(T);
+  if N = 8 then
+  begin
+    Write8(A, QWord(V));
+    Exit;
+  end;
+  P := AreaPtr(A, N, True);
+  for K := N - 1 downto 0 do
+  begin
+    P[K] := V and $FF;
+    V := V shr 8;
+  end;
+end;
+
+{ a variable onto the SCL stack: the 64 bit types exactly (LReal as a Double, DT in ms since 1990) }
+procedure TPlcRuntime.SclPushVar(const O: TOperand; DT: TDataType);
+var
+  QW: QWord;
+  D: Double;
+begin
+  if (O.Kind = okAddr) and (DataTypeSize(DT) = 8) then
+  begin
+    QW := Read8(O.A);
+    if DT = dtLReal then
+    begin
+      Move(QW, D, 8);
+      SPush(D);
+    end
+    else if DT = dtDT then SPushI(DecodeDT(QW))
+    else SPushI(Int64(QW));
+    Exit;
+  end;
+  SPush(SclRead(O, DT));
+end;
+
+procedure TPlcRuntime.SclStoreVar(const O: TOperand; DT: TDataType);
+var
+  D: Double;
+  IV: Int64;
+  QW: QWord;
+begin
+  if (O.Kind = okAddr) and (DataTypeSize(DT) = 8) then
+  begin
+    D := FSt[FSp - 1];
+    IV := SPopI;
+    FSclLast := D;
+    if DT = dtLReal then Move(D, QW, 8)
+    else if DT = dtDT then QW := EncodeDT(IV)
+    else QW := QWord(IV);
+    Write8(O.A, QW);
+    Exit;
+  end;
+  // an integer from the exact half (a 64 bit value into a 32 bit variable wraps like on the CPU)
+  D := FSt[FSp - 1];
+  IV := SPopI;
+  if not (DT in RealTypes) and (Abs(D) > 4.0E15) then D := IV;
+  FSclLast := D;
+  SclWrite(O, DT, D);
+end;
+
+function TPlcRuntime.Peek8(const O: TOperand; out QW: QWord): Boolean;
+begin
+  QW := 0;
+  Result := False;
+  if (O.Kind <> okAddr) or not (O.A.Area in [arI, arQ, arM, arDB]) then Exit;
+  try
+    QW := Read8(O.A);
+    Result := True;
+  except
+    Result := False;
+  end;
+end;
+
+procedure TPlcRuntime.SSPush(const S: UnicodeString);
+begin
+  if FSSp > High(FSS) then raise EPlcFatal.Create('SCL: string stack overflow');
+  FSS[FSSp] := S;
+  Inc(FSSp);
+end;
+
+function TPlcRuntime.SSPop: UnicodeString;
+begin
+  if FSSp <= 0 then raise EPlcError.Create('SCL: string stack underflow');
+  Dec(FSSp);
+  Result := FSS[FSSp];
+  FSS[FSSp] := '';
+end;
+
+{ String: max length byte, length byte, the characters; WString: the same in words (big endian) }
+function TPlcRuntime.StrRead(const O: TOperand; Wide: Boolean): UnicodeString;
+var
+  P: PByte;
+  Mx, Len, K: Integer;
+begin
+  if Wide then
+  begin
+    P := AreaPtr(O.A, 4, False);
+    Mx := P[0] shl 8 or P[1];
+    Len := Min(P[2] shl 8 or P[3], Mx);
+    P := AreaPtr(O.A, 4 + 2 * Len, False);
+    SetLength(Result, Len);
+    for K := 1 to Len do Result[K] := WideChar(P[2 + 2 * K] shl 8 or P[3 + 2 * K]);
+  end
+  else
+  begin
+    P := AreaPtr(O.A, 2, False);
+    Mx := P[0];
+    Len := Min(P[1], Mx);
+    P := AreaPtr(O.A, 2 + Len, False);
+    SetLength(Result, Len);
+    for K := 1 to Len do Result[K] := WideChar(P[1 + K]);
+  end;
+end;
+
+procedure TPlcRuntime.StrWrite(const O: TOperand; Wide: Boolean; AMax: Integer; const S: UnicodeString);
+var
+  P: PByte;
+  Len, K: Integer;
+begin
+  Len := Min(Length(S), AMax);
+  if Wide then
+  begin
+    P := AreaPtr(O.A, 4 + 2 * AMax, True);
+    P[0] := AMax shr 8;
+    P[1] := AMax and $FF;
+    P[2] := Len shr 8;
+    P[3] := Len and $FF;
+    for K := 1 to Len do
+    begin
+      P[2 + 2 * K] := Ord(S[K]) shr 8;
+      P[3 + 2 * K] := Ord(S[K]) and $FF;
+    end;
+  end
+  else
+  begin
+    P := AreaPtr(O.A, 2 + AMax, True);
+    P[0] := AMax;
+    P[1] := Len;
+    for K := 1 to Len do
+      if Ord(S[K]) > 255 then P[1 + K] := Ord('?') else P[1 + K] := Ord(S[K]);
+  end;
+  FSclLast := Len;
+end;
+
+{ the string functions: 1 CONCAT, 2 LEFT, 3 RIGHT, 4 MID, 5 LEN, 6 FIND, 7 compare (Ext: = <> < > <= >=),
+  8 a character (value stack) as a string, 9 swap the two top strings }
+procedure TPlcRuntime.StrOp(const Op: TOp);
+var
+  A, B: UnicodeString;
+  Cnt, Ps, C: Integer;
+begin
+  case Op.Sub of
+    1:
+      begin
+        B := SSPop;
+        A := SSPop;
+        SSPush(A + B);
+      end;
+    2, 3:
+      begin
+        Cnt := Round(SPop);
+        A := SSPop;
+        if Cnt <= 0 then A := ''
+        else if Cnt < Length(A) then
+        begin
+          if Op.Sub = 2 then A := Copy(A, 1, Cnt) else A := Copy(A, Length(A) - Cnt + 1, Cnt);
+        end;
+        SSPush(A);
+      end;
+    4:
+      begin
+        Ps := Round(SPop);
+        Cnt := Round(SPop);
+        A := SSPop;
+        if (Cnt <= 0) or (Ps < 1) or (Ps > Length(A)) then A := '' else A := Copy(A, Ps, Cnt);
+        SSPush(A);
+      end;
+    5: SPush(Length(SSPop));
+    6:
+      begin
+        B := SSPop;
+        A := SSPop;
+        if B = '' then SPush(0) else SPush(Pos(B, A));
+      end;
+    7:
+      begin
+        B := SSPop;
+        A := SSPop;
+        if A < B then C := -1 else if A > B then C := 1 else C := 0;
+        case Op.Ext of
+          12: SPush(Ord(C = 0));
+          13: SPush(Ord(C <> 0));
+          14: SPush(Ord(C < 0));
+          15: SPush(Ord(C > 0));
+          16: SPush(Ord(C <= 0));
+        else
+          SPush(Ord(C >= 0));
+        end;
+      end;
+    8: SSPush(UnicodeString(WideChar(Round(SPop) and $FFFF)));
+    9:
+      begin
+        B := SSPop;
+        A := SSPop;
+        SSPush(B);
+        SSPush(A);
+      end;
+  end;
+end;
+
+function TPlcRuntime.PeekString(const O: TOperand; Wide: Boolean; out S: string): Boolean;
+var
+  R: RawByteString;
+begin
+  S := '';
+  Result := False;
+  if O.Kind <> okAddr then Exit;
+  if not (O.A.Area in [arI, arQ, arM, arDB]) then Exit;
+  try
+    // the UTF-8 bytes as they are (no conversion to the code page of the system)
+    R := UTF8Encode(StrRead(O, Wide));
+    SetLength(S, Length(R));
+    if R <> '' then Move(R[1], S[1], Length(R));
+    Result := True;
+  except
+    Result := False;
+  end;
 end;
 
 function TPlcRuntime.SclRead(const O: TOperand; DT: TDataType): Double;
@@ -2388,6 +2899,7 @@ begin
   FDepth := 0;
   FNestN := 0;
   FSp := 0;
+  FSSp := 0;
   FCtx.FC := False;
   FCtx.ORb := False;
   FCtx.RLO := False;
@@ -2459,7 +2971,8 @@ var
   I1, I2, IR: Int64;
   T2: TDataType;
   S1, S2, SR: Single;
-  D1: Double;
+  D1, D2: Double;
+  Q7, Q8, Q9: Int64;
   Opd2, CpDst: TOperand;
   CpSrc, CpTo: PByte;
   SavedNest: Integer;
@@ -3391,36 +3904,91 @@ begin
           end;
         // ---------- LAD ----------
         // ---------- SCL ----------
-        opSPush: SPush(SclRead(Op^.Opd, Op^.DType));
-        opSPushK: SPush(Op^.K);
+        opSPush: SclPushVar(Op^.Opd, Op^.DType);
+        opSPushK: if Op^.DType in Int64Types then SPushI(Op^.KI) else SPush(Op^.K);
         opSPushIdx:
           begin
             D1 := SPop;
-            SPush(SclRead(SclIdx(Op^, Round(D1)), Op^.DType));
+            SclPushVar(SclIdx(Op^, Round(D1)), Op^.DType);
           end;
-        opSStore:
-          begin
-            FSclLast := SPop;
-            SclWrite(Op^.Opd, Op^.DType, FSclLast);
-          end;
+        opSStore: SclStoreVar(Op^.Opd, Op^.DType);
         opSStoreIdx:
           begin
-            FSclLast := SPop;
-            D1 := SPop;
-            SclWrite(SclIdx(Op^, Round(D1)), Op^.DType, FSclLast);
+            // the value is on top, the offset under it
+            Q8 := FSti[FSp - 1];
+            D1 := FSt[FSp - 1];
+            SPop;
+            I1 := Round(SPop);
+            SPushI(Q8);
+            FSt[FSp - 1] := D1;
+            SclStoreVar(SclIdx(Op^, I1), Op^.DType);
           end;
         opSBin:
+          if Op^.DType in Int64Types then
+          begin
+            Q8 := SPopI;
+            SPushI(SclBin64(Op^.Sub, Op^.DType, SPopI, Q8));
+          end
+          else
           begin
             D1 := SPop;
             SPush(SclBin(Op^.Sub, Op^.DType, SPop, D1));
           end;
-        opSUn: SPush(SclUn(Op^.Sub, Op^.DType, SPop));
+        opSUn:
+          if (Op^.Sub in [suRound, suTrunc, suCeil, suFloor]) and (Op^.DType in Int64Types) then
+          begin
+            // LREAL_TO_LINT: rounded into 64 bit
+            D1 := SPop;
+            if IsNan(D1) or (Abs(D1) > 9.2E18) then SPushI(0)
+            else
+              case Op^.Sub of
+                suRound: SPushI(Round(D1));
+                suTrunc: SPushI(Trunc(D1));
+                suCeil: SPushI(Ceil64(D1));
+              else
+                SPushI(Floor64(D1));
+              end;
+          end
+          else if Op^.DType in Int64Types then
+          begin
+            Q8 := SPopI;
+            case Op^.Sub of
+              suNeg: SPushI(Int64(-QWord(Q8)));
+              suNotBits: SPushI(not Q8);
+              suAbs: if Q8 < 0 then SPushI(-Q8) else SPushI(Q8);
+              suBool: SPushI(Ord(Q8 <> 0));
+            else
+              SPushI(Q8);
+            end;
+          end
+          else if (Op^.Sub = suWrap) and not (Op^.DType in RealTypes) then
+          begin
+            // into a smaller integer: from the exact value
+            D1 := FSt[FSp - 1];
+            Q8 := SPopI;
+            if Abs(D1) < 4.0E15 then SPush(SclWrap(D1, Op^.DType)) else SPushI(SclWrapI(Q8, Op^.DType));
+          end
+          else
+            SPush(SclUn(Op^.Sub, Op^.DType, SPop));
         opSTern:
           begin
+            // the three values with their exact halves: SEL picks one of them as it is
             S1 := 0;
+            Q8 := FSti[FSp - 1];
             D1 := SPop;
+            Q9 := FSti[FSp - 1];
             Now := SPop;
-            SPush(SclTern(Op^.Sub, Op^.DType, SPop, Now, D1));
+            Q7 := FSti[FSp - 1];
+            D2 := SPop;
+            if Op^.Sub = stSelK then
+            begin
+              if D2 <> 0 then begin SPushI(Q8); FSt[FSp - 1] := D1; end
+              else begin SPushI(Q9); FSt[FSp - 1] := Now; end;
+            end
+            else if (Op^.Sub = stLimitK) and (Op^.DType in Int64Types) then
+              SPushI(SclBin64(18, Op^.DType, SclBin64(19, Op^.DType, Q9, Q7), Q8))
+            else
+              SPush(SclTern(Op^.Sub, Op^.DType, D2, Now, D1));
           end;
         opSJmp: Pc := Op^.Ext - 1;
         opSJz:
@@ -3431,10 +3999,30 @@ begin
         opSPop: SPop;
         opSSetReg:
           begin
+            FRegI[Op^.Sub and 15] := FSti[FSp - 1];
             FSclLast := SPop;
             FReg[Op^.Sub and 15] := FSclLast;
           end;
-        opSGetReg: SPush(FReg[Op^.Sub and 15]);
+        opSGetReg:
+          begin
+            SPushI(FRegI[Op^.Sub and 15]);
+            FSt[FSp - 1] := FReg[Op^.Sub and 15];
+          end;
+        opStrPush:
+          if Op^.Ext = 1 then SSPush(StrRead(SclIdx(Op^, Round(SPop)), Op^.Sub = 1))
+          else SSPush(StrRead(Op^.Opd, Op^.Sub = 1));
+        opStrPushK: SSPush(UTF8Decode(Op^.Opd.Text));
+        opStrStore:
+          if Op^.Ext = 1 then StrWrite(SclIdx(Op^, Round(SPop)), Op^.Sub = 1, Op^.Hi, SSPop)
+          else StrWrite(Op^.Opd, Op^.Sub = 1, Op^.Hi, SSPop);
+        opStrOp: StrOp(Op^);
+        opSRloPush: SPush(Ord(Eff));
+        opSRloSet:
+          begin
+            FCtx.RLO := SPop <> 0;
+            FCtx.FC := True;
+            FCtx.ORb := False;
+          end;
         opSCopy:
           begin
             // a := b for a whole struct / array: Sub bytes from Params[Ext] to Opd;
@@ -3460,31 +4048,32 @@ begin
         opSTimer:
           begin
             D1 := SPop;                 // R
-            Now := SPop;                // PT
+            Q8 := SPopI;                // PT (TON_LTIME: ns)
             V := SPop <> 0;             // IN
             if Op^.Ext = 1 then         // an instance in an array: "DB".M[#i].T
-              V := IecTimer(TOpCode(Op^.Sub), SclIdx(Op^, Round(FReg[8])).A, V, Round(Now), D1 <> 0, ET)
+              V := IecTimer(TOpCode(Op^.Sub), SclIdx(Op^, Round(FReg[8])).A, V, Q8, D1 <> 0, ET, Op^.DType = dtLTime)
             else
-            V := IecTimer(TOpCode(Op^.Sub), Op^.Opd.A, V, Round(Now), D1 <> 0, ET);
+            V := IecTimer(TOpCode(Op^.Sub), Op^.Opd.A, V, Q8, D1 <> 0, ET, Op^.DType = dtLTime);
             FSclLast := Ord(V);
           end;
         opSCounter:
           begin
-            I2 := Round(SPop);          // PV
+            I2 := SPopI;                // PV
             E := SPop <> 0;             // LD
             Done := SPop <> 0;          // R
             V2 := SPop <> 0;            // CD
             V := SPop <> 0;             // CU
             if Op^.Ext = 1 then
-              V := IecCounter(TOpCode(Op^.Sub), SclIdx(Op^, Round(FReg[8])).A, V, V2, Done, E, I2, I1)
+              V := IecCounter(TOpCode(Op^.Sub), SclIdx(Op^, Round(FReg[8])).A, V, V2, Done, E, I2, I1, Op^.DType)
             else
-              V := IecCounter(TOpCode(Op^.Sub), Op^.Opd.A, V, V2, Done, E, I2, I1);
+              V := IecCounter(TOpCode(Op^.Sub), Op^.Opd.A, V, V2, Done, E, I2, I1, Op^.DType);
             FSclLast := Ord(V);
           end;
         opNetBegin:
           begin
             FNestN := 0;
             FSp := 0;
+            FSSp := 0;
             FCtx.FC := False;
             FCtx.ORb := False;
             if (FDepth = 0) and not FInCyclic then CheckCyclic;
@@ -3747,7 +4336,7 @@ begin
     begin
       if Op^.Code = opLadLoad then MonRecord(B, Op^.Mon, FPin[Op^.Sub])
       else if Op^.Code = opLadStore then MonRecord(B, Op^.Mon, FPout[Op^.Sub])
-      else if Op^.Code in [opSStore, opSStoreIdx, opSJz, opSTimer, opSCounter, opSSetReg, opSCopy] then
+      else if Op^.Code in [opSStore, opSStoreIdx, opSJz, opSTimer, opSCounter, opSSetReg, opSCopy, opStrStore] then
       begin
         MonRecord(B, Op^.Mon, FSclLast <> 0);
         if Op^.Mon <= High(B.Mon) then B.Mon[Op^.Mon].Val := FSclLast;
