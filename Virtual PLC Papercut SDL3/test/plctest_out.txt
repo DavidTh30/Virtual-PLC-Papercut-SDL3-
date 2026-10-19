@@ -1,3 +1,78 @@
+--- cross reference ---
+  ok   found "Start": "Start" = %I0.0  (Bool)
+  ok   what it is: "Start" = %I0.0  (Bool)
+  ok   "Start": 6 decisions (IF AND, := value, call input by its address, the contact, A, O IB0) - 6 read, 0 written
+  ok   IF AND, call input Run, a NO contact, A
+  ok   its tag
+  ok   IB0 overlaps %I0.0 (not the same operand)
+  ok   found "Lamp"
+  ok   destinations: :=, call output, S coil, =
+  ok   L QB0 reads it; the watch table
+  ok   #x: := and its interface row
+  ok   an unknown operand: unknown symbol "Nothing"
+--- arrays: the start value of each element ---
+  ok   [1, 2, 3(7)]: element 4 is 7
+  ok   one value: every element
+  ok   no start value
+  ok   Bool element 3 TRUE: [3(FALSE), TRUE, 6(FALSE)]
+  ok   back to the default: no start value
+  ok   one value of all, then element 0: [1, 3(7)]
+  ok   all the same again: one value
+  ok   Array of Bool / Word with element start values compiles
+  ok   "Arr".Flags[3] = TRUE, [2] FALSE
+  ok   "Arr".Words[5] = 16#00FF
+--- SCL parameter help ---
+  ok   the call after "(" (a statement)
+  ok   FB "Motor": Run, Speed => Running
+  ok   the template: aligned, TIA placeholders
+  ok   the ghost: Run := <Bool>, Speed := <Int>, Running => <Bool>);
+  ok   the second argument, Run given
+  ok   Sp.. is Speed
+  ok   LIMIT in an expression, the third argument
+  ok   its MX
+  ok   IF ( .. ): not a call; SEL( is
+  ok   a conversion
+  ok   #Timer of TON_TIME: IN, PT, Q, ET
+  ok   fits Time: #Delay
+  ok   fits Bool: "Start"
+  ok   ANY_NUM / ANY_BIT
+  ok   the first placeholder
+  ok   the next one
+--- OBs: catalog, start information, events ---
+  ok   S7-300: OB1, OB35, OB82, OB86, OB121, OB122 (no OB30)
+  ok   S7-400: OB30..38, OB90, OB101, OB102
+  ok   S7-1200: no OB121
+  ok   S7-1500: OB61, OB121, OB122, no OB81
+  ok   own numbers (>= 123): TIA cyclic / hardware .., not classic, not OB121
+  ok   the event of an OB
+  ok   default cycle times
+  ok   OB35_EXC_FREQ -> EXC_FREQ
+  ok   S7-400 has 53 standard OBs
+  ok   S7-1500 OB1: Input Initial_Call, Remanence (the CPU's)
+  ok   S7-300 OB1: OB1_EV_CLASS ..
+  ok   the user's Temp after the 20 bytes of start information (L20)
+  ok   the TIA start information is gone
+  ok   the start information is not saved
+  ok   OB40 back: its input, edge and start information
+  ok   OB35: 20 ms back
+  ok   the OBs of the S7-1500 compile
+  ok   10 OBs in the program (10)
+  ok   RUN (OB121 is there)
+  ok   OB100 and the startup OB124 ran once
+  ok   #Initial_Call: once
+  ok   the program cycle OB123 runs after OB1 every cycle
+  ok   OB30 every 10 ms: 29 runs, Initial_Call once
+  ok   SRT_DINT: OB20 once with SIGN 7, RET_VAL 0
+  ok   OB121 on the area length error, the program goes on (Fault_ID 16#24)
+  ok   OB40: the rising edge of %I0.0 (EventType 1), not the falling
+  ok   OB86: station failure (16#39), RUN
+  ok   OB86: station return (16#38)
+  ok   OB82: the diagnostic interrupt
+  ok   the runs of OB30
+  ok   S7-300: #OB1_SCAN_1 .. compile
+  ok   OB1_SCAN_1 = 3 after the first cycle, OB1_OB_NUMBR = 1
+  ok   OB35_EXC_FREQ = 20 ms
+  ok   S7-300: a diagnostic interrupt without OB82 -> STOP
 --- groups of tags / watch rows, SCL import of types and DBs ---
   ok   a new group gets a new Id
   ok   a name used twice is seen (red in the tree)
@@ -334,7 +409,7 @@
   ok   bit string AND
   ok   SCALE_X(0.25, 0..400) = 100
   ok   NORM_X(13824 of 27648) * 100 > 49
-  ok   FC1 in SCL called every cycle, RETURN skips the rest (41)
+  ok   FC1 in SCL called every cycle, RETURN skips the rest (40)
   ok   TON not yet done
   ok   SCL TON: Q after 200 ms
   ok   ET => "D".T1 = 200 ms
@@ -387,7 +462,7 @@
   ok   "D".M[#j].Hist[#j - 1] + "D".M[3].Hist[#j] = 53
   ok   PT := 100 * (#i + 1) lands in M[2].T.PT (300)
   ok   "D".M[#i].T.TON: each element has its own timer (100, 200 done; 300, 400 running)
-  ok   M[3].T.ET runs: 251 ms
+  ok   M[3].T.ET runs: 252 ms
   ok   "D".M[#i].C.CTU counted the TON of its own element, CV => M[#i].Speed
   ok   read "D".M[#j - 2].T.Q
   ok   "D".Tm[#j] (Array of IEC_TIMER) idle with IN = FALSE
@@ -785,7 +860,7 @@
   ok   service due
   ok   counter reset
   ok   still RUN
-    cycles/s 994, host 9.6 us, model 215.7 us, 173 ops
+    cycles/s 973, host 17.9 us, model 215.7 us, 173 ops
   ok   STOP
   ok   outputs off in STOP
     diag: Power on: CPU 315-2 PN/DP, V3.2 - STOP (no user program)
@@ -820,7 +895,7 @@
   ok   counter reset
   ok   S7-400 ENT: MW22 = 31
   ok   still RUN
-    cycles/s 992, host 11.4 us, model 83.7 us, 181 ops
+    cycles/s 986, host 18.6 us, model 83.7 us, 181 ops
   ok   STOP
   ok   outputs off in STOP
     diag: Power on: CPU 414-3 PN/DP, V6.0 - STOP (no user program)
@@ -854,7 +929,7 @@
   ok   service due
   ok   counter reset
   ok   still RUN
-    cycles/s 994, host 16.7 us, model 504.0 us, 261 ops
+    cycles/s 990, host 25.8 us, model 503.5 us, 261 ops
   ok   STOP
   ok   outputs off in STOP
     diag: Power on: CPU 1214C DC/DC/DC, V4.6 - STOP (no user program)
@@ -890,7 +965,7 @@
   ok   S7-400 ENT: MW22 = 31
   ok   S7-1500 STL clock T5 / C5: 6 seconds of motor run
   ok   still RUN
-    cycles/s 996, host 19.6 us, model 44.5 us, 280 ops
+    cycles/s 988, host 22.5 us, model 44.5 us, 280 ops
   ok   STOP
   ok   outputs off in STOP
     diag: Power on: CPU 1516-3 PN/DP, V2.9 - STOP (no user program)
@@ -899,4 +974,4 @@
     diag: STARTUP -> RUN
     diag: RUN -> STOP: STOP by the operator
 
-813 passed, 0 failed
+884 passed, 0 failed

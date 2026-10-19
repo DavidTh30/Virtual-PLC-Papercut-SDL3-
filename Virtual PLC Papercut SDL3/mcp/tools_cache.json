@@ -1,0 +1,405 @@
+[
+ {
+  "name": "get_project",
+  "description": "The overview of the whole project: CPU, blocks (OB/FC/FB with their networks), data blocks with variables, PLC data types, tags, and whether it compiles. Call this first when you start working on a request.",
+  "inputSchema": {
+   "type": "object",
+   "properties": {}
+  }
+ },
+ {
+  "name": "get_block",
+  "description": "One block in full: its interface (Input, Output, InOut, Static, Temp, Return) and every network with its language and code (SCL / STL text, LAD as a cell grid). Call this before you change a block.",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "block": {
+     "type": "string",
+     "description": "OB1, FC2, FB1 or the block name"
+    }
+   },
+   "required": [
+    "block"
+   ]
+  }
+ },
+ {
+  "name": "write_network",
+  "description": "Writes one network of a block: replaces network n (1-based) or appends a new one when network is 0 or missing. SCL / STL: the whole code in code. LAD: the cells (see the system prompt). Returns the compile messages of the block: fix every error.",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "block": {
+     "type": "string"
+    },
+    "network": {
+     "type": "integer",
+     "description": "1-based; 0 or missing appends"
+    },
+    "language": {
+     "type": "string",
+     "enum": [
+      "SCL",
+      "STL",
+      "LAD"
+     ]
+    },
+    "title": {
+     "type": "string"
+    },
+    "comment": {
+     "type": "string"
+    },
+    "code": {
+     "type": "string",
+     "description": "SCL or STL code, lines separated by \\n"
+    },
+    "cells": {
+     "type": "array",
+     "description": "LAD cells",
+     "items": {
+      "type": "object",
+      "properties": {
+       "r": {
+        "type": "integer"
+       },
+       "c": {
+        "type": "integer"
+       },
+       "e": {
+        "type": "string"
+       },
+       "op": {
+        "type": "string"
+       },
+       "p": {
+        "type": "array",
+        "items": {
+         "type": "string"
+        }
+       },
+       "args": {
+        "type": "array",
+        "items": {
+         "type": "string"
+        }
+       },
+       "down": {
+        "type": "boolean"
+       },
+       "type": {
+        "type": "string"
+       },
+       "cmp": {
+        "type": "string"
+       },
+       "type2": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "r",
+       "c",
+       "e"
+      ]
+     }
+    }
+   },
+   "required": [
+    "block",
+    "language"
+   ]
+  }
+ },
+ {
+  "name": "delete_network",
+  "description": "Deletes network n (1-based) of a block.",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "block": {
+     "type": "string"
+    },
+    "network": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "block",
+    "network"
+   ]
+  }
+ },
+ {
+  "name": "create_block",
+  "description": "Creates an FC or an FB (without networks: write them with write_network). For an FB, instance_db creates its instance DB too.",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "kind": {
+     "type": "string",
+     "enum": [
+      "FC",
+      "FB"
+     ]
+    },
+    "number": {
+     "type": "integer",
+     "description": "optional: the next free number"
+    },
+    "name": {
+     "type": "string"
+    },
+    "comment": {
+     "type": "string"
+    },
+    "interface": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "properties": {
+       "section": {
+        "type": "string",
+        "enum": [
+         "Input",
+         "Output",
+         "InOut",
+         "Static",
+         "Temp",
+         "Return"
+        ]
+       },
+       "name": {
+        "type": "string"
+       },
+       "type": {
+        "type": "string"
+       },
+       "default": {
+        "type": "string"
+       },
+       "comment": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "section",
+       "name",
+       "type"
+      ]
+     }
+    },
+    "instance_db": {
+     "type": "string",
+     "description": "FB only: the name of a new instance DB"
+    }
+   },
+   "required": [
+    "kind",
+    "name"
+   ]
+  }
+ },
+ {
+  "name": "set_interface",
+  "description": "Replaces the whole interface of an FC / FB / OB (an OB has only Temp, an FC no Static, an FB no Return).",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "block": {
+     "type": "string"
+    },
+    "interface": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "properties": {
+       "section": {
+        "type": "string",
+        "enum": [
+         "Input",
+         "Output",
+         "InOut",
+         "Static",
+         "Temp",
+         "Return"
+        ]
+       },
+       "name": {
+        "type": "string"
+       },
+       "type": {
+        "type": "string"
+       },
+       "default": {
+        "type": "string"
+       },
+       "comment": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "section",
+       "name",
+       "type"
+      ]
+     }
+    }
+   },
+   "required": [
+    "block",
+    "interface"
+   ]
+  }
+ },
+ {
+  "name": "add_db_variables",
+  "description": "Adds variables to a global data block (a variable that exists already gets the new type / start value). Creates the DB when it does not exist.",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "db": {
+     "type": "string",
+     "description": "the DB name"
+    },
+    "number": {
+     "type": "integer",
+     "description": "for a new DB: optional, the next free number"
+    },
+    "variables": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "properties": {
+       "name": {
+        "type": "string"
+       },
+       "type": {
+        "type": "string"
+       },
+       "start": {
+        "type": "string"
+       },
+       "comment": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "name",
+       "type"
+      ]
+     }
+    }
+   },
+   "required": [
+    "db",
+    "variables"
+   ]
+  }
+ },
+ {
+  "name": "add_tags",
+  "description": "Adds PLC tags (symbols) to the tag table; a tag that exists already gets the new type / address.",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "tags": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "properties": {
+       "name": {
+        "type": "string"
+       },
+       "type": {
+        "type": "string"
+       },
+       "address": {
+        "type": "string"
+       },
+       "comment": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "name",
+       "type",
+       "address"
+      ]
+     }
+    }
+   },
+   "required": [
+    "tags"
+   ]
+  }
+ },
+ {
+  "name": "compile",
+  "description": "Compiles the whole project and returns every error and warning (block, network, line). Call it after your changes and before you finish.",
+  "inputSchema": {
+   "type": "object",
+   "properties": {}
+  }
+ },
+ {
+  "name": "read_values",
+  "description": "Reads live values from the simulated CPU (it must be in RUN with the current program downloaded): absolute addresses, \"Tags\", \"DB\".Var. Use it to debug: what the inputs, outputs and variables really are. wait_ms waits first (up to 10000), e.g. for a timer to run out after set_inputs.",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "operands": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "wait_ms": {
+     "type": "integer",
+     "description": "0..10000: wait before reading"
+    }
+   },
+   "required": [
+    "operands"
+   ]
+  }
+ },
+ {
+  "name": "set_inputs",
+  "description": "Operates the simulated inputs, like the user on the I/O screen: digital inputs (bits of I, e.g. %I0.5 or \"Start_PB\") true / false, analog inputs (IW words of the analog channels) 0..27648. Use it to test the program: press a button, read_values, release it. A push button pressed stays pressed until you set it false again.",
+  "inputSchema": {
+   "type": "object",
+   "properties": {
+    "inputs": {
+     "type": "object",
+     "description": "operand: value, e.g. {\"%I0.5\": true, \"%IW64\": 13824}",
+     "additionalProperties": {
+      "type": [
+       "boolean",
+       "integer"
+      ]
+     }
+    }
+   },
+   "required": [
+    "inputs"
+   ]
+  }
+ },
+ {
+  "name": "get_diagnostics",
+  "description": "The CPU mode, why it stopped, and the last entries of the diagnostic buffer (programming errors such as an array index out of range, a cycle time overrun).",
+  "inputSchema": {
+   "type": "object",
+   "properties": {}
+  }
+ },
+ {
+  "name": "download_and_run",
+  "description": "Compiles, downloads the program to the simulated CPU and switches it to RUN. The user is asked first and may say no. Use it when you need live values of new code.",
+  "inputSchema": {
+   "type": "object",
+   "properties": {}
+  }
+ }
+]

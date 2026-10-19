@@ -8,7 +8,7 @@ program plctest;
 
 uses
   Classes, SysUtils, Math, fpjson, jsonparser, uPlcTypes, uPlcProject, uPlcCompiler, uPlcRuntime, uPlcServer,
-  uPlcClient, uClaude, uExamples, uSclSource;
+  uPlcClient, uClaude, uExamples, uSclSource, uObCatalog, uSclSig, uXref;
 
 var
   Fails, Passes: Integer;
@@ -3300,7 +3300,369 @@ begin
   end;
 end;
 
+{ the OBs of each family: the catalog, the start information, the events in the runtime }
+procedure TestObs;
+var
+  P, P2: TPlcProject;
+  B: TBlock;
+  N: TNetwork;
+  Pr: TCProgram;
+  Rt: TPlcRuntime;
+  L: TObInfos;
+  Info: TObInfo;
+  K: Integer;
+  S: string;
+
+  function Has(F: TCpuFamily; Nr: Integer): Boolean;
+  begin
+    Result := ObInfoOf(F, Nr, Info);
+  end;
+
+  function MW(const A: string): Integer;
+  begin
+    Result := SmallInt(Peek(Rt, P, A) and $FFFF);
+  end;
+
+  procedure Scl(Blk: TBlock; const Code: string);
+  begin
+    N := Blk.AddNet(nkSCL);
+    N.Stl.Text := Code;
+  end;
+
 begin
+  WriteLn('--- OBs: catalog, start information, events ---');
+  Check(Has(cfS7300, 1) and Has(cfS7300, 35) and Has(cfS7300, 82) and Has(cfS7300, 86) and Has(cfS7300, 121) and
+    Has(cfS7300, 122) and not Has(cfS7300, 30), 'S7-300: OB1, OB35, OB82, OB86, OB121, OB122 (no OB30)');
+  Check(Has(cfS7400, 30) and Has(cfS7400, 38) and Has(cfS7400, 101) and Has(cfS7400, 102) and Has(cfS7400, 90),
+    'S7-400: OB30..38, OB90, OB101, OB102');
+  Check(Has(cfS71200, 30) and Has(cfS71200, 40) and Has(cfS71200, 86) and not Has(cfS71200, 121), 'S7-1200: no OB121');
+  Check(Has(cfS71500, 61) and Has(cfS71500, 121) and Has(cfS71500, 122) and not Has(cfS71500, 81), 'S7-1500: OB61, OB121, OB122, no OB81');
+  Check(ObCustomOk(cfS71500, oeCyclic) and ObCustomOk(cfS71200, oeHardware) and not ObCustomOk(cfS7300, oeCyclic) and
+    not ObCustomOk(cfS71500, oeProgError), 'own numbers (>= 123): TIA cyclic / hardware .., not classic, not OB121');
+  Check((ObEventOf(cfS71500, 123, Ord(oeCyclic)) = oeCyclic) and (ObEventOf(cfS71500, 35, -1) = oeCyclic), 'the event of an OB');
+  Check((ObDefaultCycleMs(30) = 5000) and (ObDefaultCycleMs(35) = 100) and (ObDefaultCycleMs(38) = 10), 'default cycle times');
+  Check(ObStartKey('OB35_EXC_FREQ') = 'EXC_FREQ', 'OB35_EXC_FREQ -> EXC_FREQ');
+  L := ObCatalog(cfS7400);
+  Check(Length(L) > 40, Format('S7-400 has %d standard OBs', [Length(L)]));
+  // the interface of an OB
+  P := TPlcProject.Create;
+  P2 := TPlcProject.Create;
+  try
+    P.NewEmpty(13);
+    B := P.Block(0);
+    Check((Length(B.Iface.Vars) >= 2) and B.Iface.Vars[0].System and (B.Iface.Vars[0].Name = 'Initial_Call') and
+      (B.Iface.Vars[0].Section = vsInput), 'S7-1500 OB1: Input Initial_Call, Remanence (the CPU''s)');
+    B.Iface.AddSecVar(vsTemp, 'tmp', 'Int', '', '');
+    P.ModelIdx := 1;
+    P.SyncObIfaces;
+    Check((B.Iface.Vars[0].Name = 'OB1_EV_CLASS') and (B.Iface.Vars[0].Section = vsTemp), 'S7-300 OB1: OB1_EV_CLASS ..');
+    K := B.Iface.FindVar('tmp');
+    Check((K >= 0) and (B.Iface.Vars[K].Ofs = 20), 'the user''s Temp after the 20 bytes of start information (L20)');
+    Check(B.Iface.FindVar('Initial_Call') < 0, 'the TIA start information is gone');
+    B := P.AddBlock(bkOB, 35, 'CYC_INT5');
+    B.CycleMs := 20;
+    B := P.AddBlock(bkOB, 40, 'HW_INT0');
+    B.TrigAddr := 'I0.3';
+    B.TrigEdge := 2;
+    S := P.ToJsonText;
+    Check(Pos('OB1_EV_CLASS', S) = 0, 'the start information is not saved');
+    P2.LoadFromJsonText(S);
+    B := P2.FindBlock(bkOB, 40);
+    Check((B <> nil) and (B.TrigAddr = 'I0.3') and (B.TrigEdge = 2) and (B.Iface.FindVar('OB40_POINT_ADDR') >= 0),
+      'OB40 back: its input, edge and start information');
+    Check((P2.FindBlock(bkOB, 35) <> nil) and (P2.ObCycleMs(P2.FindBlock(bkOB, 35)) = 20), 'OB35: 20 ms back');
+  finally
+    P.Free;
+    P2.Free;
+  end;
+  // S7-1500: the events in the runtime
+  P := TPlcProject.Create;
+  try
+    P.NewEmpty(13);
+    P.AddDB(1, 'D').AddVar('A', 'Int', '0', '');
+    B := P.Block(0);
+    B.DeleteNet(0);
+    Scl(B, 'IF #Initial_Call THEN %MW14 := %MW14 + 1; END_IF;' + LineEnding + '%MW16 := %MW16 + 1;' + LineEnding +
+      'IF %M0.0 THEN %MW44 := SRT_DINT(OB_NR := 20, DTIME := T#50MS, SIGN := 16#0007); %M0.0 := FALSE; END_IF;');
+    N := B.AddNet(nkSTL);
+    N.Stl.Text := 'A M0.1' + LineEnding + 'JCN M001' + LineEnding + 'OPN DB1' + LineEnding + 'L DBW100' + LineEnding +
+      'T MW0' + LineEnding + 'L MW36' + LineEnding + 'L 1' + LineEnding + '+I' + LineEnding + 'T MW36' + LineEnding +
+      'M001: NOP 0';
+    B := P.AddBlock(bkOB, 123, 'Main_2');
+    B.ObEvent := Ord(oeProgramCycle);
+    P.SyncObIface(B);
+    Scl(B, '%MW18 := %MW18 + 1;');
+    Scl(P.AddBlock(bkOB, 100, 'Startup'), '%MW10 := %MW10 + 1; %M0.0 := TRUE; %M0.1 := TRUE;');
+    B := P.AddBlock(bkOB, 124, 'Startup_2');
+    B.ObEvent := Ord(oeStartup);
+    P.SyncObIface(B);
+    Scl(B, '%MW12 := %MW12 + 1;');
+    B := P.AddBlock(bkOB, 30, 'Cyclic interrupt');
+    B.CycleMs := 10;
+    Scl(B, '%MW20 := %MW20 + 1; IF #Initial_Call THEN %MW22 := %MW22 + 1; END_IF;');
+    Scl(P.AddBlock(bkOB, 20, 'Time delay interrupt'), '%MW24 := %MW24 + 1; %MW26 := #Sign;');
+    B := P.AddBlock(bkOB, 40, 'Hardware interrupt');
+    B.TrigAddr := '%I0.0';
+    Scl(B, '%MW28 := %MW28 + 1; %MB30 := #EventType;');
+    Scl(P.AddBlock(bkOB, 121, 'Programming error'), '%MW32 := %MW32 + 1; %MB34 := #Fault_ID;');
+    Scl(P.AddBlock(bkOB, 86, 'Rack or station failure'), '%MW38 := %MW38 + 1; %MB40 := #Event_Class;');
+    Scl(P.AddBlock(bkOB, 82, 'Diagnostic error interrupt'), '%MW42 := %MW42 + 1;');
+    Pr := Compile(P);
+    ShowMsgs(Pr);
+    Check(Pr.ErrorCount = 0, 'the OBs of the S7-1500 compile');
+    Check(Length(Pr.Obs) = 10, Format('10 OBs in the program (%d)', [Length(Pr.Obs)]));
+    Rt := TPlcRuntime.Create(13);
+    try
+      Rt.CmdDownload(Pr);
+      Rt.CmdRun;
+      Wait(300);
+      Check(Rt.Mode = rmRun, 'RUN (OB121 is there)');
+      Check((MW('%MW10') = 1) and (MW('%MW12') = 1), 'OB100 and the startup OB124 ran once');
+      Check(MW('%MW14') = 1, '#Initial_Call: once');
+      Check((MW('%MW16') > 5) and (Abs(MW('%MW18') - MW('%MW16')) <= 1), 'the program cycle OB123 runs after OB1 every cycle');
+      Check((MW('%MW20') > 10) and (MW('%MW22') = 1), Format('OB30 every 10 ms: %d runs, Initial_Call once', [MW('%MW20')]));
+      Check((MW('%MW24') = 1) and (MW('%MW26') = 7) and (MW('%MW44') = 0), 'SRT_DINT: OB20 once with SIGN 7, RET_VAL 0');
+      Check((MW('%MW32') > 0) and (MW('%MW36') > 0) and (Peek(Rt, P, '%MB34') = $24),
+        'OB121 on the area length error, the program goes on (Fault_ID 16#24)');
+      Rt.SetSimBit(0, 0, True);
+      Wait(60);
+      Rt.SetSimBit(0, 0, False);
+      Wait(60);
+      Check((MW('%MW28') = 1) and (Peek(Rt, P, '%MB30') = 1), 'OB40: the rising edge of %I0.0 (EventType 1), not the falling');
+      Rt.CmdBusFault(True);
+      Wait(60);
+      Check((MW('%MW38') = 1) and (Peek(Rt, P, '%MB40') = $39) and (Rt.Mode = rmRun), 'OB86: station failure (16#39), RUN');
+      Rt.CmdBusFault(False);
+      Wait(60);
+      Check((MW('%MW38') = 2) and (Peek(Rt, P, '%MB40') = $38), 'OB86: station return (16#38)');
+      Rt.CmdObEvent(oeDiagnostic);
+      Wait(60);
+      Check(MW('%MW42') = 1, 'OB82: the diagnostic interrupt');
+      Check(Rt.ObRuns(30) > 10, 'the runs of OB30');
+    finally
+      Rt.Free;
+    end;
+  finally
+    P.Free;
+  end;
+  // S7-300: the start information in the Temp, OB82 missing -> STOP
+  P := TPlcProject.Create;
+  try
+    P.NewEmpty(1);
+    B := P.Block(0);
+    B.DeleteNet(0);
+    N := B.AddNet(nkSTL);
+    N.Stl.Text := 'L #OB1_SCAN_1' + LineEnding + 'T MB50' + LineEnding + 'L #OB1_OB_NUMBR' + LineEnding + 'T MB51';
+    B := P.AddBlock(bkOB, 35, 'CYC_INT5');
+    B.CycleMs := 20;
+    N := B.AddNet(nkSTL);
+    N.Stl.Text := 'L #OB35_EXC_FREQ' + LineEnding + 'T MW52';
+    Pr := Compile(P);
+    ShowMsgs(Pr);
+    Check(Pr.ErrorCount = 0, 'S7-300: #OB1_SCAN_1 .. compile');
+    Rt := TPlcRuntime.Create(1);
+    try
+      Rt.CmdDownload(Pr);
+      Rt.CmdRun;
+      Wait(150);
+      Check((Peek(Rt, P, 'MB50') = 3) and (Peek(Rt, P, 'MB51') = 1), 'OB1_SCAN_1 = 3 after the first cycle, OB1_OB_NUMBR = 1');
+      Check(MW('MW52') = 20, 'OB35_EXC_FREQ = 20 ms');
+      Rt.CmdObEvent(oeDiagnostic);
+      Wait(60);
+      Check(Rt.Mode = rmStop, 'S7-300: a diagnostic interrupt without OB82 -> STOP');
+    finally
+      Rt.Free;
+    end;
+  finally
+    P.Free;
+  end;
+end;
+
+{ the parameter help of the SCL editor }
+procedure TestSclSig;
+var
+  P: TPlcProject;
+  B, Fb: TBlock;
+  L: TStringList;
+  C: TSclCall;
+  S: TSclSig;
+  Fits: TStringList;
+  R, Cc, Pl: Integer;
+begin
+  WriteLn('--- SCL parameter help ---');
+  P := TPlcProject.Create;
+  L := TStringList.Create;
+  try
+    P.NewEmpty(13);
+    B := P.Block(0);
+    B.Iface.AddSecVar(vsTemp, 'Delay', 'Time', '', '');
+    P.AddTag('Start', 'Bool', '%I0.0', '');
+    Fb := P.AddBlock(bkFB, 1, 'Motor');
+    Fb.Iface.AddSecVar(vsInput, 'Run', 'Bool', 'FALSE', 'start the motor');
+    Fb.Iface.AddSecVar(vsInput, 'Speed', 'Int', '0', 'rpm');
+    Fb.Iface.AddSecVar(vsOutput, 'Running', 'Bool', 'FALSE', '');
+    Fb.Iface.AddSecVar(vsStatic, 'Timer', 'TON_TIME', '', '');
+    P.AddDB(1, 'Motor_DB').InstanceOf := 1;
+    L.Add('"Motor_DB"(');
+    Check(SclCallAt(L, 0, 11, C) and (C.Callee = '"Motor_DB"') and (C.Seg = 0) and C.Stmt, 'the call after "(" (a statement)');
+    Check(SclSignature(P, B, C.Callee, S) and (Length(S.Params) = 3) and (S.Params[2].Dir = sdOut), 'FB "Motor": Run, Speed => Running');
+    Check(SclCallTemplate(S, C.Given, 11, True, True) = 'Run := _bool_in_,' + LineEnding + StringOfChar(' ', 11) +
+      'Speed := _int_in_,' + LineEnding + StringOfChar(' ', 11) + 'Running => _bool_out_);', 'the template: aligned, TIA placeholders');
+    Check(SclCallGhost(S, C.Given, True, True) = 'Run := <Bool>, Speed := <Int>, Running => <Bool>);', 'the ghost: ' + SclCallGhost(S, C.Given, True, True));
+    C.Given.Free;
+    L[0] := '"Motor_DB"(Run := "Start",';
+    L.Add('           Sp');
+    Check(SclCallAt(L, 1, 13, C) and (C.Seg = 1) and (C.Given.IndexOf('RUN') >= 0), 'the second argument, Run given');
+    Check(SclCurParam(S, C) = 1, 'Sp.. is Speed');
+    C.Given.Free;
+    L.Clear;
+    L.Add('#x := LIMIT(MN := 0, IN := 5, ');
+    Check(SclCallAt(L, 0, 31, C) and (C.Callee = 'LIMIT') and not C.Stmt and (C.Seg = 2), 'LIMIT in an expression, the third argument');
+    Check(SclSignature(P, B, 'LIMIT', S) and (SclCurParam(S, C) = 2), 'its MX');
+    C.Given.Free;
+    L.Clear;
+    L.Add('IF (a > b) AND SEL(');
+    Check(SclCallAt(L, 0, 19, C) and (C.Callee = 'SEL'), 'IF ( .. ): not a call; SEL( is');
+    C.Given.Free;
+    Check(SclSignature(P, B, 'INT_TO_REAL', S) and (S.RetType = 'REAL') and (S.Params[0].TypeText = 'INT'), 'a conversion');
+    Fb.Iface.AddSecVar(vsTemp, 'T1', 'Time', '', '');
+    Check(SclSignature(P, Fb, '#Timer', S) and (Length(S.Params) = 4) and (S.Params[1].Name = 'PT') and (S.Params[1].TypeText = 'Time'),
+      '#Timer of TON_TIME: IN, PT, Q, ET');
+    Fits := SclFitting(P, B, 'Time', 5);
+    Check(Fits.IndexOf('#Delay') >= 0, 'fits Time: #Delay');
+    Fits.Free;
+    Fits := SclFitting(P, B, 'Bool', 5);
+    Check(Fits.IndexOf('"Start"') >= 0, 'fits Bool: "Start"');
+    Fits.Free;
+    Check(SclTypeFits('ANY_NUM', 'Real') and not SclTypeFits('ANY_NUM', 'Bool') and SclTypeFits('ANY_BIT', 'Word'), 'ANY_NUM / ANY_BIT');
+    L.Clear;
+    L.Add('"Motor_DB"(Run := _bool_in_,');
+    L.Add('           Speed := _int_in_);');
+    Check(SclNextPlaceholder(L, 0, 0, 5, R, Cc, Pl) and (R = 0) and (Cc = 18) and (Pl = 9), 'the first placeholder');
+    Check(SclNextPlaceholder(L, 0, 27, 5, R, Cc, Pl) and (R = 1) and (Cc = 20), 'the next one');
+  finally
+    L.Free;
+    P.Free;
+  end;
+end;
+
+{ the start values of the elements of an array (Data blocks: an array opens to its elements) }
+procedure TestArrayStart;
+var
+  P: TPlcProject;
+  D: TDataBlock;
+  Pr: TCProgram;
+  Rt: TPlcRuntime;
+  S: string;
+begin
+  WriteLn('--- arrays: the start value of each element ---');
+  Check(ArrayStartOf('[1, 2, 3(7)]', 5, 4) = '7', '[1, 2, 3(7)]: element 4 is 7');
+  Check(ArrayStartOf('5', 10, 9) = '5', 'one value: every element');
+  Check(ArrayStartOf('', 10, 2) = '', 'no start value');
+  S := ArrayStartSet('', 10, 3, 'TRUE', 'FALSE');
+  Check(S = '[3(FALSE), TRUE, 6(FALSE)]', 'Bool element 3 TRUE: ' + S);
+  S := ArrayStartSet(S, 10, 3, 'FALSE', 'FALSE');
+  Check(S = '', 'back to the default: no start value');
+  S := ArrayStartSet('7', 4, 0, '1', '0');
+  Check(S = '[1, 3(7)]', 'one value of all, then element 0: ' + S);
+  S := ArrayStartSet('[1, 3(7)]', 4, 0, '7', '0');
+  Check(S = '7', 'all the same again: one value');
+  P := TPlcProject.Create;
+  try
+    P.NewEmpty(13);
+    D := P.AddDB(1, 'Arr');
+    D.AddVar('Flags', 'Array[0..9] of Bool', ArrayStartSet('', 10, 3, 'TRUE', 'FALSE'), '');
+    D.AddVar('Words', 'Array[0..9] of Word', ArrayStartSet('', 10, 5, '16#00FF', '0'), '');
+    D.Layout;
+    Pr := Compile(P);
+    ShowMsgs(Pr);
+    Check(Pr.ErrorCount = 0, 'Array of Bool / Word with element start values compiles');
+    Rt := TPlcRuntime.Create(13);
+    try
+      Rt.CmdDownload(Pr);
+      Rt.CmdRun;
+      Wait(40);
+      Check((Peek(Rt, P, '"Arr".Flags[3]') = 1) and (Peek(Rt, P, '"Arr".Flags[2]') = 0), '"Arr".Flags[3] = TRUE, [2] FALSE');
+      Check((Peek(Rt, P, '"Arr".Words[5]') = $FF) and (Peek(Rt, P, '"Arr".Words[4]') = 0), '"Arr".Words[5] = 16#00FF');
+    finally
+      Rt.Free;
+    end;
+  finally
+    P.Free;
+  end;
+end;
+
+{ the cross reference: where an operand is read (a decision) and written (a destination) }
+procedure TestXref;
+var
+  P: TPlcProject;
+  B, Fb: TBlock;
+  N: TNetwork;
+  R: TXrefs;
+  Info: string;
+  K, Rd, Wr: Integer;
+
+  function Has(const How: string; U: TXrefUse): Boolean;
+  var
+    J: Integer;
+  begin
+    Result := False;
+    for J := 0 to High(R) do
+      if (Pos(How, R[J].How) > 0) and (R[J].Use = U) then Exit(True);
+  end;
+
+begin
+  WriteLn('--- cross reference ---');
+  P := TPlcProject.Create;
+  try
+    P.NewEmpty(13);
+    P.AddTag('Start', 'Bool', '%I0.0', '');
+    P.AddTag('Lamp', 'Bool', '%Q0.0', '');
+    Fb := P.AddBlock(bkFB, 1, 'Motor');
+    Fb.Iface.AddSecVar(vsInput, 'Run', 'Bool', 'FALSE', '');
+    Fb.Iface.AddSecVar(vsOutput, 'Running', 'Bool', 'FALSE', '');
+    Fb.AddNet(nkSCL).Stl.Text := '#Running := #Run;';
+    P.AddDB(1, 'Motor_DB').InstanceOf := 1;
+    B := P.Block(0);
+    B.DeleteNet(0);
+    B.Iface.AddSecVar(vsTemp, 'x', 'Bool', '', '');
+    B.AddNet(nkSCL).Stl.Text := 'IF "Start" AND NOT %M0.1 THEN' + LineEnding + '  "Lamp" := TRUE;' + LineEnding +
+      'END_IF;' + LineEnding + '#x := "Start";' + LineEnding + '"Motor_DB"(Run := %I0.0,' + LineEnding +
+      '           Running => "Lamp");';
+    N := B.AddNet(nkLAD);
+    N.SetCell(0, 0, NewCell(lkNO, '"Start"'));
+    N.SetCell(0, 1, NewCell(lkSet, '"Lamp"'));
+    N := B.AddNet(nkSTL);
+    N.Stl.Text := 'A     "Start"' + LineEnding + 'O     IB0' + LineEnding + '=     %Q0.0' + LineEnding + 'L     QB0';
+    P.AddWatch('"Lamp"', dfBool);
+    Check(XrefFind(P, '"Start"', B, Info, R), 'found "Start": ' + Info);
+    Check(Pos('%I0.0', Info) > 0, 'what it is: ' + Info);
+    Rd := 0;
+    Wr := 0;
+    for K := 0 to High(R) do
+      if R[K].Use = xuRead then Inc(Rd) else if R[K].Use = xuWrite then Inc(Wr);
+    Check((Rd = 6) and (Wr = 0), Format('"Start": 6 decisions (IF AND, := value, call input by its address, the contact, A, O IB0) - %d read, %d written', [Rd, Wr]));
+    Check(Has('IF: AND', xuRead) and Has('call input Run', xuRead) and Has('-| |- AND', xuRead) and Has('A (AND)', xuRead),
+      'IF AND, call input Run, a NO contact, A');
+    Check(Has('PLC tag "Start"', xuDecl), 'its tag');
+    for K := 0 to High(R) do
+      if Pos('O (OR)', R[K].How) > 0 then Check(not R[K].Exact, 'IB0 overlaps %I0.0 (not the same operand)');
+    Check(XrefFind(P, '"Lamp"', B, Info, R), 'found "Lamp"');
+    Check(Has(':= (assignment)', xuWrite) and Has('call output Running', xuWrite) and Has('-(S)- set', xuWrite) and
+      Has('= (assign the RLO)', xuWrite), 'destinations: :=, call output, S coil, =');
+    Check(Has('L (load)', xuRead) and Has('watch table row 1', xuTable), 'L QB0 reads it; the watch table');
+    Check(XrefFind(P, '#x', B, Info, R) and Has(':= (assignment)', xuWrite) and Has('interface: Temp', xuDecl), '#x: := and its interface row');
+    Check(not XrefFind(P, '"Nothing"', B, Info, R), 'an unknown operand: ' + Info);
+  finally
+    P.Free;
+  end;
+end;
+
+begin
+  TestXref;
+  TestArrayStart;
+  TestSclSig;
+  TestObs;
   TestGroups;
   TestIoSignals;
   TestLadStlScl;
