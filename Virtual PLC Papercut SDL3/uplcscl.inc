@@ -57,7 +57,7 @@ const
   suCos = 9; suTan = 10; suAsin = 11; suAcos = 12; suAtan = 13; suRound = 14; suTrunc = 15; suCeil = 16;
   suFloor = 17; suWrap = 18; suBool = 19; suLog = 20; suFrac = 21;
   { opSTern }
-  stLimit = 0; stSel = 1; stNormX = 2; stScaleX = 3;
+  stLimit = 0; stSel = 1; stNormX = 2; stScaleX = 3; stSrtDint = 4;   // SRT_DINT (DTIME < 0: CAN_DINT)
 
 function SclRank(T: TDataType): Integer;
 begin
@@ -1273,6 +1273,21 @@ var
           Args(['MIN', 'VALUE', 'MAX'], Ts, 3);
           E(opSTern, tcFloat, dtReal, stNormX);
           Result := dtReal;
+        end;
+      'SRT_DINT':
+        begin
+          // a time delay interrupt OB starts DTIME later (RET_VAL 0, or 16#8090: no such OB)
+          Args(['OB_NR', 'DTIME', 'SIGN'], Ts, 3);
+          E(opSTern, tcWord, dtInt, stSrtDint);
+          Result := dtInt;
+        end;
+      'CAN_DINT':
+        begin
+          Args(['OB_NR'], Ts, 1);
+          EK(-1, dtDInt);
+          EK(0, dtWord);
+          E(opSTern, tcWord, dtInt, stSrtDint);
+          Result := dtInt;
         end;
       'SCALE_X':
         begin

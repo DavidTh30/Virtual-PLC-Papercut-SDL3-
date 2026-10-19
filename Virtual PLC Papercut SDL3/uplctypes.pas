@@ -248,6 +248,11 @@ function SclStrDecode(const S: string; Wide: Boolean = False): string;
 function ParseStartValue(const S: string; out C: TConst): Boolean;
 { the start values of an array, "[1, 2, 3(7)]" -> 1, 2, 7, 7, 7 (n(v): v repeated n times) }
 function ExpandInitList(const S: string): TStringArray;
+{ the start value of element E (0 = the first) of an array of N elements: of the list, or the one value of all }
+function ArrayStartOf(const Start: string; N, E: Integer): string;
+{ the start values with element E set to Val: a list "[1, 0, 3(5)]" (runs as n(v)), one value when all are the
+  same, '' when all are the default Def }
+function ArrayStartSet(const Start: string; N, E: Integer; const Val, Def: string): string;
 function DataTypeText(T: TDataType; ArrLo, ArrHi: Integer; IsArray: Boolean): string;
 function TypeOpSize(T: TDataType): TOpSize;
 
@@ -1358,6 +1363,57 @@ begin
   end;
   C.Size := osDWord;
   Result := True;
+end;
+
+function ArrayStartOf(const Start: string; N, E: Integer): string;
+var
+  L: TStringArray;
+begin
+  Result := '';
+  if (E < 0) or (E >= N) then Exit;
+  if Copy(Trim(Start), 1, 1) = '[' then
+  begin
+    L := ExpandInitList(Start);
+    if E <= High(L) then Result := L[E];
+  end
+  else
+    Result := Trim(Start);
+end;
+
+function ArrayStartSet(const Start: string; N, E: Integer; const Val, Def: string): string;
+var
+  L: TStringArray;
+  K, Run: Integer;
+
+  function Item(J: Integer): string;
+  begin
+    if (J <= High(L)) and (Trim(L[J]) <> '') then Result := Trim(L[J]) else Result := Def;
+  end;
+
+begin
+  Result := Trim(Start);
+  if (E < 0) or (E >= N) or (N <= 0) then Exit;
+  SetLength(L, N);
+  for K := 0 to N - 1 do L[K] := ArrayStartOf(Start, N, K);
+  L[E] := Trim(Val);
+  // all the same: one value (the default: none)
+  K := 1;
+  while (K < N) and (Item(K) = Item(0)) do Inc(K);
+  if K = N then
+  begin
+    if SameText(Item(0), Def) then Exit('') else Exit(Item(0));
+  end;
+  Result := '';
+  K := 0;
+  while K < N do
+  begin
+    Run := 1;
+    while (K + Run < N) and (Item(K + Run) = Item(K)) do Inc(Run);
+    if Result <> '' then Result := Result + ', ';
+    if Run > 1 then Result := Result + Format('%d(%s)', [Run, Item(K)]) else Result := Result + Item(K);
+    Inc(K, Run);
+  end;
+  Result := '[' + Result + ']';
 end;
 
 function ExpandInitList(const S: string): TStringArray;

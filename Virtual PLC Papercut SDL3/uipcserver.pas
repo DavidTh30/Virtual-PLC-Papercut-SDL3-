@@ -115,7 +115,7 @@ begin
       end;
       P := Pos(#10, Pending);
     end;
-    if Length(Pending) > 65536 then Break;   // no line end in 64 KB: not a client of ours
+    if Length(Pending) > 4 * 1024 * 1024 then Break;   // no line end in 4 MB: not a client of ours
   end;
   FlushFileBuffers(FPipe);
   DisconnectNamedPipe(FPipe);

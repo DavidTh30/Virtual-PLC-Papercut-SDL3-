@@ -25,7 +25,7 @@ interface
 uses
   Classes, SysUtils, Math, Types, StrUtils, DateUtils, TypInfo, LazUTF8, BGRABitmap, BGRABitmapTypes,
   uPaperDL, uUiBase, uPlcTypes, uPlcProject, uPlcCompiler, uPlcRuntime, uPlcServer, uPlcClient, uTextEdit,
-  uClaude, uClaudeHttp, uPlcExport, Dialogs, fpjson, uLocalIp, uIpcServer, uChatPdf, ShellApi, uHelpForm, uExamples, Clipbrd, uSclElems, uSclSource;
+  uClaude, uClaudeHttp, uPlcExport, Dialogs, fpjson, uLocalIp, uIpcServer, uChatPdf, ShellApi, uHelpForm, uExamples, Clipbrd, uSclElems, uSclSource, uObCatalog, uSclSig, uXref;
 
 type
   TScreen = (scCpu, scProgram, scIO, scWatch, scDB, scTags, scPorts, scProject);
@@ -35,6 +35,18 @@ const
     'Project');
 
 type
+
+  { a row of a variables table (Data blocks, the editor's interface): a variable, or an element / a member of it }
+  TVarRow = record
+    Vi, Ei: Integer;         // the variable; Ei: an element of it (an array of the DB itself: its own start value)
+    Sub: Boolean;            // an element / a member (not a variable of the DB itself)
+    Path, Lbl, TypeText, Start, Comment, Key: string;   // Path after the variable: [3], .M, [3].M
+    Depth, Ofs, Bit: Integer;   // the offset in the DB
+    DType: TDataType;
+    Udt: TDataBlock;
+    CanOpen: Boolean;        // an array, a struct, a timer / counter: it opens to its elements / members
+  end;
+  TVarRows = array of TVarRow;
 
   { an undo step of the program: the whole project (compact JSON) and where the user was }
   TProgSnap = record
@@ -146,12 +158,72 @@ type
     FTagSort, FWatchSort: Integer;         // 0 the order of the table, 1 alphabet, 2 address, 3 data type
     FTagDesc, FWatchDesc: Boolean;
     FTagView, FWatchView: array of Integer;   // the rows shown (indexes of Project.Tags / Watch)
+    { the dialog + OB: the event, the number (-1 none), the name, the language of the first network }
+    FObDlgOn: Boolean;
+    FObDlgEv: TObEvent;
+    FObDlgNum, FObDlgLang: Integer;
+    FObDlgName: string;
+    { SCL: the ghost after the caret (Tab inserts FGhostIns), the parameter help of the call }
+    FGhost, FGhostIns, FGhostKey: string;
+    FSigOn: Boolean;
+    FSig: TSclSig;
+    FSigCur: Integer;
+    FSigFits: string;
+    FSigPh: Boolean;   // a placeholder is ahead: Tab selects it
+    { the editor's right panel: 0 the elements, 1 the variables (PLC tags / data blocks) to see and drag }
+    FRightTab, FPickSrc: Integer;
+    FPickFilter: string;
+    FPickScroll: Single;
+    FPickTog: TStringList;     // the groups / DBs / structs opened or shut against their default
+    { the Data blocks screen: the rows of the variables table (Ei >= 0: element Ei of the array Vi) }
+    FDbRows: TVarRows;
+    FIfRows: TVarRows;         // the rows of the editor's interface: its variables, the open structs / arrays
+    FArrOpen: TStringList;     // the arrays opened: "DB".Var
+    { the cross reference: the operand, its block (#locals), the uses, what is shown }
+    FXrefOn, FXrefOk: Boolean;
+    FXrefText, FXrefInfo, FXrefAsk: string;
+    FXrefBlk: TBlock;
+    FXref: TXrefs;
+    FXrefFilter: Integer;      // 0 all, 1 decisions (read), 2 destinations (write), 3 tables / declarations
+    FXrefScroll: Single;
+    FXrefView: array of Integer;
+    FWatchRight: Integer;      // the Watch screen's right panel: 0 the groups, 1 the tags / DBs to drag in
+    { the rows of the watch table shown: a row of the table, or a member / element of a struct / array row }
+    FWRows: array of record
+      WI, VI: Integer;         // the row of the table, its place in FWatchView
+      Sub, CanOpen: Boolean;
+      Path, Lbl, TypeText, Key: string;
+      Depth, Ofs, Bit, DbNr: Integer;
+      DType: TDataType;
+      Udt: TDataBlock;
+    end;
+    FWatchOpen: TStringList;   // the struct / array rows opened: their address and path
+    { the I/O list (the I/O screen's 4th view): the I/O in use, kept for 2 s }
+    FIoList: TIoUses;
+    FIoListT: Double;
+    FIoListFil: Integer;       // 0 all, 1 inputs, 2 outputs, 3 not used
+    FIoListScroll: Single;
+    FIoListView: array of Integer;
+    { how an operand is shown: the watch table 0 symbol + address, 1 symbol, 2 address; the DB 0 symbol,
+      1 address, 2 symbol + address }
+    FWatchMode, FDbMode: Integer;
+    { Claude Code through MCP (the IPC server): the tool calls, the last one }
+    FMcpCalls: Integer;
+    FMcpLast: string;
+    FMcpLastT: TDateTime;
+    FPick: array of record
+      Head: Boolean;           // a group / a DB / a struct: a click opens or shuts it
+      Key, Lbl, Sub, Ins: string;   // Ins: what goes into the code ("Tag", "DB".Var)
+      Depth: Integer;
+      Open: Boolean;
+      Count: Integer;
+    end;
     FViewForm: THelpForm;      // All variables / All elements
     FViewKind: Integer;
     { vertical scroll bars that the mouse drags: 0 the program editor, 1 the compiler messages,
       2 the blocks, 3 the tag table, 4 the data blocks list, 5 the variables, 6 the watch table,
       7 the project files, 8 the LAD elements, 9 the example projects }
-    FVs: array[0..17] of record X, Top, H, Range, View: Single; end;
+    FVs: array[0..20] of record X, Top, H, Range, View: Single; end;
     FPalScroll, FPalH: Single;   // the LAD elements palette
     FLadTypes: array of TDataType;   // the data type list of a LAD box (FLadTypeWhich 1 IN / 2 OUT)
     FBlockScroll, FDBListScroll, FFileScroll: Single;
@@ -337,6 +409,33 @@ type
     function GrpIsOpen(K, Id: Integer): Boolean;
     procedure GroupAction(Code, Par: Integer);
     procedure DbSclMenu(Par: Integer);
+    procedure DrawObDlg;
+    procedure ObDlgEvent(E: TObEvent);
+    procedure ObAction(Code, Par: Integer);
+    procedure DrawObSettings(B: TBlock; X, Y, W: Single);
+    procedure SclAssist(N: TNetwork);
+    procedure BuildPickList;
+    procedure XrefOpen(const S: string; Blk: TBlock);
+    procedure XrefJump(K: Integer);
+    procedure DrawXref;
+    function XrefAtCaret: string;
+    procedure XrefMenu(const S: string);
+    function PickHeadItems(I: Integer): string;
+    procedure WatchDrop(const Items: string; AtRow: Integer);
+    procedure BuildWatchRows;
+    procedure BuildIoList;
+    function OperandComment(const S: string): string;
+    function WatchShown(const S: string): string;
+    procedure BuildDbRows(Db: TDataBlock);
+    procedure BuildVarRows(Db: TDataBlock; const KeyPre: string; var Rows: TVarRows);
+    procedure BuildIfRows(B: TBlock);
+    function ArrIsOpen(Db: TDataBlock; const VarName: string): Boolean;
+    procedure DrawVarPick(X, Y, W, H: Single);
+    procedure PickInsert(I: Integer);
+    procedure DrawSigHelp;
+    function GhostAccept(N: TNetwork): Boolean;
+    function PlaceholderNext(N: TNetwork): Boolean;
+    function AssistKey: string;
     function IoListScroll(L: Integer; X, Y, W, H, RowH: Single; N: Integer; out First, Last: Integer): Single;
     procedure FindDeclaration;
     function GotoName(const Q: string): Boolean;
@@ -502,6 +601,44 @@ type
     property BlockSel: Integer read FBlockSel;
     property IoView: Integer read FIoView write FIoView;
     property TagGrpSel: Integer read FTagGrpSel write FTagGrpSel;
+    property ObDlgOn: Boolean read FObDlgOn;
+    property RightTab: Integer read FRightTab write FRightTab;
+    property XrefOn: Boolean read FXrefOn;
+    property WatchRight: Integer read FWatchRight write FWatchRight;
+    property WatchMode: Integer read FWatchMode write FWatchMode;
+    property DbMode: Integer read FDbMode write FDbMode;
+    function IoListText(I: Integer): string;   // the test: a row of the I/O list
+    function WatchShownPublic(I: Integer): string;
+    procedure TestWatchDrag(I: Integer; ToRow: Integer);   // the test: a row of the variables dragged onto watch row ToRow
+    procedure TestWatchOpen(const Key: string);             // .. a struct / array row of the watch table opened
+    function WatchRowText(I: Integer): string;              // .. a row shown
+    function XrefCount: Integer;
+    function XrefLine(K: Integer): string;   // the test: a row of the cross reference
+    procedure XrefOpenPublic(const S: string);
+    function XrefFirst(U: Integer): Integer;   // the test: the first row of a use (0 read, 1 write)
+    function XrefTarget: string;
+    procedure TestArrOpen(VarIdx: Integer);                 // the test: an array of the DB opened
+    procedure TestOpenKey(const Key: string);               // .. a row opened by its key: DB.Var.Member
+    function DbRowText(I: Integer): string;                 // .. a row of the variables table
+    function IfRowText(I: Integer): string;                 // .. a row of the editor's interface
+    procedure TestIfaceVar(const Sec, AName, AType: string);  // .. a variable added to the interface
+    procedure TestProgScroll(V: Single);                    // .. the program editor scrolled
+    function CtxIndex(const Prefix: string): Integer;       // the test: the item of the open menu
+    procedure SetVsPosPublic(Bar: Integer; V: Single);
+    function LiveOfPublic(const Operand: string): string;
+    procedure TestElemStart(VarIdx, Elem: Integer; const S: string);   // .. the start value of an element typed
+    property PickSrc: Integer read FPickSrc write FPickSrc;
+    function PickCount: Integer;
+    function PickIns(I: Integer): string;
+    function PickPoint(I: Integer): TPointF;   // the test: the middle of a row of the variables
+    procedure TestPickFilter(const S: string);
+    property GhostText: string read FGhost;
+    property GhostIns: string read FGhostIns;
+    property SigOn: Boolean read FSigOn;
+    property SigCur: Integer read FSigCur;
+    property SigFits: string read FSigFits;
+    function SigText: string;   // the test: the signature shown
+    procedure TestObDlgNum(N: Integer);   // the test: a number of its own typed into + OB
     property WatchGrpSel: Integer read FWatchGrpSel write FWatchGrpSel;
     property TagSort: Integer read FTagSort write FTagSort;
     property WatchSort: Integer read FWatchSort write FWatchSort;
@@ -560,6 +697,19 @@ const
   acGrpSel = 283; acGrpOpen = 284; acGrpItem = 285; acGrpAdd = 286; acGrpDel = 287; acTagGrpMenu = 288;
   acTagGrpPick = 289; acSortTag = 290; acSortWatch = 291; acWatchGrpMenu = 292; acWatchGrpPick = 293;
   acDbScl = 294; fdGrpName = 197; whGrpTree = 14;
+  { organization blocks: the dialog + OB, the settings of an OB's event, the I/O events }
+  acRightTab = 311; acPickSrc = 312; acPickHead = 313; acVarPick = 314; fdPickFilter = 315; whPick = 16;
+  fdVarElem = 316; acVarArrOpen = 317; acDbRowOpen = 325;
+  fdXref = 318; acXrefFilter = 319; acXrefRow = 320; acXrefClose = 321; acXrefOpen = 322; whXref = 17;
+  acIoOut = 323;
+  acWatchRight = 324; acWatchOpen = 326;
+  acIoListRow = 327; acIoListFil = 328; acWatchMode = 329; acWatchModePick = 330; acDbMode = 331; acDbModePick = 332;
+  whIoList = 18;
+  acMcpWrite = 333; acMcpCopy = 334; acDbJump = 335;
+  acIfSub = 336; acIfOpen = 337;   // the editor's interface: a member / element row (dragged), the open mark   // an output of the I/O screen (DQ channel, 1000 + AQ): its region for the right button
+  fdObDlgName = 198; fdObDlgNum = 199; acObDlg = 295; acObDlgEv = 296; acObDlgNum = 297; acObDlgLang = 298;
+  acObDlgOk = 299; acObDlgCancel = 300; acObEdge = 301; acObTodMode = 302; acObTodPick = 303; acObTodOn = 304;
+  acObCopyCall = 305; acObFault = 306; fdObCycle = 307; fdObPhase = 308; fdObTrig = 309; fdObTod = 310;
   IoHelpTitle = 'The I/O import file';
   IoHelpIntro = 'For developers: the CSV file that `Import I/O list (CSV) ...` on the I/O screen reads, its columns, ' +
     'addresses and rules, an example and a script that makes one.';
@@ -894,6 +1044,10 @@ end;
 { a request of an IPC client (the main thread): READ, WRITE, STATE, RUN, STOP, TAGS, PING, HELP }
 function TPlcUI.IpcRequest(const Line: string): string;
 var
+  Js: TJSONString;
+  Jo: TJSONObject;
+  Ans: string;
+  IsErr: Boolean;
   Cmd, Rest, Opd, Val, E: string;
   P, K: Integer;
   O: TOperand;
@@ -911,6 +1065,61 @@ begin
     Rest := Trim(Copy(Line, P + 1, MaxInt));
   end;
   case Cmd of
+    'TOOLS', 'GUIDE', 'TOOL':
+      begin
+        // Claude Code through MCP: the tools of the built-in assistant, the guide (its system prompt)
+        if Cmd = 'TOOLS' then Exit('OK ' + FClaude.ToolsJson.AsJSON);
+        if Cmd = 'GUIDE' then
+        begin
+          Js := TJSONString.Create(FClaude.SystemPrompt);
+          try
+            Exit('OK ' + Js.AsJSON);
+          finally
+            Js.Free;
+          end;
+        end;
+        P := Pos(' ', Rest + ' ');
+        Opd := Copy(Rest, 1, P - 1);
+        Val := Trim(Copy(Rest, P + 1, MaxInt));
+        if Val = '' then Val := '{}';
+        if (Opd = 'write_network') or (Opd = 'delete_network') or (Opd = 'create_block') or (Opd = 'set_interface') or
+          (Opd = 'add_db_variables') or (Opd = 'add_tags') or (Opd = 'set_inputs') or (Opd = 'download_and_run') then
+          if not Project.Comm.McpWrite then
+            Exit('ERR permission: "' + Opd + '" changes the PLC; turn on "Claude Code may change the program" on the ' +
+              'Ports screen of the Virtual PLC');
+        Inc(FMcpCalls);
+        FMcpLast := Opd;
+        FMcpLastT := Now;
+        IsErr := False;
+        if Opd = 'download_and_run' then
+        begin
+          Download;
+          if FMsgErrors > 0 then
+          begin
+            IsErr := True;
+            Ans := Format('{"downloaded":false,"compile_errors":%d,"hint":"call compile for the messages"}', [FMsgErrors]);
+          end
+          else
+          begin
+            Rt.CmdRun;
+            Rt.WaitCommands(2000);
+            Ans := Format('{"downloaded":true,"cpu_mode":"%s","stop_cause":"%s"}', [IfThen(Rt.Mode = rmRun, 'RUN', 'STOP'),
+              StringReplace(Rt.StopCause, '"', '''', [rfReplaceAll])]);
+          end;
+        end
+        else
+        begin
+          FClaude.Project := Project;
+          FClaude.Rt := Rt;
+          Ans := FClaude.TestTool(Opd, Val, IsErr);
+        end;
+        Jo := TJSONObject.Create(['is_error', IsErr, 'text', Ans]);
+        try
+          Result := 'OK ' + Jo.AsJSON;
+        finally
+          Jo.Free;
+        end;
+      end;
     'PING': Result := 'OK Virtual PLC ' + Project.Model.Name;
     'STATE':
       if Rt.Mode = rmRun then Result := 'OK RUN' else Result := 'OK STOP';
@@ -1659,6 +1868,7 @@ procedure TPlcUI.ApplyModel(AIdx: Integer);
 begin
   if AIdx = Project.ModelIdx then Exit;
   Project.ModelIdx := AIdx;
+  Project.SyncObIfaces;   // the start information of the OBs: TIA (Input) or classic (Temp)
   Rt.CmdSetModel(AIdx);
   Rt.WaitCommands(2000);
   ApplyInputRest;
@@ -1901,6 +2111,41 @@ begin
 end;
 
 { the index of element K (from 0 when it has more dimensions) of an array variable: "3" or "1,2" }
+{ the absolute address of a row: %DB1.DBX60.1, %DB1.DBW62, %DB1.DBB64 (40 bytes); an optimized DB has none }
+function DbRowAddr(Db: TDataBlock; DT: TDataType; Udt: TDataBlock; Ofs, Bit: Integer; Tia, Optimized, IsArray: Boolean): string;
+var
+  P: string;
+  Sz: Integer;
+begin
+  if Optimized then Exit('');   // an optimized DB has no absolute address: nothing to show
+  if Tia then P := '%' else P := '';
+  if IsArray then Exit(Format('%sDB%d.DBB%d ..', [P, Db.Number, Ofs]));
+  if DT = dtBool then Exit(Format('%sDB%d.DBX%d.%d', [P, Db.Number, Ofs, Bit]));
+  if (DT in [dtStruct, dtString, dtWString, dtIECTimer, dtIECCounter]) and (Udt <> nil) then
+    Exit(Format('%sDB%d.DBB%d  (%d bytes)', [P, Db.Number, Ofs, Udt.Size]));
+  Sz := DataTypeSize(DT);
+  case Sz of
+    1: Result := Format('%sDB%d.DBB%d', [P, Db.Number, Ofs]);
+    2: Result := Format('%sDB%d.DBW%d', [P, Db.Number, Ofs]);
+    4: Result := Format('%sDB%d.DBD%d', [P, Db.Number, Ofs]);
+  else
+    Result := Format('%sDB%d.DBB%d  (%d bytes)', [P, Db.Number, Ofs, Max(1, Sz)]);
+  end;
+end;
+
+{ the start value an element has without one }
+function ElemDefault(T: TDataType): string;
+begin
+  case T of
+    dtBool: Result := 'FALSE';
+    dtReal, dtLReal: Result := '0.0';
+    dtTime: Result := 'T#0MS';
+    dtString, dtWString: Result := '''''';
+  else
+    Result := '0';
+  end;
+end;
+
 function ElemIdx(const V: TDbVar; K: Integer): string;
 var
   J, N: Integer;
@@ -1990,6 +2235,8 @@ begin
   DrawDevMenu;
   DrawKeyDlg;
   DrawKeyRmDlg;
+  DrawObDlg;
+  DrawXref;
   DrawCtx;
   DrawAsk;
   EndFrame;
@@ -2053,6 +2300,8 @@ begin
       end
       else if FIoView = 2 then
         Card(20, 122, 1560, 738, 'Signal simulation table')
+      else if FIoView = 3 then
+        Card(20, 122, 1560, 738, 'I/O in use')
       else
       begin
         Card(20, 122, 772, 354, Format('Digital inputs  DI%d', [M.DI]));
@@ -2072,7 +2321,7 @@ begin
     scWatch:
       begin
         Card(20, 88, 1180, 772, 'Watch and force table');
-        Card(1216, 88, 364, 456, 'Watch groups');
+        Card(1216, 88, 364, 456, 'Groups / variables');
         Card(1216, 560, 364, 300, 'Forces');
       end;
     scDB:
@@ -2091,7 +2340,8 @@ begin
         Card(536, 88, 520, 300, 'S7 communication  ISO-on-TCP');
         Card(1072, 88, 508, 300, 'Modbus TCP server');
         Card(20, 408, 760, 452, 'Connections');
-        Card(796, 408, 784, 452, 'Traffic');
+        Card(796, 408, 784, 150, 'Claude Code (MCP)');
+        Card(796, 574, 784, 286, 'Traffic');
       end;
     scProject:
       begin
@@ -3473,6 +3723,19 @@ begin
     end;
     Hit(X, LY - 2, W, 19, Act(acStlLine, NI * 1024 + I), hkDrag);
   end;
+  if Ed then
+  begin
+    SclAssist(N);
+    if FGhost <> '' then
+    begin
+      // the ghost: grey after the caret, cut at the right edge
+      S := StringReplace(FGhost, LineEnding, ' ', [rfReplaceAll]);
+      K := Max(4, Trunc((X + W - 24 - (TX + FStlCol * CharW)) / CharW));
+      if UTF8Length(S) > K then S := UTF8Copy(S, 1, K - 1) + '…';
+      D.Layer := lyText;
+      Txt(fkMono, 13, TX + FStlCol * CharW, Y + 5 + FStlRow * 19, S, Alpha(cInkSoft, 135));
+    end;
+  end;
   DrawEdCaret(NI, N, TX, Y, CharW);
 end;
 
@@ -3801,6 +4064,301 @@ const
   StlWords: array[0..43] of string = ('A', 'AN', 'O', 'ON', 'X', 'XN', 'S', 'R', 'NOT', 'SET', 'CLR', 'FP', 'FN',
     'L', 'T', 'CALL', 'JU', 'JC', 'JCN', 'JZ', 'JN', 'JP', 'JM', 'LOOP', 'BE', 'BEC', 'BEU', 'NOP', 'OPN', 'ITD',
     'DTR', 'RND', 'TRUNC', 'SD', 'SE', 'SP', 'SS', 'SF', 'CU', 'CD', 'TAK', 'PUSH', 'POP', 'SLW');
+
+{ ---------- SCL: the ghost of the parameters, the parameter help ---------- }
+
+function TPlcUI.AssistKey: string;
+begin
+  if (CurNet = nil) or (FStlRow >= CurNet.Stl.Count) then Exit('');
+  Result := Format('%d:%d:%d:%s', [FNetSel, FStlRow, FStlCol, CurNet.Stl[FStlRow]]);
+end;
+
+procedure TPlcUI.TestObDlgNum(N: Integer);
+begin
+  StartEdit(Act(fdObDlgNum, 0), '');
+  TextInput(IntToStr(N));
+  EndEdit(True);
+end;
+
+function TPlcUI.SigText: string;
+var
+  K: Integer;
+begin
+  Result := '';
+  if not FSigOn then Exit;
+  Result := FSig.Title + '(';
+  for K := 0 to High(FSig.Params) do
+  begin
+    if K > 0 then Result := Result + ', ';
+    if K = FSigCur then Result := Result + '[';
+    Result := Result + FSig.Params[K].Name + ': ' + FSig.Params[K].TypeText;
+    if K = FSigCur then Result := Result + ']';
+  end;
+  Result := Result + ')';
+  if FSig.RetType <> '' then Result := Result + ' : ' + FSig.RetType;
+end;
+
+{ what the caret is at in an SCL network: the call and its parameters (the help), and the ghost:
+  after "(" all parameters, at an argument the next one, in a value a variable of the type, else the
+  rest of a word }
+procedure TPlcUI.SclAssist(N: TNetwork);
+const
+  WordCh = ['A'..'Z', 'a'..'z', '0'..'9', '_'];
+var
+  C: TSclCall;
+  Sg: TSclSig;
+  Ln0, Before, Rest, Pre, Val, Cand, Best: string;
+  RestOk, Close, Semi: Boolean;
+  K, J, P: Integer;
+  Fits: TStringList;
+  Lead: Char;
+  B: TBlock;
+  D0: TDataBlock;
+
+  procedure Try1(const S: string);
+  begin
+    if (Best = '') and (Length(S) > Length(Pre)) and SameText(Copy(S, 1, Length(Pre)), Pre) then Best := S;
+  end;
+
+begin
+  FGhost := '';
+  FGhostIns := '';
+  FSigOn := False;
+  FSigCur := -1;
+  FSigFits := '';
+  FSigPh := False;
+  if (N = nil) or (N.Kind <> nkSCL) or (FStlRow >= N.Stl.Count) or ((FEdNet = N) and FEd.HasSel) then Exit;
+  FSigPh := SclNextPlaceholder(N.Stl, FStlRow, FStlCol, 20, K, J, P);
+  B := CurBlock;
+  Ln0 := N.Stl[FStlRow];
+  Before := UTF8Copy(Ln0, 1, FStlCol);
+  Rest := UTF8Copy(Ln0, FStlCol + 1, MaxInt);
+  RestOk := (Trim(Rest) = '') or (Trim(Rest) = ')') or (Trim(Rest) = ');');
+  if SclCallAt(N.Stl, FStlRow, FStlCol, C) then
+  try
+    if SclSignature(Project, B, C.Callee, Sg) then
+    begin
+      FSigOn := True;
+      FSig := Sg;
+      FSigCur := SclCurParam(Sg, C);
+      if (FSigCur >= 0) and (Sg.Params[FSigCur].Dir <> sdOut) or (FSigCur >= 0) then
+      begin
+        Fits := SclFitting(Project, B, Sg.Params[FSigCur].TypeText, 6);
+        try
+          FSigFits := StringReplace(Trim(Fits.Text), LineEnding, ', ', [rfReplaceAll]);
+        finally
+          Fits.Free;
+        end;
+      end;
+      if RestOk and (Length(Sg.Params) > 0) and (AssistKey <> FGhostKey) then
+      begin
+        Close := Trim(Rest) = '';
+        Semi := C.Stmt and (Pos(';', Rest) = 0);
+        if not Close and (Trim(Rest) = ')') then Semi := False;
+        P := Pos(':=', C.SegText);
+        if P = 0 then P := Pos('=>', C.SegText);
+        if (C.Seg = 0) and (Trim(C.SegText) = '') and (Trim(Before) <> '') and (Trim(Before)[Length(Trim(Before))] = '(') then
+        begin
+          // right after "(": every parameter, aligned under the first one
+          FGhost := SclCallGhost(Sg, C.Given, Close, Semi);
+          FGhostIns := SclCallTemplate(Sg, C.Given, FStlCol, Close, Semi);
+        end
+        else if (P = 0) and (FSigCur >= 0) and ((Trim(C.SegText) = '') or (C.SegText[1] in WordCh)) and
+          (Length(Sg.Params) > 1) then
+        begin
+          // at an argument: the next parameter (the rest of its name, its placeholder)
+          Pre := Trim(C.SegText);
+          with Sg.Params[FSigCur] do
+          begin
+            if Dir = sdOut then Val := ' => ' else Val := ' := ';
+            FGhost := Copy(Name, Length(Pre) + 1, MaxInt) + Val + '<' + TypeText + '>';
+            FGhostIns := Copy(Name, Length(Pre) + 1, MaxInt) + Val + SclPlaceholder(TypeText, Dir);
+          end;
+        end
+        else if (P > 0) and (FSigCur >= 0) then
+        begin
+          // in a value: a variable of the parameter's type that starts with what is typed
+          Val := Trim(Copy(C.SegText, P + 2, MaxInt));
+          if Val <> '' then
+          begin
+            Fits := SclFitting(Project, B, Sg.Params[FSigCur].TypeText, 60);
+            try
+              for K := 0 to Fits.Count - 1 do
+                if (Length(Fits[K]) > Length(Val)) and SameText(Copy(Fits[K], 1, Length(Val)), Val) then
+                begin
+                  FGhost := Copy(Fits[K], Length(Val) + 1, MaxInt);
+                  FGhostIns := FGhost;
+                  Break;
+                end;
+            finally
+              Fits.Free;
+            end;
+          end;
+        end;
+      end;
+    end;
+  finally
+    C.Given.Free;
+  end;
+  if (FGhost <> '') or (AssistKey = FGhostKey) then Exit;
+  // the rest of a word: #a local, "a tag / DB / block, a keyword or a function
+  if (Rest <> '') and (Rest[1] in WordCh) then Exit;
+  J := Length(Before);
+  while (J > 0) and (Before[J] in WordCh) do Dec(J);
+  Pre := Copy(Before, J + 1, MaxInt);
+  if J > 0 then Lead := Before[J] else Lead := ' ';
+  if (Length(Pre) < 2) and not ((Lead in ['#', '"']) and (Length(Pre) >= 1)) then Exit;
+  if (Pre <> '') and (Pre[1] in ['0'..'9']) then Exit;
+  Best := '';
+  if Lead = '#' then
+  begin
+    if B <> nil then
+      for K := 0 to High(B.Iface.Vars) do Try1(B.Iface.Vars[K].Name);
+  end
+  else if Lead = '"' then
+  begin
+    for K := 0 to High(Project.Tags) do Try1(Project.Tags[K].Name);
+    for K := 0 to Project.DBCount - 1 do Try1(Project.DB(K).Name);
+    for K := 0 to Project.BlockCount - 1 do
+      if Project.Block(K).Kind <> bkOB then Try1(Project.Block(K).Name);
+  end
+  else
+    for K := 0 to High(SclWords) do Try1(SclWords[K]);
+  if Best = '' then Exit;
+  Cand := Copy(Best, Length(Pre) + 1, MaxInt);
+  if (Lead = '"') and not ((Rest <> '') and (Rest[1] = '"')) then Cand := Cand + '"';
+  FGhost := Cand;
+  FGhostIns := Cand;
+  if D0 = nil then ;
+end;
+
+{ Tab: the ghost goes into the code; its first placeholder is selected (typing replaces it) }
+function TPlcUI.GhostAccept(N: TNetwork): Boolean;
+var
+  R0, C0, PR, PC, PL: Integer;
+begin
+  Result := False;
+  if (N = nil) or (FGhostIns = '') then Exit;
+  EdUndoPoint(N, 0);
+  R0 := FEd.Caret.Row;
+  C0 := FEd.Caret.Col;
+  FEd.InsertText(FGhostIns);
+  if SclNextPlaceholder(N.Stl, R0, C0, 40, PR, PC, PL) and ((PR < FEd.Caret.Row) or
+    ((PR = FEd.Caret.Row) and (PC < FEd.Caret.Col))) then
+  begin
+    FEd.Anchor := FEd.TP(PR, PC);
+    FEd.Caret := FEd.TP(PR, PC + PL);
+  end;
+  FGhost := '';
+  FGhostIns := '';
+  Result := True;
+end;
+
+{ Tab without a ghost: the next placeholder of the call (_bool_in_ ..) is selected }
+function TPlcUI.PlaceholderNext(N: TNetwork): Boolean;
+var
+  R0, C0, PR, PC, PL: Integer;
+  A, B: TTextPos;
+begin
+  Result := False;
+  if (N = nil) or (N.Kind <> nkSCL) then Exit;
+  R0 := FEd.Caret.Row;
+  C0 := FEd.Caret.Col;
+  if FEd.HasSel then
+  begin
+    FEd.SelRange(A, B);
+    R0 := B.Row;
+    C0 := B.Col;
+  end;
+  if not SclNextPlaceholder(N.Stl, R0, C0, 20, PR, PC, PL) then Exit;
+  FEd.Anchor := FEd.TP(PR, PC);
+  FEd.Caret := FEd.TP(PR, PC + PL);
+  Result := True;
+end;
+
+{ the parameter help: above the caret line, the parameter at the caret in red, its type, what fits }
+procedure TPlcUI.DrawSigHelp;
+var
+  X, Y, W, H, CX, CY, PW: Single;
+  K: Integer;
+  S, Hint: string;
+  C: TBGRAPixel;
+begin
+  if not FSigOn or FCompOpen or (FStlNet < 0) then Exit;
+  W := 760;
+  X := EnsureRange(FCaretX - 60, 280, 1280 - W);
+  // the parameters flow over the lines of the box
+  CX := 0;
+  CY := 0;
+  for K := 0 to High(FSig.Params) do
+  begin
+    S := FSig.Params[K].Name + ': ' + FSig.Params[K].TypeText;
+    PW := TxtW(fkMono, 11.5, S + ',  ');
+    if CX + PW > W - 24 then
+    begin
+      CX := 0;
+      CY := CY + 18;
+    end;
+    CX := CX + PW;
+  end;
+  H := 30 + CY + 18 + 44;
+  Y := FCaretY - H - 6;
+  if Y < 150 then Y := FCaretY + 24;
+  D.Layer := lyOverlay;
+  Shad(X, Y, W, H, 5, 2, 6, 90);
+  RR(X, Y, W, H, 5, Mixc(cSheet, cGoldLight, 0.12));
+  RRL(X + 0.5, Y + 0.5, W - 1, H - 1, 5, 1.2, cGoldDark);
+  S := FSig.Title;
+  if FSig.RetType <> '' then S := S + '   → ' + FSig.RetType;
+  TxtFit(fkUIB, 11.5, X + 12, Y + 7, W - 24, S, cRedDark);
+  CX := X + 12;
+  CY := Y + 28;
+  for K := 0 to High(FSig.Params) do
+  begin
+    S := FSig.Params[K].Name + ': ' + FSig.Params[K].TypeText;
+    if K < High(FSig.Params) then S := S + ',';
+    PW := TxtW(fkMono, 11.5, S + '  ');
+    if CX + PW > X + W - 12 then
+    begin
+      CX := X + 12;
+      CY := CY + 18;
+    end;
+    case FSig.Params[K].Dir of
+      sdOut: C := cJade;
+      sdInOut: C := cGoldDark;
+    else
+      C := cInk;
+    end;
+    if K = FSigCur then
+    begin
+      RR(CX - 3, CY - 1, TxtW(fkMonoB, 11.5, S) + 6, 17, 3, Alpha(cRed, 40));
+      Txt(fkMonoB, 11.5, CX, CY, S, cRed);
+    end
+    else
+      Txt(fkMono, 11.5, CX, CY, S, C);
+    CX := CX + PW;
+  end;
+  if FSig.Variadic then Txt(fkMono, 11.5, CX, CY, '…', cInkSoft);
+  CY := CY + 22;
+  if (FSigCur >= 0) and (FSigCur <= High(FSig.Params)) then
+    with FSig.Params[FSigCur] do
+    begin
+      S := Format('%s  (%s, %s)', [Name, SigDirNames[Dir], TypeText]);
+      if Comment <> '' then S := S + ': ' + Comment;
+      TxtFit(fkUI, 11, X + 12, CY, W - 24, S, cInk);
+    end
+  else if FSig.Descr <> '' then
+    TxtFit(fkUI, 11, X + 12, CY, W - 24, FSig.Descr, cInk);
+  if FGhostIns <> '' then Hint := 'Tab: insert   Esc: hide'
+  else if FSigPh then Hint := 'Tab: the next _placeholder_'
+  else Hint := 'Esc: hide';
+  if FSigFits <> '' then
+    TxtFit(fkUI, 10.5, X + 12, CY + 18, W - 190, 'fits: ' + FSigFits, cJade)
+  else if FSigCur >= 0 then
+    TxtFit(fkUI, 10.5, X + 12, CY + 18, W - 190, 'no variable of this type in the project yet', cInkFaint);
+  TxtFit(fkUI, 10, X + W - 170, CY + 18, 160, Hint, cInkSoft, 2);
+end;
+
 
 procedure TPlcUI.CompStart;
 begin
@@ -5065,6 +5623,1000 @@ begin
   end;
 end;
 
+{ ---------- the cross reference ---------- }
+
+procedure TPlcUI.XrefOpen(const S: string; Blk: TBlock);
+begin
+  EndEdit(True);
+  FXrefOn := True;
+  FXrefText := Trim(S);
+  FXrefBlk := Blk;
+  FXrefScroll := 0;
+  FXrefFilter := 0;
+  FXref := nil;
+  FXrefInfo := '';
+  FXrefOk := False;
+  if FXrefText <> '' then FXrefOk := XrefFind(Project, FXrefText, FXrefBlk, FXrefInfo, FXref)
+  else FXrefInfo := 'type an operand: "Tag", %Q4.0, "DB".Var, MW10, #Local (of the block in the editor)';
+end;
+
+procedure TPlcUI.XrefOpenPublic(const S: string);
+begin
+  XrefOpen(S, CurBlock);
+end;
+
+function TPlcUI.XrefFirst(U: Integer): Integer;
+var
+  K: Integer;
+begin
+  Result := -1;
+  for K := 0 to High(FXref) do
+    if Ord(FXref[K].Use) = U then Exit(K);
+end;
+
+function TPlcUI.XrefTarget: string;
+begin
+  Result := FXrefText;
+end;
+
+function TPlcUI.XrefCount: Integer;
+begin
+  Result := Length(FXref);
+end;
+
+function TPlcUI.XrefLine(K: Integer): string;
+begin
+  if (K < 0) or (K > High(FXref)) then Exit('');
+  with FXref[K] do
+    Result := Format('%s | %s | %s | %s', [XrefUseNames[Use], XrefWhere(Project, FXref[K]), How, Written]);
+end;
+
+{ a right click on something with an operand: the menu with its cross reference }
+procedure TPlcUI.XrefMenu(const S: string);
+begin
+  if Trim(S) = '' then Exit;
+  FXrefAsk := Trim(S);
+  OpenCtx(FMX, FMY, ['Cross reference: ' + FXrefAsk + #9'F11'], [Act(acXrefOpen, 0)], [True]);
+end;
+
+{ the operand at the caret of the text (a symbol, an address, a #local) or of the selected LAD element }
+function TPlcUI.XrefAtCaret: string;
+var
+  N: TNetwork;
+  L, W, E: string;
+  K, C, P: Integer;
+  A: TAddr;
+begin
+  Result := '';
+  N := CurNet;
+  if N = nil then Exit;
+  if N.Kind = nkLAD then Exit(Trim(N.Cell(FCellR, FCellC).Opnd));
+  if (FStlNet <> FNetSel) or (FStlRow >= N.Stl.Count) then Exit;
+  L := N.Stl[FStlRow];
+  C := Length(UTF8Copy(L, 1, FStlCol)) + 1;
+  // the operand around the caret: "..", #name.member, %I0.0, I0.0
+  K := C;
+  while (K > 1) and (L[K - 1] in ['A'..'Z', 'a'..'z', '0'..'9', '_', '.', '%', '#', '"', '[', ']', ',']) do Dec(K);
+  P := C;
+  while (P <= Length(L)) and (L[P] in ['A'..'Z', 'a'..'z', '0'..'9', '_', '.', '%', '"', '[', ']']) do Inc(P);
+  W := Copy(L, K, P - K);
+  while (W <> '') and (W[Length(W)] in ['.', ',']) do SetLength(W, Length(W) - 1);
+  while (W <> '') and (W[1] in [',', '[', ']']) do Delete(W, 1, 1);
+  // a quoted name: from its first quote
+  if Pos('"', W) > 1 then Delete(W, 1, Pos('"', W) - 1);
+  if (W <> '') and ((W[1] in ['"', '#', '%']) or ParseAddr(W, A, E)) then Result := W;
+end;
+
+procedure TPlcUI.XrefJump(K: Integer);
+var
+  X: TXref;
+begin
+  if (K < 0) or (K > High(FXref)) then Exit;
+  X := FXref[K];
+  FXrefOn := False;
+  case X.Place of
+    xpCode:
+      begin
+        Screen := scProgram;
+        FBlockSel := X.Blk;
+        FNetSel := X.Net;
+        FIfaceShut := False;
+        if Project.Block(X.Blk).Net(X.Net).Kind = nkLAD then
+        begin
+          FStlNet := -1;
+          FCellR := X.Row;
+          FCellC := X.Col;
+          LadCollapse;
+        end
+        else
+        begin
+          FStlNet := X.Net;
+          FStlRow := X.Row;
+          FStlCol := X.Col;
+        end;
+        FScrollToCaret := True;
+      end;
+    xpWatch:
+      begin
+        Screen := scWatch;
+        FWatchGrpSel := -1;
+        FWatchSel := X.Row;
+        FWatchScroll := Max(0, X.Row - 3);
+      end;
+    xpSignal:
+      begin
+        Screen := scIO;
+        FIoView := 2;
+        FSigSel := X.Row;
+      end;
+    xpTag:
+      begin
+        Screen := scTags;
+        FTagGrpSel := -1;
+        FTagSel := X.Row;
+        FTagScroll := Max(0, X.Row - 3);
+      end;
+    xpDbVar:
+      begin
+        Screen := scDB;
+        FDBSel := X.Blk;
+        FVarSel := X.Row;
+        FVarScroll := Max(0, X.Row - 3);
+      end;
+    xpIface:
+      begin
+        Screen := scProgram;
+        FBlockSel := X.Blk;
+        FIfaceShut := False;
+        FIfSel := X.Row;
+        FProgScroll := 0;
+      end;
+  end;
+end;
+
+procedure TPlcUI.DrawXref;
+const
+  X = 150;
+  W = 1300;
+  Y = 96;
+  H = 720;
+  RowH = 26;
+  Fil: array[0..3] of string = ('All', 'Decisions (read)', 'Destinations (write)', 'Tables / declaration');
+var
+  K, J, Cnt, Vis, F0: Integer;
+  Counts: array[TXrefUse] of Integer;
+  Uu: TXrefUse;
+  RY, Top, ListH: Single;
+  S: string;
+  C: TBGRAPixel;
+  Show: Boolean;
+begin
+  if not FXrefOn then Exit;
+  // a click beside the dialog closes it; the dialog itself takes its clicks
+  Hit(-1000, -1000, DesignW + 2000, DesignH + 2000, Act(acXrefClose, 0));
+  Hit(X, Y, W, H, Act(acClaudeBg, 0));
+  D.Layer := lyOverlay;
+  Rc(-1000, -1000, DesignW + 2000, DesignH + 2000, Alpha(cCharcoal, 60));
+  Shad(X, Y, W, H, 6, 4, 10, 130);
+  RR(X, Y, W, H, 6, cSheet);
+  RRL(X + 0.5, Y + 0.5, W - 1, H - 1, 6, 1.4, cGoldDark);
+  Rc(X + 1, Y + 1, W - 2, 38, Mixc(cRed, cRedDark, 0.3));
+  Txt(fkUIB, 14.5, X + 16, Y + 10, 'Cross reference', cSheet);
+  Button(X + W - 104, Y + 6, 92, 26, 'Close  ×', Act(acXrefClose, 0), bsGold, True, 11.5);
+  D.Layer := lyText;
+  TxtFit(fkUI, 10, X + W - 300, Y + 12, 190, 'Esc or a click beside it closes it', Alpha(cSheet, 200), 2);
+  D.Layer := lyText;
+  Txt(fkUI, 11.5, X + 16, Y + 56, 'Operand', cInk);
+  Field(X + 80, Y + 51, 300, 26, Act(fdXref, 0), FXrefText, fkMono, 12.5, 0, True, '"Tag", %Q4.0, "DB".Var, #Local');
+  D.Layer := lyText;
+  if FXrefOk then TxtFit(fkUIB, 12, X + 396, Y + 56, W - 420, FXrefInfo, cRedDark)
+  else TxtFit(fkUI, 11.5, X + 396, Y + 56, W - 420, FXrefInfo, cRed);
+  for Uu := Low(TXrefUse) to High(TXrefUse) do Counts[Uu] := 0;
+  for K := 0 to High(FXref) do Inc(Counts[FXref[K].Use]);
+  // the filters with their counts
+  for J := 0 to 3 do
+  begin
+    case J of
+      0: Cnt := Length(FXref);
+      1: Cnt := Counts[xuRead] + Counts[xuReadWrite];
+      2: Cnt := Counts[xuWrite] + Counts[xuReadWrite];
+    else
+      Cnt := Counts[xuDecl] + Counts[xuTable];
+    end;
+    S := Format('%s  (%d)', [Fil[J], Cnt]);
+    if J = FXrefFilter then Button(X + 16 + J * 214, Y + 88, 206, 26, S, Act(acXrefFilter, J), bsToggleOn, True, 11)
+    else Button(X + 16 + J * 214, Y + 88, 206, 26, S, Act(acXrefFilter, J), bsNormal, True, 11);
+  end;
+  D.Layer := lyText;
+  TxtFit(fkUI, 10.5, X + 880, Y + 94, W - 900, 'a click on a row goes there;  R read  W write  RW both', cInkFaint);
+  // the heads
+  Top := Y + 150;
+  Txt(fkUIB, 11, X + 18, Y + 128, 'Use', cInkSoft);
+  Txt(fkUIB, 11, X + 66, Y + 128, 'Where', cInkSoft);
+  Txt(fkUIB, 11, X + 330, Y + 128, 'As', cInkSoft);
+  Txt(fkUIB, 11, X + 586, Y + 128, 'Written', cInkSoft);
+  Txt(fkUIB, 11, X + 776, Y + 128, 'Code', cInkSoft);
+  D.Layer := lyOrnament;
+  Ln(X + 14, Y + 146, X + W - 14, Y + 146, 0.8, Alpha(cGoldDark, 160));
+  // the rows of the filter
+  SetLength(FXrefView, 0);
+  for K := 0 to High(FXref) do
+  begin
+    case FXrefFilter of
+      1: Show := FXref[K].Use in [xuRead, xuReadWrite];
+      2: Show := FXref[K].Use in [xuWrite, xuReadWrite];
+      3: Show := FXref[K].Use in [xuDecl, xuTable];
+    else
+      Show := True;
+    end;
+    if Show then
+    begin
+      SetLength(FXrefView, Length(FXrefView) + 1);
+      FXrefView[High(FXrefView)] := K;
+    end;
+  end;
+  ListH := H - 150 - 16;
+  Vis := Trunc(ListH / RowH);
+  FXrefScroll := EnsureRange(FXrefScroll, 0, Max(0, Length(FXrefView) - Vis));
+  F0 := Round(FXrefScroll);
+  ClipD(X + 10, Top, W - 20, ListH);
+  Hit(X + 10, Top, W - 20, ListH, whXref, hkWheel);
+  for J := F0 to Min(High(FXrefView), F0 + Vis) do
+  begin
+    K := FXrefView[J];
+    RY := Top + (J - F0) * RowH;
+    D.Layer := lyControls;
+    if Hot(X + 12, RY, W - 34, RowH - 2) then RR(X + 12, RY, W - 34, RowH - 2, 4, Alpha(cGold, 80))
+    else if Odd(J) then Rc(X + 12, RY, W - 34, RowH - 2, Alpha(cSheet2, 120));
+    case FXref[K].Use of
+      xuRead:
+        begin
+          S := 'R';
+          C := cJade;
+        end;
+      xuWrite:
+        begin
+          S := 'W';
+          C := cRed;
+        end;
+      xuReadWrite:
+        begin
+          S := 'RW';
+          C := cGoldDark;
+        end;
+      xuDecl:
+        begin
+          S := 'decl';
+          C := cInkSoft;
+        end;
+    else
+      begin
+        S := 'table';
+        C := cInkSoft;
+      end;
+    end;
+    RR(X + 16, RY + 3, 40, RowH - 8, 4, Alpha(C, 50));
+    D.Layer := lyText;
+    Txt(fkUIB, 10.5, X + 36, RY + 6, S, C, 1);
+    TxtFit(fkUI, 11, X + 66, RY + 6, 258, XrefWhere(Project, FXref[K]), cInk);
+    TxtFit(fkUIB, 11, X + 330, RY + 6, 250, FXref[K].How, C);
+    if FXref[K].Exact then TxtFit(fkMono, 11, X + 586, RY + 6, 184, FXref[K].Written, cInk)
+    else TxtFit(fkMono, 11, X + 586, RY + 6, 184, FXref[K].Written + '  (overlaps)', cInkSoft);
+    TxtFit(fkMono, 10.5, X + 776, RY + 6, W - 800, FXref[K].Code, cInkSoft);
+    Hit(X + 12, RY, W - 34, RowH - 2, Act(acXrefRow, K));
+  end;
+  UnclipD;
+  if Length(FXrefView) > Vis then VScrollBar(19, X + W - 18, Top, ListH, Length(FXrefView), Vis, FXrefScroll)
+  else FVs[19].Range := 0;
+  D.Layer := lyText;
+  if FXrefOk and (Length(FXref) = 0) then Txt(fkUI, 12, X + 66, Top + 8, 'not used anywhere in the project', cInkSoft);
+end;
+
+{ ---------- the editor's variables: PLC tags by group, data blocks with their variables ---------- }
+
+{ the rows: the groups of the tag table (open by default), the DBs (shut by default) with their
+  variables and the members of a struct variable (shut); with a filter every row that matches }
+procedure TPlcUI.BuildPickList;
+var
+  K, J, M, G, Cnt: Integer;
+  F: string;
+  D0: TDataBlock;
+  V: TDbVar;
+  HeadAt: Integer;
+  Tog: Boolean;
+
+  function Fits(const S: string): Boolean;
+  begin
+    Result := (F = '') or (Pos(F, UpperCase(S)) > 0);
+  end;
+
+  function IsOpen(const Key: string; Default: Boolean): Boolean;
+  begin
+    if F <> '' then Exit(True);
+    Tog := FPickTog.IndexOf(Key) >= 0;
+    Result := Default <> Tog;
+  end;
+
+  procedure Add(AHead: Boolean; const AKey, ALbl, ASub, AIns: string; ADepth: Integer; AOpen: Boolean);
+  var
+    N: Integer;
+  begin
+    N := Length(FPick);
+    SetLength(FPick, N + 1);
+    FPick[N].Head := AHead;
+    FPick[N].Key := AKey;
+    FPick[N].Lbl := ALbl;
+    FPick[N].Sub := ASub;
+    FPick[N].Ins := AIns;
+    FPick[N].Depth := ADepth;
+    FPick[N].Open := AOpen;
+    FPick[N].Count := 0;
+  end;
+
+  procedure AddTags(GroupId: Integer; const HeadKey, HeadLbl: string);
+  var
+    Q: Integer;
+    Op: Boolean;
+  begin
+    Op := True;
+    HeadAt := -1;
+    if HeadKey <> '' then
+    begin
+      Op := IsOpen(HeadKey, True);
+      HeadAt := Length(FPick);
+      Add(True, HeadKey, HeadLbl, '', '', 0, Op);
+    end;
+    Cnt := 0;
+    for Q := 0 to High(Project.Tags) do
+      with Project.Tags[Q] do
+        if (GroupId = -1) or (Project.Tags[Q].GroupId = GroupId) then
+          if Fits(Name) then
+          begin
+            Inc(Cnt);
+            if Op then Add(False, '', Name, TypeText + '   ' + Address, '"' + Name + '"', Ord(HeadKey <> ''), False);
+          end;
+    if HeadAt >= 0 then
+    begin
+      FPick[HeadAt].Count := Cnt;
+      // a group without a matching tag: not shown while filtering
+      if (Cnt = 0) and (F <> '') then SetLength(FPick, HeadAt);
+    end;
+  end;
+
+begin
+  FPick := nil;
+  if FPickTog = nil then
+  begin
+    FPickTog := TStringList.Create;
+    FPickTog.CaseSensitive := False;
+  end;
+  F := UpperCase(Trim(FPickFilter));
+  if FPickSrc = 0 then
+  begin
+    if Length(Project.TagGroups) = 0 then AddTags(-1, '', '')
+    else
+    begin
+      for G := 0 to High(Project.TagGroups) do
+        AddTags(Project.TagGroups[G].Id, 'G:' + IntToStr(Project.TagGroups[G].Id), Project.TagGroups[G].Name);
+      // the tags of no group
+      Cnt := 0;
+      for K := 0 to High(Project.Tags) do
+        if GroupOfId(Project.TagGroups, Project.Tags[K].GroupId) < 0 then Inc(Cnt);
+      if Cnt > 0 then
+      begin
+        HeadAt := Length(FPick);
+        Add(True, 'G:0', '(no group)', '', '', 0, IsOpen('G:0', True));
+        Cnt := 0;
+        for K := 0 to High(Project.Tags) do
+          with Project.Tags[K] do
+            if (GroupOfId(Project.TagGroups, GroupId) < 0) and Fits(Name) then
+            begin
+              Inc(Cnt);
+              if FPick[HeadAt].Open then Add(False, '', Name, TypeText + '   ' + Address, '"' + Name + '"', 1, False);
+            end;
+        FPick[HeadAt].Count := Cnt;
+        if (Cnt = 0) and (F <> '') then SetLength(FPick, HeadAt);
+      end;
+    end;
+    Exit;
+  end;
+  // the data blocks: their variables, the members of a struct
+  for K := 0 to Project.DBCount - 1 do
+  begin
+    D0 := Project.DB(K);
+    D0.Layout;
+    HeadAt := Length(FPick);
+    if D0.InstanceOf > 0 then
+      Add(True, 'D:' + D0.Name, Format('DB%d "%s"', [D0.Number, D0.Name]), Format('instance of FB%d', [D0.InstanceOf]), '', 0,
+        IsOpen('D:' + D0.Name, False))
+    else
+      Add(True, 'D:' + D0.Name, Format('DB%d "%s"', [D0.Number, D0.Name]), '', '', 0, IsOpen('D:' + D0.Name, False));
+    Cnt := 0;
+    for J := 0 to High(D0.Vars) do
+    begin
+      V := D0.Vars[J];
+      if not Fits(V.Name) and not ((V.Udt <> nil) and (F <> '')) then Continue;
+      Inc(Cnt);
+      if not FPick[HeadAt].Open then Continue;
+      if V.IsArray then
+        Add(False, '', Format('%s[%d..%d]', [V.Name, V.Lo, V.Hi]), Format('%s   %d.%d', [V.TypeText, V.Ofs, V.Bit]),
+          Format('"%s".%s[%d]', [D0.Name, V.Name, V.Lo]), 1, False)
+      else if V.Valid and (V.DType = dtStruct) and (V.Udt <> nil) and not (V.Udt.StrMax > 0) then
+      begin
+        // a struct: its members one level deeper
+        Add(True, 'D:' + D0.Name + '.' + V.Name, V.Name, V.TypeText, Format('"%s".%s', [D0.Name, V.Name]), 1,
+          IsOpen('D:' + D0.Name + '.' + V.Name, False));
+        FPick[High(FPick)].Count := Length(V.Udt.Vars);
+        if FPick[High(FPick)].Open then
+          for M := 0 to High(V.Udt.Vars) do
+            Add(False, '', V.Udt.Vars[M].Name, V.Udt.Vars[M].TypeText, Format('"%s".%s.%s', [D0.Name, V.Name,
+              V.Udt.Vars[M].Name]), 2, False);
+      end
+      else
+        Add(False, '', V.Name, Format('%s   %d.%d', [V.TypeText, V.Ofs, V.Bit]), Format('"%s".%s', [D0.Name, V.Name]), 1, False);
+    end;
+    FPick[HeadAt].Count := Cnt;
+    if (Cnt = 0) and (F <> '') then SetLength(FPick, HeadAt);
+  end;
+end;
+
+function TPlcUI.PickCount: Integer;
+begin
+  BuildPickList;
+  Result := Length(FPick);
+end;
+
+function TPlcUI.PickIns(I: Integer): string;
+begin
+  if (I >= 0) and (I <= High(FPick)) then Result := FPick[I].Ins else Result := '';
+end;
+
+procedure TPlcUI.TestPickFilter(const S: string);
+begin
+  StartEdit(Act(fdPickFilter, 0), '');
+  TextInput(S);
+  EndEdit(True);
+end;
+
+function TPlcUI.PickPoint(I: Integer): TPointF;
+var
+  K: Integer;
+begin
+  Result := PointF(-1, -1);
+  for K := FLastHitN - 1 downto 0 do
+    if FLastHits[K].Id = Act(acVarPick, I) then
+      with FLastHits[K].R do Exit(PointF(Left + 30, (Top + Bottom) / 2));
+end;
+
+{ a double click on a variable: at the caret of the text, or the operand of the selected LAD element }
+procedure TPlcUI.PickInsert(I: Integer);
+var
+  N: TNetwork;
+  Ce: TLadCell;
+begin
+  if (I < 0) or (I > High(FPick)) then Exit;
+  if Screen = scWatch then
+  begin
+    if FPick[I].Head then WatchDrop(PickHeadItems(I), Length(FWatchView)) else WatchDrop(FPick[I].Ins, Length(FWatchView));
+    Exit;
+  end;
+  if FPick[I].Ins = '' then Exit;
+  N := CurNet;
+  if N = nil then Exit;
+  if N.Kind in [nkSTL, nkSCL] then
+  begin
+    if FStlNet <> FNetSel then
+    begin
+      Toast('click in the code first: the variable goes to the caret', True);
+      Exit;
+    end;
+    N := EdBegin;
+    if N = nil then Exit;
+    EdUndoPoint(N, 0);
+    FEd.InsertText(FPick[I].Ins);
+    EdEnd(N);
+    Exit;
+  end;
+  Ce := N.Cell(FCellR, FCellC);
+  if LadOpndName(Ce.Kind) = '' then
+  begin
+    Toast('select a contact, a coil or a box: the variable becomes its operand', True);
+    Exit;
+  end;
+  LadUndoPoint(N);
+  Ce.Opnd := FPick[I].Ins;
+  N.SetCell(FCellR, FCellC, Ce);
+  MarkDirty;
+end;
+
+{ the comment of an operand: of its tag, of its DB variable (an address: of the symbol on it) }
+function TPlcUI.OperandComment(const S: string): string;
+var
+  T, Db, Vn: string;
+  K, Q: Integer;
+  O: TOperand;
+  E: string;
+  D0: TDataBlock;
+begin
+  Result := '';
+  T := Trim(S);
+  if (T <> '') and not (T[1] in ['"', '#']) then
+  begin
+    if FRes.Resolve(T, O, E, False) and (O.Kind = okAddr) then T := FRes.SymbolOf(O.A) else Exit;
+  end;
+  if (T = '') or (T[1] <> '"') then Exit;
+  Q := Pos('"', Copy(T, 2, MaxInt)) + 1;
+  if Q <= 1 then Exit;
+  Db := Copy(T, 2, Q - 2);
+  if Q = Length(T) then
+  begin
+    K := Project.FindTag(Db);
+    if K >= 0 then Result := Project.Tags[K].Comment;
+    Exit;
+  end;
+  D0 := Project.FindDBByName(Db);
+  if D0 = nil then Exit;
+  Vn := Copy(T, Q + 2, MaxInt);
+  K := 1;
+  while (K <= Length(Vn)) and not (Vn[K] in ['.', '[']) do Inc(K);
+  K := D0.FindVar(Copy(Vn, 1, K - 1));
+  if K >= 0 then Result := D0.Vars[K].Comment;
+end;
+
+{ a watch row as the view shows it: 1 its symbol (a tag, a DB variable on the address), 2 its absolute
+  address, else as typed }
+function TPlcUI.WatchShown(const S: string): string;
+var
+  O: TOperand;
+  E, Sy: string;
+begin
+  Result := S;
+  if (Trim(S) = '') or (FWatchMode = 0) then Exit;
+  if not (FRes.Resolve(Trim(S), O, E, False) and (O.Kind = okAddr)) then Exit;
+  if FWatchMode = 2 then Exit(StringReplace(FormatAddr(O.A, Project.Family), ' ', '', [rfReplaceAll]));
+  if Trim(S)[1] in ['"', '#'] then Exit;
+  Sy := FRes.SymbolOf(O.A);
+  if Sy <> '' then Result := Sy;
+end;
+
+function TPlcUI.WatchShownPublic(I: Integer): string;
+begin
+  if (I < 0) or (I > High(Project.Watch)) then Exit('');
+  Result := WatchShown(Project.Watch[I].Address) + ' | ' + OperandComment(Project.Watch[I].Address);
+end;
+
+{ the rows of the watch table: a struct (a PLC data type, a timer, a counter) or an array that is open shows
+  its members / elements with their absolute addresses, deeper as they are opened }
+procedure TPlcUI.BuildWatchRows;
+var
+  J: Integer;
+  VInf: TVarInfo;
+  E: string;
+
+  function IsOpen(const Key: string): Boolean;
+  begin
+    Result := (FWatchOpen <> nil) and (FWatchOpen.IndexOf(Key) >= 0);
+  end;
+
+  function Opens(IsArr: Boolean; T: TDataType; U: TDataBlock): Boolean;
+  begin
+    Result := IsArr or ((T in [dtStruct, dtIECTimer, dtIECCounter]) and (U <> nil) and (Length(U.Vars) > 0));
+  end;
+
+  procedure Add(AWI, AVI: Integer; ASub, AOpen: Boolean; const APath, ALbl, AType, AKey: string; ADepth, AOfs, ABit,
+    ADb: Integer; ADT: TDataType; AUdt: TDataBlock);
+  var
+    N: Integer;
+  begin
+    N := Length(FWRows);
+    SetLength(FWRows, N + 1);
+    with FWRows[N] do
+    begin
+      WI := AWI;
+      VI := AVI;
+      Sub := ASub;
+      CanOpen := AOpen;
+      Path := APath;
+      Lbl := ALbl;
+      TypeText := AType;
+      Key := AKey;
+      Depth := ADepth;
+      Ofs := AOfs;
+      Bit := ABit;
+      DbNr := ADb;
+      DType := ADT;
+      Udt := AUdt;
+    end;
+  end;
+
+  procedure Members(AWI, AVI: Integer; U: TDataBlock; const APath: string; AOfs, ADepth, ADb: Integer; const AKey: string); forward;
+
+  { the elements of an array that starts at AOfs.ABit }
+  procedure Elements(AWI, AVI: Integer; const V: TDbVar; const APath: string; AOfs, ABit, ADepth, ADb: Integer;
+    const AKey: string);
+  var
+    K, EOfs, EBit, Lo, Hi: Integer;
+    Ix, ET: string;
+    St: Boolean;
+  begin
+    SplitArrayType(V.TypeText, Lo, Hi, ET);
+    St := Opens(False, V.DType, V.Udt);
+    for K := 0 to V.Hi - V.Lo do
+    begin
+      Ix := '[' + ElemIdx(V, V.Lo + K) + ']';
+      if V.DType = dtBool then
+      begin
+        EOfs := AOfs + (ABit + K) div 8;
+        EBit := (ABit + K) mod 8;
+      end
+      else
+      begin
+        EOfs := AOfs + K * ElemStride(V.DType, V.Udt);
+        EBit := 0;
+      end;
+      Add(AWI, AVI, True, St, APath + Ix, Ix, ET, AKey + Ix, ADepth, EOfs, EBit, ADb, V.DType, V.Udt);
+      if St and IsOpen(AKey + Ix) then Members(AWI, AVI, V.Udt, APath + Ix, EOfs, ADepth + 1, ADb, AKey + Ix);
+    end;
+  end;
+
+  procedure Members(AWI, AVI: Integer; U: TDataBlock; const APath: string; AOfs, ADepth, ADb: Integer; const AKey: string);
+  var
+    M: Integer;
+    MV: TDbVar;
+    Op: Boolean;
+  begin
+    if U = nil then Exit;
+    U.Layout;
+    for M := 0 to High(U.Vars) do
+    begin
+      MV := U.Vars[M];
+      Op := MV.Valid and Opens(MV.IsArray, MV.DType, MV.Udt);
+      Add(AWI, AVI, True, Op, APath + '.' + MV.Name, MV.Name, MV.TypeText, AKey + '.' + MV.Name, ADepth, AOfs + MV.Ofs,
+        MV.Bit, ADb, MV.DType, MV.Udt);
+      if Op and IsOpen(AKey + '.' + MV.Name) then
+      begin
+        if MV.IsArray then Elements(AWI, AVI, MV, APath + '.' + MV.Name, AOfs + MV.Ofs, MV.Bit, ADepth + 1, ADb, AKey + '.' + MV.Name)
+        else Members(AWI, AVI, MV.Udt, APath + '.' + MV.Name, AOfs + MV.Ofs, ADepth + 1, ADb, AKey + '.' + MV.Name);
+      end;
+    end;
+  end;
+
+var
+  Adr, Key, ET, ET2: string;
+  ELo, EHi: Integer;
+  V0: TDbVar;
+begin
+  SetLength(FWRows, 0);
+  for J := 0 to High(FWatchView) do
+  begin
+    Adr := Trim(Project.Watch[FWatchView[J]].Address);
+    Key := UpperCase(Adr);
+    if (Adr <> '') and FRes.ResolveVar(Adr, VInf, E) and Opens(VInf.IsArray, VInf.T, VInf.Udt) and
+      not (VInf.T in [dtString, dtWString]) then
+    begin
+      // an element of an array ("DB".Arr[0]) is of the element type
+      ET := VInf.TypeText;
+      if not VInf.IsArray and SplitArrayType(VInf.TypeText, ELo, EHi, ET2) then ET := ET2;
+      Add(FWatchView[J], J, False, True, '', Adr, ET, Key, 0, VInf.A.Ofs, VInf.A.Bit, VInf.A.DB, VInf.T, VInf.Udt);
+      if IsOpen(Key) then
+      begin
+        if VInf.IsArray then
+        begin
+          // the array as a variable: its elements
+          FillChar(V0, SizeOf(V0), 0);
+          V0.TypeText := VInf.TypeText;
+          V0.DType := VInf.T;
+          V0.Udt := VInf.Udt;
+          V0.IsArray := True;
+          V0.Lo := VInf.Lo;
+          V0.Hi := VInf.Hi;
+          V0.Dims := VInf.Dims;
+          Elements(FWatchView[J], J, V0, '', VInf.A.Ofs, VInf.A.Bit, 1, VInf.A.DB, Key);
+        end
+        else
+          Members(FWatchView[J], J, VInf.Udt, '', VInf.A.Ofs, 1, VInf.A.DB, Key);
+      end;
+    end
+    else
+      Add(FWatchView[J], J, False, False, '', Adr, '', Key, 0, 0, 0, 0, dtNone, nil);
+  end;
+end;
+
+procedure TPlcUI.TestWatchOpen(const Key: string);
+begin
+  if FWatchOpen = nil then
+  begin
+    FWatchOpen := TStringList.Create;
+    FWatchOpen.CaseSensitive := False;
+  end;
+  if FWatchOpen.IndexOf(UpperCase(Key)) < 0 then FWatchOpen.Add(UpperCase(Key));
+end;
+
+function TPlcUI.WatchRowText(I: Integer): string;
+var
+  Db: TDataBlock;
+begin
+  Result := '';
+  MakeWatchView;
+  BuildWatchRows;
+  if (I < 0) or (I > High(FWRows)) then Exit;
+  with FWRows[I] do
+  begin
+    Db := Project.FindDB(DbNr);
+    if Sub and (Db <> nil) then
+      Result := Format('%s%s : %s  %s  = %s', [StringOfChar(' ', Depth * 2), Lbl, TypeText, DbRowAddr(Db, DType, Udt, Ofs, Bit,
+        IsTia(Project.Family), Db.Optimized and IsTia(Project.Family), Copy(TypeText, 1, 6) = 'Array['),
+        LiveOf(Project.Watch[WI].Address + Path)])
+    else
+      Result := Lbl + IfThen(CanOpen, '  (opens)', '');
+  end;
+end;
+
+{ the rows under a group / a DB / a struct of the variables: one per line }
+function TPlcUI.PickHeadItems(I: Integer): string;
+var
+  K, J, M, Id: Integer;
+  Key: string;
+  D0: TDataBlock;
+  V: TDbVar;
+
+  procedure Add(const S: string);
+  begin
+    if Result <> '' then Result := Result + #10;
+    Result := Result + S;
+  end;
+
+begin
+  Result := '';
+  if (I < 0) or (I > High(FPick)) then Exit;
+  if not FPick[I].Head then Exit(FPick[I].Ins);
+  Key := FPick[I].Key;
+  if Copy(Key, 1, 2) = 'G:' then
+  begin
+    Id := StrToIntDef(Copy(Key, 3, MaxInt), 0);
+    for K := 0 to High(Project.Tags) do
+      if (Project.Tags[K].GroupId = Id) or ((Id = 0) and (GroupOfId(Project.TagGroups, Project.Tags[K].GroupId) < 0)) then
+        Add('"' + Project.Tags[K].Name + '"');
+    Exit;
+  end;
+  if Copy(Key, 1, 2) <> 'D:' then Exit;
+  Key := Copy(Key, 3, MaxInt);
+  J := Pos('.', Key);
+  if J > 0 then
+  begin
+    // a struct: its members
+    D0 := Project.FindDBByName(Copy(Key, 1, J - 1));
+    if D0 = nil then Exit;
+    K := D0.FindVar(Copy(Key, J + 1, MaxInt));
+    if (K < 0) or (D0.Vars[K].Udt = nil) then Exit;
+    for M := 0 to High(D0.Vars[K].Udt.Vars) do Add(Format('"%s".%s.%s', [D0.Name, D0.Vars[K].Name, D0.Vars[K].Udt.Vars[M].Name]));
+    Exit;
+  end;
+  D0 := Project.FindDBByName(Key);
+  if D0 = nil then Exit;
+  D0.Layout;
+  for K := 0 to High(D0.Vars) do
+  begin
+    V := D0.Vars[K];
+    if not V.Valid then Continue;
+    if V.IsArray then
+    begin
+      // the elements (at most 32 of an array)
+      if V.DType in [dtStruct, dtIECTimer, dtIECCounter] then Continue;
+      for M := V.Lo to Min(V.Hi, V.Lo + 31) do Add(Format('"%s".%s[%s]', [D0.Name, V.Name, ElemIdx(V, M)]));
+    end
+    else if V.DType = dtStruct then
+    begin
+      if V.Udt <> nil then
+        for M := 0 to High(V.Udt.Vars) do
+          if V.Udt.Vars[M].Valid and not V.Udt.Vars[M].IsArray and (V.Udt.Vars[M].DType <> dtStruct) then
+            Add(Format('"%s".%s.%s', [D0.Name, V.Name, V.Udt.Vars[M].Name]));
+    end
+    else if V.DType in [dtIECTimer, dtIECCounter] then
+    begin
+      // a timer / a counter: its outputs
+      if V.DType = dtIECTimer then
+      begin
+        Add(Format('"%s".%s.Q', [D0.Name, V.Name]));
+        Add(Format('"%s".%s.ET', [D0.Name, V.Name]));
+      end
+      else
+      begin
+        Add(Format('"%s".%s.Q', [D0.Name, V.Name]));
+        Add(Format('"%s".%s.CV', [D0.Name, V.Name]));
+      end;
+    end
+    else
+      Add(Format('"%s".%s', [D0.Name, V.Name]));
+  end;
+end;
+
+{ the rows dropped into the watch table: before the row AtRow of the rows shown (the group shown gets them),
+  each with the format of its type }
+procedure TPlcUI.WatchDrop(const Items: string; AtRow: Integer);
+var
+  SL: TStringList;
+  K, At, N, Gid: Integer;
+  O: TOperand;
+  E: string;
+  F: TDispFmt;
+  Moved: array of TWatchRow;
+begin
+  SL := TStringList.Create;
+  try
+    SL.Text := StringReplace(Items, #10, LineEnding, [rfReplaceAll]);
+    MakeWatchView;
+    if (AtRow >= 0) and (AtRow <= High(FWatchView)) then At := FWatchView[AtRow] else At := Length(Project.Watch);
+    Gid := GrpIdSel(1);
+    N := 0;
+    for K := 0 to SL.Count - 1 do
+    begin
+      if Trim(SL[K]) = '' then Continue;
+      F := dfDec;
+      if FRes.Resolve(Trim(SL[K]), O, E, False) and (O.Kind = okAddr) then
+        case O.DType of
+          dtBool: F := dfBool;
+          dtReal, dtLReal: F := dfReal;
+          dtTime, dtLTime: F := dfTime;
+          dtS5Time: F := dfS5Time;
+          dtChar, dtWChar: F := dfChar;
+          dtByte, dtWord, dtDWord, dtLWord: F := dfHex;
+        else
+          if O.A.Size = osBit then F := dfBool;
+        end;
+      Project.AddWatch(Trim(SL[K]), F);
+      Project.Watch[High(Project.Watch)].GroupId := Gid;
+      Inc(N);
+    end;
+    // the N new rows (at the end) move to At
+    if (N > 0) and (At < Length(Project.Watch) - N) then
+    begin
+      SetLength(Moved, N);
+      for K := 0 to N - 1 do Moved[K] := Project.Watch[Length(Project.Watch) - N + K];
+      for K := Length(Project.Watch) - 1 downto At + N do Project.Watch[K] := Project.Watch[K - N];
+      for K := 0 to N - 1 do Project.Watch[At + K] := Moved[K];
+    end;
+    if N > 0 then
+    begin
+      FWatchSel := At;
+      Project.Modified := True;
+      if N = 1 then Toast('1 row: ' + Trim(SL[0])) else Toast(Format('%d rows into the watch table', [N]));
+    end;
+  finally
+    SL.Free;
+  end;
+end;
+
+procedure TPlcUI.TestWatchDrag(I: Integer; ToRow: Integer);
+var
+  K: Integer;
+  P0, P1: TPointF;
+begin
+  // a press on the row (or the grip of a group / DB), a move onto the table, the button up
+  P0 := PointF(-1, -1);
+  for K := FLastHitN - 1 downto 0 do
+    if FLastHits[K].Id = Act(acVarPick, I) then
+      with FLastHits[K].R do
+      begin
+        P0 := DesignToPixel((Left + Right) / 2, (Top + Bottom) / 2);
+        Break;
+      end;
+  if P0.X < 0 then Exit;
+  MakeWatchView;
+  ToRow := Min(ToRow, Length(FWatchView));
+  P1 := DesignToPixel(600, 176 + (ToRow - Round(FWatchScroll)) * 31);
+  MouseClicks := 1;
+  MouseMove(P0.X, P0.Y);
+  MouseDown(P0.X, P0.Y);
+  MouseMove((P0.X + P1.X) / 2, (P0.Y + P1.Y) / 2);
+  MouseMove(P1.X, P1.Y);
+  MouseUp(P1.X, P1.Y);
+end;
+
+procedure TPlcUI.DrawVarPick(X, Y, W, H: Single);
+var
+  K, Vis, Ix: Integer;
+  RY, LY, Top, ListH, Content, Ind: Single;
+  O: TOperand;
+  E, Live: string;
+  C: TBGRAPixel;
+begin
+  if FPickSrc = 0 then Button(X, Y, 114, 22, 'PLC tags', Act(acPickSrc, 0), bsGold, True, 10.5)
+  else Button(X, Y, 114, 22, 'PLC tags', Act(acPickSrc, 0), bsNormal, True, 10.5);
+  if FPickSrc = 1 then Button(X + 122, Y, 114, 22, 'Data blocks', Act(acPickSrc, 1), bsGold, True, 10.5)
+  else Button(X + 122, Y, 114, 22, 'Data blocks', Act(acPickSrc, 1), bsNormal, True, 10.5);
+  Field(X, Y + 28, W, 22, Act(fdPickFilter, 0), FPickFilter, fkUI, 11, 0, True, 'filter: a part of the name');
+  BuildPickList;
+  Top := Y + 56;
+  ListH := H - 56 - 26;
+  Content := 0;
+  for K := 0 to High(FPick) do
+    if FPick[K].Head then Content := Content + 24 else Content := Content + 32;
+  FPickScroll := EnsureRange(FPickScroll, 0, Max(0, Content - ListH));
+  ClipD(X - 4, Top, W + 8, ListH);
+  Hit(X - 4, Top, W + 8, ListH, whPick, hkWheel);
+  RY := Top - FPickScroll;
+  for K := 0 to High(FPick) do
+  begin
+    if FPick[K].Head then LY := 24 else LY := 32;
+    if (RY + LY >= Top) and (RY <= Top + ListH) then
+    begin
+      Ind := FPick[K].Depth * 12;
+      if FPick[K].Head then
+      begin
+        D.Layer := lyControls;
+        if Hot(X, RY + 1, W - 8, LY - 2) then RR(X, RY + 1, W - 8, LY - 2, 4, Mixc(cSheet2, cWhite, 0.3))
+        else RR(X, RY + 1, W - 8, LY - 2, 4, Alpha(cGoldLight, 70));
+        if FPick[K].Open then
+          PolyD([PointF(X + Ind + 4, RY + 9), PointF(X + Ind + 13, RY + 9), PointF(X + Ind + 8.5, RY + 15)], cRedDark)
+        else
+          PolyD([PointF(X + Ind + 6, RY + 7), PointF(X + Ind + 11, RY + 12), PointF(X + Ind + 6, RY + 17)], cRedDark);
+        D.Layer := lyText;
+        TxtFit(fkUIB, 11, X + Ind + 18, RY + 5, W - Ind - 64, FPick[K].Lbl, cRedDark);
+        TxtFit(fkMono, 10, X + W - 46, RY + 6, 34, IntToStr(FPick[K].Count), cInkSoft, 2);
+        Hit(X, RY + 1, W - 8, LY - 2, Act(acPickHead, K));
+        // a struct can be dragged too ("DB".Var), on the watch screen a group / a DB with all its rows: its grip
+        if (FPick[K].Ins <> '') or (Screen = scWatch) then
+        begin
+          D.Layer := lyControls;
+          for Ix := 0 to 2 do
+          begin
+            El(X + W - 84, RY + 7 + Ix * 5, 1.2, 1.2, cInkSoft);
+            El(X + W - 80, RY + 7 + Ix * 5, 1.2, 1.2, cInkSoft);
+          end;
+          Hit(X + W - 90, RY + 1, 22, LY - 2, Act(acVarPick, K), hkDrag);
+        end;
+      end
+      else
+      begin
+        D.Layer := lyControls;
+        if Hot(X, RY + 1, W - 8, LY - 2) then RR(X, RY + 1, W - 8, LY - 2, 4, Alpha(cGold, 60))
+        else if Odd(K) then Rc(X, RY + 1, W - 8, LY - 2, Alpha(cSheet2, 110));
+        // the grip
+        El(X + Ind + 4, RY + 10, 1.2, 1.2, cInkSoft);
+        El(X + Ind + 8, RY + 10, 1.2, 1.2, cInkSoft);
+        El(X + Ind + 4, RY + 15, 1.2, 1.2, cInkSoft);
+        El(X + Ind + 8, RY + 15, 1.2, 1.2, cInkSoft);
+        El(X + Ind + 4, RY + 20, 1.2, 1.2, cInkSoft);
+        El(X + Ind + 8, RY + 20, 1.2, 1.2, cInkSoft);
+        D.Layer := lyText;
+        TxtFit(fkMonoB, 11, X + Ind + 14, RY + 3, W - Ind - 100, FPick[K].Lbl, cInk);
+        TxtFit(fkUI, 9.5, X + Ind + 14, RY + 17, W - Ind - 30, FPick[K].Sub, cInkFaint);
+        // the value now
+        if Rt.Prog <> nil then
+        begin
+          Live := '';
+          if FRes.Resolve(FPick[K].Ins, O, E, False) and (O.Kind = okAddr) then Live := LiveText(O, '?');
+          if Live = 'TRUE' then C := cRed else C := cRedDark;
+          TxtFit(fkMono, 10.5, X + W - 92, RY + 3, 80, Live, C, 2);
+        end;
+        Hit(X, RY + 1, W - 8, LY - 2, Act(acVarPick, K), hkDrag);
+      end;
+    end;
+    RY := RY + LY;
+  end;
+  UnclipD;
+  if Content > ListH then VScrollBar(18, X + W - 6, Top, ListH, Content, ListH, FPickScroll) else FVs[18].Range := 0;
+  D.Layer := lyText;
+  if Length(FPick) = 0 then
+  begin
+    if FPickSrc = 0 then Txt(fkUI, 11, X, Top + 6, 'No PLC tag (Tags screen).', cInkSoft)
+    else Txt(fkUI, 11, X, Top + 6, 'No data block (Data blocks screen).', cInkSoft);
+  end;
+  Vis := 0;
+  if Vis = 0 then ;
+  if Screen = scWatch then
+  begin
+    TxtFit(fkUI, 9.5, X, Y + H - 20, W, 'drag a row, a group or a DB (its grip) into the watch table;', cInkFaint);
+    TxtFit(fkUI, 9.5, X, Y + H - 8, W, 'double click: a row at the end of the table', cInkFaint);
+  end
+  else
+  begin
+    TxtFit(fkUI, 9.5, X, Y + H - 20, W, 'drag a row into the code / onto LAD', cInkFaint);
+    TxtFit(fkUI, 9.5, X, Y + H - 8, W, 'double click: at the caret / selected element', cInkFaint);
+  end;
+end;
+
 { the Data blocks screen: 0 import the TYPEs and DATA_BLOCKs of an .scl source, 1 export the selected DB / type }
 procedure TPlcUI.DbSclMenu(Par: Integer);
 var
@@ -5169,13 +6721,31 @@ end;
 { the drop place under the mouse while a name or a piece of help text is dragged }
 procedure TPlcUI.DropTrack(X, Y: Single; Lad: Boolean);
 var
+  K: Integer;
   Hd: THit;
   CharW: Single;
 begin
+  FDropKind := 0;
+  if Screen = scWatch then
+  begin
+    // the watch table: a new row before the row under the mouse (below the rows: at the end)
+    if (X >= 30) and (X <= 1190) and (Y >= 168) and (Y <= 856) then
+    begin
+      FDropKind := 4;
+      K := EnsureRange(Round((Y - 174) / 31) + Round(FWatchScroll), 0, Length(FWRows));
+      FDropY := 174 + (K - Round(FWatchScroll)) * 31;
+      // the rows shown with the members of open structs: the row of the table it is before
+      if K >= Length(FWRows) then FDropRow := Length(FWatchView)
+      else if FWRows[K].Sub then FDropRow := FWRows[K].VI + 1
+      else FDropRow := FWRows[K].VI;
+      FDropX := 34;
+      FDropW := 1150;
+    end;
+    Exit;
+  end;
   if Y > 836 then FProgScroll := FProgScroll + 12;
   if Y < 160 then FProgScroll := FProgScroll - 12;
   // the place under the mouse: a text line, or a LAD element with an operand
-  FDropKind := 0;
   if (CurBlock = nil) or not HitAt(X, Y, Hd) then Exit;
   if Hd.Id shr 16 = acStlLine then
   begin
@@ -5255,6 +6825,9 @@ begin
     10: Result := FElemScroll;
     11..15: Result := FIoScroll[Bar - 11];
     16, 17: Result := FGrpScroll[Bar - 16];
+    18: Result := FPickScroll;
+    19: Result := FXrefScroll;
+    20: Result := FIoListScroll;
   else
     Result := FPalScroll;
   end;
@@ -5280,6 +6853,9 @@ begin
     10: FElemScroll := V;
     11..15: FIoScroll[Bar - 11] := V;
     16, 17: FGrpScroll[Bar - 16] := V;
+    18: FPickScroll := V;
+    19: FXrefScroll := V;
+    20: FIoListScroll := V;
   else
     FPalScroll := V;
   end;
@@ -5525,11 +7101,15 @@ end;
 { ---------- the FB interface (Input, Output, InOut, Static, Temp) ---------- }
 
 function TPlcUI.IfaceHeight(B: TBlock): Single;
+var
+  Ob: Single;
 begin
-  if B.Kind = bkOB then Exit(0);
-  if FIfaceShut then Exit(48);
-  if Length(B.Iface.Vars) = 0 then Exit(48 + 38);
-  Result := 48 + 22 + Length(B.Iface.Vars) * 26 + 44;
+  // an OB: the line of its event and settings
+  if B.Kind = bkOB then Ob := 34 else Ob := 0;
+  if FIfaceShut then Exit(48 + Ob);
+  if Length(B.Iface.Vars) = 0 then Exit(48 + 38 + Ob);
+  BuildIfRows(B);
+  Result := 48 + 22 + Length(FIfRows) * 26 + 44 + Ob;
 end;
 
 function TPlcUI.FirstInstance(B: TBlock): TDataBlock;
@@ -5553,6 +7133,69 @@ var
   O: TOperand;
   Sc: TVarSection;
   Cnt: array[TVarSection] of Integer;
+  R: Integer;
+
+  procedure OpenMark(XM, YM: Single; Opened: Boolean);
+  begin
+    if Opened then PolyD([PointF(XM - 2, YM + 7), PointF(XM + 7, YM + 7), PointF(XM + 2.5, YM + 13)], cRedDark)
+    else PolyD([PointF(XM, YM + 5), PointF(XM + 5, YM + 10), PointF(XM, YM + 15)], cRedDark);
+  end;
+
+  { a member of a struct / an element of an array: read only, dragged into the code as #Var.Member }
+  procedure SubRow(R: Integer; RY: Single);
+  var
+    AL: Integer;
+    XN: Single;
+    PV: TDbVar;
+    St, Lv, Er: string;
+    Op: TOperand;
+  begin
+    PV := B.Iface.Vars[FIfRows[R].Vi];
+    with FIfRows[R] do
+    begin
+      D.Layer := lyControls;
+      Rc(X + 10, RY - 2, W - 20, 25, Alpha(cGoldLight, IfThen(Odd(R), 55, 30)));
+      Hit(X + 10, RY - 2, W - 20, 25, Act(acIfSub, R), hkDrag);
+      for AL := 1 to Depth do Rc(X + 104 + (AL - 1) * 14, RY - 2, 2, 25, Alpha(cGoldDark, 120));
+      XN := X + 112 + Depth * 14;
+      if CanOpen then
+      begin
+        OpenMark(XN - 11, RY, (FArrOpen <> nil) and (FArrOpen.IndexOf(Key) >= 0));
+        Hit(XN - 14, RY - 2, 14, 25, Act(acIfOpen, R));
+      end;
+      D.Layer := lyText;
+      TxtFit(fkMono, 11, XN, RY + 4, X + 264 - XN, Lbl, cInkSoft);
+      TxtFit(fkMono, 11, X + 272, RY + 4, 186, TypeText, cInkSoft);
+      if CanOpen then
+      begin
+        if Copy(TypeText, 1, 6) = 'Array[' then St := '(its elements)' else St := '(its members)';
+        Txt(fkUI, 10, X + 468, RY + 5, St, cInkFaint);
+      end
+      else
+      begin
+        if Ei >= 0 then St := ArrayStartOf(PV.Start, PV.Hi - PV.Lo + 1, Ei)
+        else if Start <> '' then St := Start
+        else St := ElemDefault(DType);
+        TxtFit(fkMono, 11, X + 468, RY + 4, 120, St, cInkFaint);
+      end;
+      if (PV.Section = vsTemp) or (B.Kind in [bkFC, bkOB]) then
+        Txt(fkMono, 10.5, X + 594, RY + 4, Format('L%d.%d', [Ofs, Bit]), cInkFaint)
+      else
+        Txt(fkMono, 10.5, X + 594, RY + 4, Format('%d.%d', [Ofs, Bit]), cInkFaint);
+      // the value now in the first instance DB
+      Lv := '';
+      if PV.Valid and (Inst <> nil) and (Rt.Prog <> nil) and (PV.Section <> vsTemp) then
+      begin
+        if CanOpen and (DType = dtStruct) and (Copy(TypeText, 1, 6) <> 'Array[') then
+          Lv := StructLive(Format('"%s".%s%s', [Inst.Name, PV.Name, Path]), Udt)
+        else if not CanOpen and FRes.Resolve(Format('"%s".%s%s', [Inst.Name, PV.Name, Path]), Op, Er, False) then
+          Lv := LiveText(Op, '?');
+      end;
+      TxtFit(fkMonoB, 11, X + 652, RY + 4, 170, Lv, cRedDark);
+      TxtFit(fkUI, 10.5, X + 830, RY + 4, W - 846, Comment, cInkFaint);
+    end;
+  end;
+
 begin
   H := IfaceHeight(B);
   B.Iface.Name := B.Name;
@@ -5572,7 +7215,14 @@ begin
   S := '';
   for Sc := Low(TVarSection) to High(TVarSection) do
     if Cnt[Sc] > 0 then S := S + Format('%d %s, ', [Cnt[Sc], SectionNames[Sc]]);
-  if B.Kind = bkFC then
+  if B.Kind = bkOB then
+  begin
+    K := 0;
+    for I := 0 to High(B.Iface.Vars) do
+      if B.Iface.Vars[I].System then Inc(K);
+    S := Format('organization block: %d start information (set by the CPU), local data %d bytes', [K, B.Iface.TempSize]);
+  end
+  else if B.Kind = bkFC then
     S := S + Format('local data %d bytes (parameters and Temp)', [B.Iface.TempSize])
   else
   begin
@@ -5585,6 +7235,11 @@ begin
   if B.Kind = bkFB then Button(X + W - 300, Y + 6, 130, 24, '+ Instance DB', Act(acIfInst, 0), bsNormal, True, 11);
   if FIfaceShut then Button(X + W - 160, Y + 6, 148, 24, 'Show interface', Act(acIfToggle, 0), bsGold, True, 11)
   else Button(X + W - 160, Y + 6, 148, 24, 'Hide interface', Act(acIfToggle, 0), bsNormal, True, 11);
+  if B.Kind = bkOB then
+  begin
+    DrawObSettings(B, X, Y + 36, W);
+    Y := Y + 34;
+  end;
   if FIfaceShut then Exit;
   // column heads
   RY := Y + 42;
@@ -5598,13 +7253,20 @@ begin
   Txt(fkUIB, 10.5, X + 830, RY, 'Comment', cInkSoft);
 
   FIfSel := EnsureRange(FIfSel, 0, Max(0, High(B.Iface.Vars)));
-  for I := 0 to High(B.Iface.Vars) do
+  BuildIfRows(B);
+  for R := 0 to High(FIfRows) do
   begin
+    I := FIfRows[R].Vi;
     V := B.Iface.Vars[I];
-    RY := Y + 64 + I * 26;
+    RY := Y + 64 + R * 26;
+    if FIfRows[R].Sub then
+    begin
+      SubRow(R, RY);
+      Continue;
+    end;
     D.Layer := lyControls;
     if I = FIfSel then RR(X + 10, RY - 2, W - 20, 25, 4, Alpha(cGold, 70))
-    else if Odd(I) then Rc(X + 10, RY - 2, W - 20, 25, Alpha(cSheet2, 120));
+    else if Odd(R) then Rc(X + 10, RY - 2, W - 20, 25, Alpha(cSheet2, 120));
     Hit(X + 10, RY - 2, W - 20, 25, Act(acIfDrag, I), hkDrag);
     // the grip: drag the row into the code (#Name)
     if I = 0 then
@@ -5617,17 +7279,41 @@ begin
       El(X + 15, RY + 5 + K * 5, 1.3, 1.3, cInkSoft);
       El(X + 19, RY + 5 + K * 5, 1.3, 1.3, cInkSoft);
     end;
-    Button(X + 24, RY, 70, 21, SectionNames[V.Section], Act(acIfSec, I), SecBtn[V.Section], True, 10.5);
-    Field(X + 98, RY, 166, 21, Act(fdIfName, I), V.Name, fkUI, 11.5);
-    Field(X + 268, RY, 190, 21, Act(fdIfType, I), V.TypeText, fkMono, 11.5);
+    if V.System then
+    begin
+      // the start information of an OB: the CPU writes it, it is not edited
+      D.Layer := lyControls;
+      RR(X + 24, RY, 70, 21, 4, Alpha(cGoldDark, 60));
+      D.Layer := lyText;
+      Txt(fkUIB, 10, X + 59, RY + 4, SectionNames[V.Section], cInkSoft, 1);
+      TxtFit(fkMono, 11.5, X + 102, RY + 3, 162, V.Name, cRedDark);
+      TxtFit(fkMono, 11.5, X + 272, RY + 3, 186, V.TypeText, cInk);
+      TxtFit(fkUI, 10, X + 468, RY + 4, 120, 'set by the CPU', cInkFaint);
+    end
+    else
+    begin
+      Button(X + 24, RY, 70, 21, SectionNames[V.Section], Act(acIfSec, I), SecBtn[V.Section], B.Kind <> bkOB, 10.5);
+      if FIfRows[R].CanOpen then
+      begin
+        // a struct, an array, a timer / counter: the mark opens it to its members / elements
+        D.Layer := lyControls;
+        OpenMark(X + 101, RY, (FArrOpen <> nil) and (FArrOpen.IndexOf(FIfRows[R].Key) >= 0));
+        Hit(X + 96, RY - 2, 14, 25, Act(acIfOpen, R));
+        Field(X + 111, RY, 153, 21, Act(fdIfName, I), V.Name, fkUI, 11.5);
+      end
+      else
+        Field(X + 98, RY, 166, 21, Act(fdIfName, I), V.Name, fkUI, 11.5);
+      Field(X + 268, RY, 190, 21, Act(fdIfType, I), V.TypeText, fkMono, 11.5);
+    end;
     D.Layer := lyText;
-    if V.Valid and (V.DType in [dtStruct, dtIECTimer, dtIECCounter]) then
+    if V.System then
+    else if V.Valid and (V.DType in [dtStruct, dtIECTimer, dtIECCounter]) then
       Txt(fkUI, 10, X + 468, RY + 4, '(instance)', cInkFaint)
     else
       Field(X + 464, RY, 120, 21, Act(fdIfStart, I), V.Start, fkMono, 11.5);
     D.Layer := lyText;
     if not V.Valid then Txt(fkUI, 10, X + 594, RY + 4, 'type?', cRed)
-    else if (V.Section = vsTemp) or (B.Kind = bkFC) then Txt(fkMono, 10.5, X + 594, RY + 4, Format('L%d.%d', [V.Ofs, V.Bit]), cInkSoft)
+    else if (V.Section = vsTemp) or (B.Kind in [bkFC, bkOB]) then Txt(fkMono, 10.5, X + 594, RY + 4, Format('L%d.%d', [V.Ofs, V.Bit]), cInkSoft)
     else Txt(fkMono, 10.5, X + 594, RY + 4, Format('%d.%d', [V.Ofs, V.Bit]), cInkSoft);
     // the live value in the first instance DB
     Live := '';
@@ -5663,23 +7349,26 @@ begin
         Live := LiveText(O, '?');
     end;
     TxtFit(fkMonoB, 11, X + 652, RY + 4, 170, Live, cRedDark);
-    Field(X + 826, RY, W - 842, 21, Act(fdIfComment, I), V.Comment, fkUI, 11);
+    if V.System then TxtFit(fkUI, 10.5, X + 830, RY + 4, W - 846, V.Comment, cInkSoft)
+    else Field(X + 826, RY, W - 842, 21, Act(fdIfComment, I), V.Comment, fkUI, 11);
   end;
   // add / delete
-  if Length(B.Iface.Vars) = 0 then RY := Y + 40 else RY := Y + 64 + Length(B.Iface.Vars) * 26 + 8;
+  if Length(B.Iface.Vars) = 0 then RY := Y + 40 else RY := Y + 64 + Length(FIfRows) * 26 + 8;
   CX := X + 14;
   for Sc := Low(TVarSection) to High(TVarSection) do
   begin
-    // an FC: no Static (no instance); an FB: no Return value
+    // an FC: no Static (no instance); an FB: no Return value; an OB: Temp only (its Input is the CPU's)
     if (B.Kind = bkFC) and (Sc = vsStatic) or (B.Kind = bkFB) and (Sc = vsReturn) then Continue;
+    if (B.Kind = bkOB) and (Sc <> vsTemp) then Continue;
     Button(CX, RY, 92, 24, '+ ' + SectionNames[Sc], Act(acIfAdd, Ord(Sc)), bsNormal, True, 11);
     CX := CX + 98;
   end;
-  Button(CX + 10, RY, 110, 24, 'Delete row', Act(acIfDel, 0), bsFlat, Length(B.Iface.Vars) > 0, 11);
+  Button(CX + 10, RY, 110, 24, 'Delete row', Act(acIfDel, 0), bsFlat, (Length(B.Iface.Vars) > 0) and
+    not B.Iface.Vars[EnsureRange(FIfSel, 0, Max(0, High(B.Iface.Vars)))].System, 11);
   NSec := 0;
   if NSec = 0 then ;
   D.Layer := lyText;
-  TxtFit(fkUI, 10.5, CX + 132, RY + 5, X + W - CX - 146, 'drag a row by its grip into the code: #Name  (or onto a LAD element)', cInkFaint);
+  TxtFit(fkUI, 10.5, CX + 132, RY + 5, X + W - CX - 146, 'drag a row by its grip into the code: #Name, #Name.Member  (or onto a LAD element)', cInkFaint);
 end;
 
 { ---------- dragging an interface variable ---------- }
@@ -5698,7 +7387,13 @@ begin
     El(FDropX, FDropY - 1, 3, 3, cRed);
   end
   else if FDropKind = 2 then
-    RRL(FDropX, FDropY, FDropW, FDropH, 4, 2.4, cRed);
+    RRL(FDropX, FDropY, FDropW, FDropH, 4, 2.4, cRed)
+  else if FDropKind = 4 then
+  begin
+    // where the new rows go in the watch table
+    Rc(FDropX, FDropY - 2, FDropW, 3, cRed);
+    El(FDropX, FDropY - 0.5, 4, 4, cRed);
+  end;
   // several lines: the first one and how many more
   Lb := FVarDrag;
   if Pos(#10, Lb) > 0 then
@@ -5811,6 +7506,14 @@ procedure TPlcUI.KeyDown(Key: TUiKey; Ch: Char; Mods: TUiMods);
 var
   EnterInKey: Boolean;
 begin
+  // Esc closes the cross reference / the + OB dialog first (also while one of its fields has the focus)
+  if (FXrefOn or FObDlgOn) and (Key = ukEsc) and not FCtxOn then
+  begin
+    EndEdit(False);
+    FXrefOn := False;
+    FObDlgOn := False;
+    Exit;
+  end;
   // Enter in the key field saves it as the variable (a click elsewhere only ends the edit)
   EnterInKey := (Key = ukEnter) and (FEditId = Act(fdClaudeKey, 0));
   if FKeyRmDlg and (Key = ukEsc) then
@@ -6045,6 +7748,360 @@ begin
   AskSaveFirst('Close the Virtual PLC', Act(acQuitNow, 0));
 end;
 
+{ ---------- + OB: the OBs of the CPU family ---------- }
+
+function ObNameFree(P: TPlcProject; const Nm: string): Boolean;
+var
+  K: Integer;
+begin
+  Result := Trim(Nm) <> '';
+  for K := 0 to P.BlockCount - 1 do
+    if SameText(P.Block(K).Name, Trim(Nm)) then Exit(False);
+end;
+
+{ an event chosen: its first standard OB not in the project, else a number of its own }
+procedure TPlcUI.ObDlgEvent(E: TObEvent);
+var
+  L: TObInfos;
+  K, N: Integer;
+begin
+  FObDlgEv := E;
+  FObDlgNum := -1;
+  FObDlgName := '';
+  L := ObCatalog(Project.Family);
+  for K := 0 to High(L) do
+    if (L[K].Event = E) and (Project.FindBlock(bkOB, L[K].Number) = nil) then
+    begin
+      FObDlgNum := L[K].Number;
+      FObDlgName := L[K].Name;
+      Break;
+    end;
+  if (FObDlgNum < 0) and ObCustomOk(Project.Family, E) then
+  begin
+    N := 123;
+    while Project.FindBlock(bkOB, N) <> nil do Inc(N);
+    FObDlgNum := N;
+  end;
+  if (FObDlgNum >= 123) or ((FObDlgName <> '') and not ObNameFree(Project, FObDlgName)) then
+  begin
+    // a name of its own: the event and a number
+    N := 1;
+    repeat
+      FObDlgName := Format('%s_%d', [ObEventNames[E], N]);
+      Inc(N);
+    until ObNameFree(Project, FObDlgName);
+  end;
+end;
+
+procedure TPlcUI.DrawObDlg;
+const
+  X = 250;
+  W = 1100;
+  Y = 120;
+  H = 640;
+var
+  Evs: TObEventList;
+  L: TObInfos;
+  K, J, N, Used: Integer;
+  BX, BY, RX: Single;
+  E: TObEvent;
+  Info: TObInfo;
+  Std, Ok, IsFree: Boolean;
+  S: string;
+begin
+  if not FObDlgOn then Exit;
+  Hit(-1000, -1000, DesignW + 2000, DesignH + 2000, Act(acClaudeBg, 0));
+  D.Layer := lyOverlay;
+  Rc(-1000, -1000, DesignW + 2000, DesignH + 2000, Alpha(cCharcoal, 70));
+  Shad(X, Y, W, H, 6, 4, 10, 130);
+  RR(X, Y, W, H, 6, cSheet);
+  RRL(X + 0.5, Y + 0.5, W - 1, H - 1, 6, 1.4, cGoldDark);
+  Rc(X + 1, Y + 1, W - 2, 38, Mixc(cRed, cRedDark, 0.3));
+  Txt(fkUIB, 14.5, X + 16, Y + 10, 'Add new block: organization block (OB)  —  ' + FamilyNames[Project.Family], cSheet);
+  // the events of the family, two columns
+  Evs := ObEvents(Project.Family);
+  L := ObCatalog(Project.Family);
+  Txt(fkUIB, 12, X + 20, Y + 52, 'Event', cRedDark);
+  N := (Length(Evs) + 1) div 2;
+  for K := 0 to High(Evs) do
+  begin
+    BX := X + 20 + (K div N) * 208;
+    BY := Y + 74 + (K mod N) * 30;
+    Used := 0;
+    for J := 0 to Project.BlockCount - 1 do
+      if (Project.Block(J).Kind = bkOB) and (Project.ObEventOfBlock(Project.Block(J)) = Evs[K]) then Inc(Used);
+    S := ObEventNames[Evs[K]];
+    if Used > 0 then S := S + Format('  (%d)', [Used]);
+    if Evs[K] = FObDlgEv then Button(BX, BY, 200, 26, S, Act(acObDlgEv, Ord(Evs[K])), bsToggleOn, True, 10.5)
+    else if ObSimulated(Evs[K]) then Button(BX, BY, 200, 26, S, Act(acObDlgEv, Ord(Evs[K])), bsNormal, True, 10.5)
+    else Button(BX, BY, 200, 26, S, Act(acObDlgEv, Ord(Evs[K])), bsFlat, True, 10.5);
+  end;
+  D.Layer := lyText;
+  TxtFit(fkUI, 10, X + 20, Y + H - 34, 420, 'bold: started by the Virtual PLC;  flat: an OB of the CPU it does not start', cInkFaint);
+  // the standard OBs of the event
+  RX := X + 460;
+  E := FObDlgEv;
+  D.Layer := lyText;
+  Txt(fkUIB, 12, RX, Y + 52, 'Standard OBs: ' + ObEventNames[E], cRedDark);
+  J := 0;
+  for K := 0 to High(L) do
+    if L[K].Event = E then
+    begin
+      BX := RX + (J mod 3) * 206;
+      BY := Y + 74 + (J div 3) * 46;
+      IsFree := Project.FindBlock(bkOB, L[K].Number) = nil;
+      if L[K].Number = FObDlgNum then
+        Button(BX, BY, 198, 40, Format('OB%d', [L[K].Number]), Act(acObDlgNum, L[K].Number), bsPrimary, IsFree, 12)
+      else
+        Button(BX, BY, 198, 40, Format('OB%d', [L[K].Number]), Act(acObDlgNum, L[K].Number), bsNormal, IsFree, 12);
+      D.Layer := lyText;
+      if IsFree then TxtFit(fkUI, 9.5, BX + 8, BY + 27, 182, L[K].Name, PickC(L[K].Number = FObDlgNum, cGoldLight, cInkSoft))
+      else TxtFit(fkUI, 9.5, BX + 8, BY + 27, 182, 'in the project', cInkFaint);
+      Inc(J);
+    end;
+  BY := Y + 74 + ((J + 2) div 3) * 46 + 6;
+  D.Layer := lyText;
+  if ObCustomOk(Project.Family, E) then
+  begin
+    Txt(fkUI, 11.5, RX, BY + 4, 'or a number of its own (123 .. 32767):', cInk);
+    Field(RX + 250, BY, 90, 26, Act(fdObDlgNum, 0), IntToStr(Max(0, FObDlgNum)), fkMono, 12);
+    BY := BY + 36;
+  end
+  else if J = 0 then
+  begin
+    Txt(fkUI, 11.5, RX, BY, 'the ' + FamilyNames[Project.Family] + ' has no OB of this event', cRed);
+    BY := BY + 30;
+  end;
+  // the name, the language
+  D.Layer := lyText;
+  Txt(fkUI, 11.5, RX, BY + 4, 'Name', cInk);
+  Field(RX + 60, BY, 300, 26, Act(fdObDlgName, 0), FObDlgName, fkUI, 12);
+  BY := BY + 38;
+  D.Layer := lyText;
+  Txt(fkUI, 11.5, RX, BY + 4, 'Language', cInk);
+  for K := 0 to 2 do
+  begin
+    case K of
+      0: S := 'LAD';
+      1: S := 'STL';
+    else
+      S := 'SCL';
+    end;
+    if K = FObDlgLang then Button(RX + 80 + K * 70, BY, 64, 26, S, Act(acObDlgLang, K), bsToggleOn, True, 11)
+    else Button(RX + 80 + K * 70, BY, 64, 26, S, Act(acObDlgLang, K), bsNormal, (K <> 1) or (Project.Family <> cfS71200), 11);
+  end;
+  BY := BY + 44;
+  // what the OB is and what starts it
+  D.Layer := lyText;
+  Std := ObInfoOf(Project.Family, FObDlgNum, Info);
+  if Std then S := Format('OB%d "%s": %s, priority %d', [FObDlgNum, Info.Name, ObEventNames[E], Info.Prio])
+  else if FObDlgNum > 0 then S := Format('OB%d: %s (a number of its own)', [FObDlgNum, ObEventNames[E]])
+  else S := ObEventNames[E];
+  TxtFit(fkUIB, 11.5, RX, BY, W - 480, S, cInk);
+  if ObSimulated(E) then TxtFit(fkUI, 11, RX, BY + 22, W - 480, 'Started by: ' + ObEventStart[E], cJade)
+  else TxtFit(fkUI, 11, RX, BY + 22, W - 480, 'Started by: ' + ObEventStart[E], cRed);
+  if E = oeCyclic then
+    TxtFit(fkUI, 10.5, RX, BY + 42, W - 480, Format('Cycle time %d ms (the default of its number): set it in the OB, above its networks',
+      [IfThen(FObDlgNum = Project.CyclicOB, Project.CyclicMs, ObDefaultCycleMs(FObDlgNum))]), cInkSoft)
+  else if E in [oeHardware, oeTimeOfDay] then
+    TxtFit(fkUI, 10.5, RX, BY + 42, W - 480, 'Its input / start time: set it in the OB, above its networks', cInkSoft)
+  else if not IsTia(Project.Family) then
+    TxtFit(fkUI, 10.5, RX, BY + 42, W - 480, 'The start information is in the first 20 bytes of the Temp (OBnn_EV_CLASS ..)', cInkSoft)
+  else
+    TxtFit(fkUI, 10.5, RX, BY + 42, W - 480, 'The start information is in the Input section of its interface', cInkSoft);
+  Ok := (FObDlgNum > 0) and (Project.FindBlock(bkOB, FObDlgNum) = nil) and ObNameFree(Project, FObDlgName) and
+    (Std or ((FObDlgNum >= 123) and ObCustomOk(Project.Family, E)));
+  if (FObDlgNum > 0) and (Project.FindBlock(bkOB, FObDlgNum) <> nil) then
+    TxtFit(fkUIB, 11, RX, Y + H - 80, W - 480, Format('OB%d is in the project already', [FObDlgNum]), cRed)
+  else if not ObNameFree(Project, FObDlgName) then
+    TxtFit(fkUIB, 11, RX, Y + H - 80, W - 480, 'the name is empty or a block has it', cRed);
+  Button(X + W - 230, Y + H - 46, 120, 32, 'Add', Act(acObDlgOk, 0), bsPrimary, Ok, 12.5);
+  Button(X + W - 102, Y + H - 46, 86, 32, 'Cancel', Act(acObDlgCancel, 0), bsNormal, True, 12);
+end;
+
+procedure TPlcUI.ObAction(Code, Par: Integer);
+var
+  B: TBlock;
+  Info: TObInfo;
+  M: TCpuModel;
+  Names: array of string;
+  Acts: array of Integer;
+  Ens: array of Boolean;
+  K: Integer;
+  S: string;
+begin
+  B := CurBlock;
+  case Code of
+    acObDlg:
+      begin
+        EndEdit(True);
+        FObDlgOn := True;
+        FObDlgLang := 0;
+        if Project.FindBlock(bkOB, 1) = nil then ObDlgEvent(oeProgramCycle) else ObDlgEvent(oeCyclic);
+      end;
+    acObDlgEv: ObDlgEvent(TObEvent(EnsureRange(Par, 0, Ord(High(TObEvent)))));
+    acObDlgNum:
+      begin
+        FObDlgNum := Par;
+        if ObInfoOf(Project.Family, Par, Info) and ObNameFree(Project, Info.Name) then FObDlgName := Info.Name;
+      end;
+    acObDlgLang: FObDlgLang := Par;
+    acObDlgCancel: FObDlgOn := False;
+    acObDlgOk:
+      begin
+        EndEdit(True);
+        if (FObDlgNum <= 0) or (Project.FindBlock(bkOB, FObDlgNum) <> nil) or not ObNameFree(Project, FObDlgName) then Exit;
+        B := Project.AddBlock(bkOB, FObDlgNum, Trim(FObDlgName));
+        if not ObInfoOf(Project.Family, FObDlgNum, Info) then B.ObEvent := Ord(FObDlgEv);
+        M := Rt.Model;
+        case FObDlgEv of
+          oeHardware:
+            if IsTia(Project.Family) then B.TrigAddr := Format('%%I%d.0', [M.DIByte])
+            else B.TrigAddr := Format('I%d.0', [M.DIByte]);
+          oeTimeOfDay:
+            begin
+              // the next full minute, every day; switched on in the OB
+              B.TodStart := FormatTodStart(Trunc(Now * 1440 + 1) / 1440);
+              B.TodMode := 3;
+              B.TodActive := False;
+            end;
+        end;
+        Project.SyncObIface(B);
+        case FObDlgLang of
+          1: B.AddNet(nkSTL);
+          2: B.AddNet(nkSCL);
+        else
+          B.AddNet(nkLAD);
+        end;
+        FBlockSel := Project.Blocks.IndexOf(B);
+        FNetSel := 0;
+        FStlNet := -1;
+        FObDlgOn := False;
+        ResetResolver;
+        MarkDirty;
+        Toast(Format('%s added: %s', [B.Title, ObEventNames[Project.ObEventOfBlock(B)]]));
+      end;
+    acObEdge:
+      if (B <> nil) and (B.Kind = bkOB) then
+      begin
+        B.TrigEdge := (B.TrigEdge + 1) mod 3;
+        MarkDirty;
+      end;
+    acObTodMode:
+      if (B <> nil) and (B.Kind = bkOB) then
+      begin
+        SetLength(Names, Length(TodModeNames));
+        SetLength(Acts, Length(TodModeNames));
+        SetLength(Ens, Length(TodModeNames));
+        for K := 0 to High(TodModeNames) do
+        begin
+          Names[K] := TodModeNames[K];
+          if K = B.TodMode then Names[K] := Names[K] + '   ✓';
+          Acts[K] := Act(acObTodPick, K);
+          Ens[K] := True;
+        end;
+        OpenCtx(FMX, FMY, Names, Acts, Ens);
+      end;
+    acObTodPick:
+      if (B <> nil) and (B.Kind = bkOB) then
+      begin
+        B.TodMode := EnsureRange(Par, 0, High(TodModeNames));
+        MarkDirty;
+      end;
+    acObTodOn:
+      if (B <> nil) and (B.Kind = bkOB) then
+      begin
+        B.TodActive := not B.TodActive;
+        MarkDirty;
+      end;
+    acObCopyCall:
+      if (B <> nil) and (B.Kind = bkOB) then
+      begin
+        S := Format('#Ret := SRT_DINT(OB_NR := %d, DTIME := T#1S, SIGN := 16#0);', [B.Number]);
+        ClipboardOut := S;
+        Toast('Copied: ' + S);
+      end;
+    acObFault:
+      if Par = 0 then Rt.CmdObEvent(oeDiagnostic) else Rt.CmdObEvent(oePullPlug);
+  end;
+end;
+
+{ the event of an OB and its settings: a line at the top of its interface }
+procedure TPlcUI.DrawObSettings(B: TBlock; X, Y, W: Single);
+var
+  E: TObEvent;
+  Info: TObInfo;
+  S: string;
+  CX: Single;
+  Runs: Int64;
+begin
+  E := Project.ObEventOfBlock(B);
+  D.Layer := lyControls;
+  RR(X + 10, Y, W - 20, 30, 4, Alpha(cGoldLight, 60));
+  D.Layer := lyText;
+  Txt(fkUIB, 11.5, X + 18, Y + 7, ObEventNames[E], PickC(ObSimulated(E), cRedDark, cRed));
+  CX := X + 18 + TxtW(fkUIB, 11.5, ObEventNames[E]) + 16;
+  case E of
+    oeCyclic:
+      begin
+        Txt(fkUI, 11, CX, Y + 8, 'cycle time', cInkSoft);
+        Field(CX + 66, Y + 3, 80, 24, Act(fdObCycle, 0), IntToStr(Project.ObCycleMs(B)), fkMono, 12, 2);
+        D.Layer := lyText;
+        Txt(fkUI, 11, CX + 152, Y + 8, 'ms    phase', cInkSoft);
+        Field(CX + 226, Y + 3, 70, 24, Act(fdObPhase, 0), IntToStr(B.PhaseMs), fkMono, 12, 2);
+        D.Layer := lyText;
+        Txt(fkUI, 11, CX + 302, Y + 8, 'ms', cInkSoft);
+        CX := CX + 330;
+      end;
+    oeHardware:
+      begin
+        Txt(fkUI, 11, CX, Y + 8, 'input', cInkSoft);
+        Field(CX + 40, Y + 3, 110, 24, Act(fdObTrig, 0), B.TrigAddr, fkMono, 12);
+        case B.TrigEdge of
+          1: S := 'falling edge ▼';
+          2: S := 'both edges ▼';
+        else
+          S := 'rising edge ▼';
+        end;
+        Button(CX + 158, Y + 3, 130, 24, S, Act(acObEdge, 0), bsGold, True, 10.5);
+        CX := CX + 300;
+      end;
+    oeTimeOfDay:
+      begin
+        Txt(fkUI, 11, CX, Y + 8, 'start', cInkSoft);
+        Field(CX + 36, Y + 3, 170, 24, Act(fdObTod, 0), B.TodStart, fkMono, 11.5);
+        Button(CX + 212, Y + 3, 130, 24, TodModeNames[EnsureRange(B.TodMode, 0, High(TodModeNames))] + ' ▼',
+          Act(acObTodMode, 0), bsGold, True, 10.5);
+        Check(CX + 352, Y + 7, 16, B.TodActive, Act(acObTodOn, 0));
+        D.Layer := lyText;
+        Txt(fkUI, 11, CX + 374, Y + 8, 'active', cInkSoft);
+        CX := CX + 420;
+      end;
+    oeTimeDelay:
+      begin
+        TxtFit(fkMono, 11, CX, Y + 8, 470, Format('SRT_DINT(OB_NR := %d, DTIME := T#1S, SIGN := 16#0) starts it', [B.Number]), cInk);
+        Button(CX + 478, Y + 3, 92, 24, 'Copy call', Act(acObCopyCall, 0), bsGold, True, 10.5);
+        CX := CX + 580;
+      end;
+  else
+    begin
+      TxtFit(fkUI, 11, CX, Y + 8, W - (CX - X) - 230, 'started by: ' + ObEventStart[E], PickC(ObSimulated(E), cInkSoft, cRed));
+      CX := X + W - 220;
+    end;
+  end;
+  D.Layer := lyText;
+  if ObInfoOf(Project.Family, B.Number, Info) then S := Format('priority %d', [Info.Prio])
+  else if B.Number >= 123 then S := 'a number of its own'
+  else S := 'not an OB of the ' + FamilyNames[Project.Family];
+  if (Rt.Prog <> nil) and (Rt.Mode <> rmStop) then
+  begin
+    Runs := Rt.ObRuns(B.Number);
+    S := S + Format('   runs: %d', [Runs]);
+  end;
+  TxtFit(fkUI, 10.5, X + W - 214, Y + 8, 200, S, cInkSoft, 2);
+  if CX = 0 then ;
+end;
+
 procedure TPlcUI.DrawAsk;
 const
   X = 540;
@@ -6130,6 +8187,31 @@ begin
     'watchrow': Id := Act(acWatchRow, Par);
     'watchgrp': Id := Act(acWatchGrpMenu, 0);
     'dbscl': Id := Act(acDbScl, Par);
+    'obdlg': Id := Act(acObDlg, 0);
+    'righttab': Id := Act(acRightTab, Par);
+    'xreffilter': Id := Act(acXrefFilter, Par);
+    'xrefclose': Id := Act(acXrefClose, 0);
+    'xreffield': Id := Act(fdXref, 0);
+    'watchright': Id := Act(acWatchRight, Par);
+    'mcpwrite': Id := Act(acMcpWrite, 0);
+    'dbopt': Id := Act(acDBOpt, 0);
+    'dbjump': Id := Act(acDbJump, Par);
+    'iolistfil': Id := Act(acIoListFil, Par);
+    'iolistrow': Id := Act(acIoListRow, Par);
+    'xrefrow': Id := Act(acXrefRow, Par);
+    'ioout': Id := Act(acIoOut, Par);
+    'tagsel': Id := Act(acTagSel, Par);
+    'varsel': Id := Act(acVarSel, Par);
+    'ifrow': Id := Act(acIfDrag, Par);
+    'ifopen': Id := Act(acIfOpen, Par);
+    'ifsub': Id := Act(acIfSub, Par);
+    'picksrc': Id := Act(acPickSrc, Par);
+    'pickhead': Id := Act(acPickHead, Par);
+    'obev': Id := Act(acObDlgEv, Par);
+    'obnum': Id := Act(acObDlgNum, Par);
+    'oblang': Id := Act(acObDlgLang, Par);
+    'obok': Id := Act(acObDlgOk, 0);
+    'obfault': Id := Act(acObFault, Par);
     'sigadd': Id := Act(acSigAdd, 0);
     'sigtags': Id := Act(acSigTags, 0);
     'sigall': Id := Act(acSigAll, Par);
@@ -6727,12 +8809,93 @@ begin
           N := CurNet;
           OpenCtx(FMX, FMY, ['Undo'#9'Ctrl+Z', 'Redo'#9'Ctrl+Y', 'Cut'#9'Ctrl+X', 'Copy'#9'Ctrl+C',
             'Paste'#9'Ctrl+V', 'Delete'#9'Del', 'Select all'#9'Ctrl+A', 'Comment / uncomment'#9'Ctrl+Q',
-            'Find ...'#9'Ctrl+F', 'Find declaration'#9'Alt+Up / Ctrl+Click', 'All variables ...', 'All elements ...'],
+            'Find ...'#9'Ctrl+F', 'Find declaration'#9'Alt+Up / Ctrl+Click', 'All variables ...', 'All elements ...',
+            'Cross reference'#9'F11'],
             [Act(acStlCtx, 0), Act(acStlCtx, 1), Act(acStlCtx, 2), Act(acStlCtx, 3), Act(acStlCtx, 4),
             Act(acStlCtx, 5), Act(acStlCtx, 6), Act(acStlCtx, 7), Act(acStlCtx, 8), Act(acStlCtx, 9),
-            Act(acStlCtx, 10), Act(acStlCtx, 11)],
+            Act(acStlCtx, 10), Act(acStlCtx, 11), Act(acStlCtx, 12)],
             [(Length(FPUndo) > 0) or FPPending, Length(FPRedo) > 0, True, True, Clipbrd.Clipboard.AsText <> '', FEd.HasSel, True,
-            True, True, True, True, True]);
+            True, True, True, True, True, True]);
+          Exit;
+        end;
+      acIfSub:
+        if (Screen = scProgram) and (CurBlock <> nil) and ((Id and $FFFF) <= High(FIfRows)) and
+          (FIfRows[Id and $FFFF].Vi <= High(CurBlock.Iface.Vars)) then
+        begin
+          FIfSel := FIfRows[Id and $FFFF].Vi;
+          XrefMenu('#' + CurBlock.Iface.Vars[FIfSel].Name);
+          Exit;
+        end;
+      acIfDrag, fdIfName, fdIfType, fdIfStart, fdIfComment:
+        // (the codes of fields and actions may be the same number: the screen and the place tell)
+        if (Screen = scProgram) and (FMX < 1300) and (CurBlock <> nil) and ((Id and $FFFF) <= High(CurBlock.Iface.Vars)) then
+        begin
+          FIfSel := Id and $FFFF;
+          XrefMenu('#' + CurBlock.Iface.Vars[Id and $FFFF].Name);
+          Exit;
+        end;
+      acDI, acDIType:
+        if (Id and $FFFF) < Rt.Model.DI then
+        begin
+          XrefMenu(StringReplace(FormatAddr(MakeAddr(arI, osBit, Rt.Model.DIByte + (Id and $FFFF) div 8, (Id and $FFFF) mod 8),
+            Project.Family), ' ', '', [rfReplaceAll]));
+          Exit;
+        end;
+      acAI, acAIMode:
+        begin
+          if Id shr 16 = acAI then XrefMenu(StringReplace(FormatAddr(MakeAddr(arPI, osWord, Rt.Model.AIWord + 2 * (Id and $FFFF), 0),
+            Project.Family), ' ', '', [rfReplaceAll]))
+          else XrefMenu(StringReplace(FormatAddr(MakeAddr(arPI, osWord, Rt.Model.AIWord + 2 * ((Id and $FFFF) div 4), 0),
+            Project.Family), ' ', '', [rfReplaceAll]));
+          Exit;
+        end;
+      acIoOut:
+        begin
+          if (Id and $FFFF) >= 1000 then
+            XrefMenu(StringReplace(FormatAddr(MakeAddr(arPQ, osWord, Rt.Model.AQWord + 2 * ((Id and $FFFF) - 1000), 0),
+              Project.Family), ' ', '', [rfReplaceAll]))
+          else
+            XrefMenu(StringReplace(FormatAddr(MakeAddr(arQ, osBit, Rt.Model.DQByte + (Id and $FFFF) div 8, (Id and $FFFF) mod 8),
+              Project.Family), ' ', '', [rfReplaceAll]));
+          Exit;
+        end;
+      acTagIo, acTagIoAi:
+        if (Id and $FFFF) <= High(FTagIo) then
+        begin
+          XrefMenu('"' + Project.Tags[FTagIo[Id and $FFFF]].Name + '"');
+          Exit;
+        end;
+      acSigRow:
+        if (Id and $FFFF) <= High(Project.Signals) then
+        begin
+          XrefMenu(Project.Signals[Id and $FFFF].Address);
+          Exit;
+        end;
+      acTagSel, acTagGrpMenu, fdTagName, fdTagType, fdTagAddr, fdTagComment:
+        if (Screen = scTags) and ((Id and $FFFF) <= High(Project.Tags)) then
+        begin
+          FTagSel := Id and $FFFF;
+          XrefMenu('"' + Project.Tags[Id and $FFFF].Name + '"');
+          Exit;
+        end;
+      acVarSel, fdVarName, fdVarType, fdVarStart, fdVarComment:
+        if (Screen = scDB) and (CurDB <> nil) and not CurDB.IsUdt and ((Id and $FFFF) <= High(CurDB.Vars)) then
+        begin
+          FVarSel := Id and $FFFF;
+          XrefMenu(Format('"%s".%s', [CurDB.Name, CurDB.Vars[Id and $FFFF].Name]));
+          Exit;
+        end;
+      acWatchRow, fdWatchAddr, fdWatchMod:
+        if (Screen = scWatch) and ((Id and $FFFF) <= High(Project.Watch)) then
+        begin
+          FWatchSel := Id and $FFFF;
+          XrefMenu(Project.Watch[Id and $FFFF].Address);
+          Exit;
+        end;
+      acVarPick:
+        if (Id and $FFFF) <= High(FPick) then
+        begin
+          XrefMenu(FPick[Id and $FFFF].Ins);
           Exit;
         end;
       acDBSel:
@@ -6775,8 +8938,8 @@ end;
 
 procedure TPlcUI.DrawMenu;
 const
-  Names: array[0..4] of string = ('Copy', 'Cut', 'Paste (insert)', 'Delete', 'Select all');
-  Keys: array[0..4] of string = ('Ctrl+C', 'Ctrl+X', 'Ctrl+V', 'Del', 'Ctrl+A');
+  Names: array[0..5] of string = ('Copy', 'Cut', 'Paste (insert)', 'Delete', 'Select all', 'Cross reference');
+  Keys: array[0..5] of string = ('Ctrl+C', 'Ctrl+X', 'Ctrl+V', 'Del', 'Ctrl+A', 'F11');
 var
   I: Integer;
   X, Y, W, IY: Single;
@@ -6791,20 +8954,20 @@ begin
   end;
   W := 210;
   X := Min(FMenuX, 1590 - W);
-  Y := Min(FMenuY, 890 - (5 * 26 + 30));
+  Y := Min(FMenuY, 890 - (6 * 26 + 36));
   // a click anywhere else only closes the menu
   Hit(0, 0, DesignW, DesignH, Act(acMenuClose, 0));
   D.Layer := lyOverlay;
-  Shad(X, Y, W, 5 * 26 + 30, 5, 3, 6, 110);
-  RR(X, Y, W, 5 * 26 + 30, 5, cSheet);
-  RRL(X, Y, W, 5 * 26 + 30, 5, 1.3, cGoldDark);
+  Shad(X, Y, W, 6 * 26 + 36, 5, 3, 6, 110);
+  RR(X, Y, W, 6 * 26 + 36, 5, cSheet);
+  RRL(X, Y, W, 6 * 26 + 36, 5, 1.3, cGoldDark);
   LadSel(R1, C1, R2, C2);
   Txt(fkUIB, 10.5, X + 12, Y + 6, Format('%d x %d cells', [C2 - C1 + 1, R2 - R1 + 1]), cInkSoft);
-  for I := 0 to 4 do
+  for I := 0 to 5 do
   begin
-    IY := Y + 24 + I * 26 + Ord(I = 4) * 6;
-    On := (I <> 2) or (Length(FLadClip) > 0);
-    if I = 4 then Ln(X + 8, IY - 4, X + W - 8, IY - 4, 0.8, Alpha(cGoldDark, 140));
+    IY := Y + 24 + I * 26 + Ord(I >= 4) * 6 + Ord(I = 5) * 6;
+    On := ((I <> 2) or (Length(FLadClip) > 0)) and ((I <> 5) or (XrefAtCaret <> ''));
+    if I in [4, 5] then Ln(X + 8, IY - 4, X + W - 8, IY - 4, 0.8, Alpha(cGoldDark, 140));
     if On and Hot(X + 4, IY, W - 8, 24) then RR(X + 4, IY, W - 8, 24, 4, cRed);
     if On and Hot(X + 4, IY, W - 8, 24) then
     begin
@@ -7618,7 +9781,7 @@ begin
   begin
     if not FVarDragOn then FElemPress := -1;
   end
-  else if (Id shr 16 <> acIfDrag) and not ((Id shr 16 = acHelp) and (FHelpMode = 2)) then Exit;
+  else if (Id shr 16 <> acIfDrag) and (Id shr 16 <> acIfSub) and (Id shr 16 <> acVarPick) and not ((Id shr 16 = acHelp) and (FHelpMode = 2)) then Exit;
   if FVarDragOn then
   begin
     if FDropKind = 1 then
@@ -7663,6 +9826,8 @@ begin
         MarkDirty;
       end;
     end
+    else if FDropKind = 4 then
+      WatchDrop(FVarDrag, FDropRow)
     else if (FDropKind = 3) and (Id shr 16 = acElem) then
     begin
       // an element of the LAD list into the cell where it was dropped
@@ -7692,10 +9857,8 @@ var
   C: TBGRAPixel;
 begin
   // ---------- blocks: the list and its buttons scroll when they do not fit ----------
-  BH := Project.BlockCount * 48 + 8 + 3 * 34 + 28 + 6;
+  BH := Project.BlockCount * 48 + 8 + 4 * 34 + 28 + 6;
   if Project.FindBlock(bkOB, 1) = nil then BH := BH + 34;
-  if Project.FindBlock(bkOB, Project.CyclicOB) = nil then BH := BH + 34;
-  if Project.FindBlock(bkOB, 100) = nil then BH := BH + 34;
   FBlockScroll := EnsureRange(FBlockScroll, 0, Max(0, BH - 666));
   ClipD(28, 112, 210, 668);
   Hit(28, 112, 210, 668, whBlocks, hkWheel);
@@ -7731,16 +9894,9 @@ begin
   Y := Y + 34;
   Button(36, Y, 188, 28, '+ FB (function block)', Act(acAddFB, 0), bsNormal, True, 12);
   Y := Y + 34;
-  if Project.FindBlock(bkOB, Project.CyclicOB) = nil then
-  begin
-    Button(36, Y, 188, 28, Format('+ OB%d cyclic', [Project.CyclicOB]), Act(acAddCyc, 0), bsNormal, True, 12);
-    Y := Y + 34;
-  end;
-  if Project.FindBlock(bkOB, 100) = nil then
-  begin
-    Button(36, Y, 188, 28, '+ OB100 startup', Act(acAddStartup, 0), bsNormal, True, 12);
-    Y := Y + 34;
-  end;
+  // every OB of the family (startup, cyclic, hardware, time of day, error OBs ..), also of its own number
+  Button(36, Y, 188, 28, '+ OB (organization block) ...', Act(acObDlg, 0), bsNormal, True, 11.5);
+  Y := Y + 34;
   Button(36, Y, 188, 28, 'Delete block', Act(acDelBlock, 0), bsFlat, Project.BlockCount > 0, 12);
   Y := Y + 40;
   // .scl sources (TIA), the views of the project
@@ -7838,11 +9994,9 @@ begin
   ClipD(270, Top, 1014, ViewH);
   Hit(270, Top, 1014, ViewH, whProg, hkWheel);
   Y := Top + 8 - FProgScroll;
-  if B.Kind <> bkOB then
-  begin
-    if (Y + IfaceHeight(B) > Top - 10) and (Y < Top + ViewH + 10) then DrawIface(B, 276, Y, 1002);
-    Y := Y + IfaceHeight(B);
-  end;
+  // the interface (an OB: its event and settings, its start information and Temp)
+  if (Y + IfaceHeight(B) > Top - 10) and (Y < Top + ViewH + 10) then DrawIface(B, 276, Y, 1002);
+  Y := Y + IfaceHeight(B);
   FGhostOn := False;
   FDropOn := False;
   for I := 0 to B.NetCount - 1 do
@@ -7863,28 +10017,37 @@ begin
   UnclipD;
   if (FFindMode > 0) and (FStlNet >= 0) then DrawFindBar(276, Top + ViewH + 6, 1002);
   DrawComp;
+  DrawSigHelp;
   DrawDrag;
   DrawMenu;
   // scroll bar: the thumb drags, a click on the track brings the thumb there
   if FProgContent + 40 > ViewH then VScrollBar(0, 1283, Top, ViewH, FProgContent + 40, ViewH, FProgScroll)
   else FVs[0].Range := 0;
 
-  // ---------- palette and properties ----------
-  if (CurNet <> nil) and (CurNet.Kind = nkLAD) then
-  begin
-    // the LAD elements: the same list as SCL / STL, the properties of the cell below it
-    D.Layer := lyText;
-    Txt(fkUIB, 12, 1328, 104, 'LAD elements', cRedDark);
-    DrawElems(1328, 124, 236, 238, 'L');
-  end
+  // ---------- the right panel: the elements, or the variables of the project ----------
+  if FRightTab = 0 then Button(1326, 104, 116, 24, 'Elements', Act(acRightTab, 0), bsToggleOn, True, 11)
+  else Button(1326, 104, 116, 24, 'Elements', Act(acRightTab, 0), bsNormal, True, 11);
+  if FRightTab = 1 then Button(1448, 104, 116, 24, 'Variables', Act(acRightTab, 1), bsToggleOn, True, 11)
+  else Button(1448, 104, 116, 24, 'Variables', Act(acRightTab, 1), bsNormal, True, 11);
+  if FRightTab = 1 then DrawVarPick(1328, 136, 236, 524)
   else
   begin
-    D.Layer := lyText;
-    Txt(fkUI, 11, 1328, 116, 'Select a LAD network to place', cInkSoft);
-    Txt(fkUI, 11, 1328, 132, 'contacts, coils and boxes.', cInkSoft);
+    if (CurNet <> nil) and (CurNet.Kind = nkLAD) then
+    begin
+      // the LAD elements: the same list as SCL / STL, the properties of the cell below it
+      D.Layer := lyText;
+      Txt(fkUIB, 12, 1328, 136, 'LAD elements', cRedDark);
+      DrawElems(1328, 156, 236, 222, 'L');
+    end
+    else
+    begin
+      D.Layer := lyText;
+      Txt(fkUI, 11, 1328, 136, 'Select a LAD network to place', cInkSoft);
+      Txt(fkUI, 11, 1328, 152, 'contacts, coils and boxes.', cInkSoft);
+    end;
+    if (CurNet <> nil) and (CurNet.Kind in [nkSTL, nkSCL]) then DrawProps(1328, 176, 236, 200)
+    else DrawProps(1328, 452, 236, 200);
   end;
-  if (CurNet <> nil) and (CurNet.Kind in [nkSTL, nkSCL]) then DrawProps(1328, 160, 236, 200)
-  else DrawProps(1328, 446, 236, 200);
   // compile messages
   D.Layer := lyOrnament;
   Ln(1328, 668, 1564, 668, 0.8, Alpha(cGoldDark, 160));
@@ -7930,25 +10093,28 @@ end;
 
 procedure TPlcUI.BuildIO;
 const
-  Names: array[0..2] of string = ('PLC I/O (the model)', 'Tag I/O (outside the PLC)', 'Signal table (simulation)');
+  Names: array[0..3] of string = ('PLC I/O (the model)', 'Tag I/O (outside the PLC)', 'Signal table (simulation)',
+    'I/O list (in use)');
 var
   K: Integer;
 begin
-  // the three views of the I/O screen
-  for K := 0 to 2 do
+  // the four views of the I/O screen
+  for K := 0 to 3 do
     if FIoView = K then Button(36 + K * 230, 88, 222, 26, Names[K], Act(acIoView, K), bsToggleOn, True, 11.5)
     else Button(36 + K * 230, 88, 222, 26, Names[K], Act(acIoView, K), bsNormal, True, 11.5);
   D.Layer := lyText;
   case FIoView of
-    1: Txt(fkUI, 11, 740, 94, 'the I / Q tags of the tag table beyond the channels of the CPU: switches, values, lamps', cInkFaint);
-    2: Txt(fkUI, 11, 740, 94, 'generators for the inputs (the CPU''s and the tags''): square, sine, triangle, ramp, random, step', cInkFaint);
+    1: TxtFit(fkUI, 11, 970, 94, 600, 'the I / Q tags of the tag table beyond the channels of the CPU', cInkFaint);
+    2: TxtFit(fkUI, 11, 970, 94, 600, 'generators for the inputs: square, sine, triangle, ramp, random, step', cInkFaint);
+    3: TxtFit(fkUI, 11, 970, 94, 600, 'every I / Q the project has: its tag, or the code uses it; a click: its cross reference', cInkFaint);
   else
-    Txt(fkUI, 11, 740, 94, Format('%s: DI%d DQ%d AI%d AQ%d on the CPU', [Rt.Model.Name, Rt.Model.DI, Rt.Model.DQ, Rt.Model.AI,
-      Rt.Model.AQ]), cInkFaint);
+    TxtFit(fkUI, 11, 970, 94, 600, Format('%s: DI%d DQ%d AI%d AQ%d on the CPU', [Rt.Model.Name, Rt.Model.DI, Rt.Model.DQ,
+      Rt.Model.AI, Rt.Model.AQ]), cInkFaint);
   end;
   case FIoView of
     1: BuildIoTags;
     2: BuildIoSignals;
+    3: BuildIoList;
   else
     BuildIoModel;
   end;
@@ -8068,6 +10234,7 @@ begin
     X := 824 + Col * CW;
     Y := 154 + Row * 37;
     OutOn := Rt.GetOutBit(B, Bit);
+    Hit(X, Y, CW - 8, 34, Act(acIoOut, I));   // the right button: its cross reference
     Led(X + 16, Y + 15, 8, BGRA($3C, $E0, $5C), OutOn);   // every output a green LED
     D.Layer := lyText;
     S := Format('Q%d.%d', [B, Bit]);
@@ -8134,6 +10301,7 @@ begin
       D.Layer := lyText;
       if IsTia(M.Family) then S := Format('%%QW%d', [M.AQWord + I * 2]) else S := Format('PQW%d', [M.AQWord + I * 2]);
       Txt(fkMonoB, 12, 1036, Y + 4, S, cInk);
+      Hit(1030, Y, 530, 30, Act(acIoOut, 1000 + I));
       Tg := TagFor(Copy(S, Pos('W', S) - 1, MaxInt));
       if Tg <> '' then TxtFit(fkUI, 9.5, 1036, Y + 18, 90, Tg, cInkSoft);
       ProgressBar(1130, Y + 9, 290, 10, Raw / 27648, cGold);
@@ -8149,9 +10317,14 @@ begin
   D.Layer := lyText;
   if IsTia(M.Family) then
     TxtFit(fkUI, 10.5, 1094, Y + 26, 470, FamilyNames[M.Family] + ': ERROR flashes, the CPU stays in RUN', cInkSoft)
+  else if Project.FindBlock(bkOB, 86) <> nil then
+    TxtFit(fkUI, 10.5, 1094, Y + 26, 470, 'S7-300/400: BF / SF, OB86 runs, the CPU stays in RUN', cInkSoft)
   else
     TxtFit(fkUI, 10.5, 1094, Y + 26, 470, 'S7-300/400: BF / SF, STOP (OB86 not loaded)', cInkSoft);
   Button(1036, Y + 62, 160, 28, 'All inputs off', Act(acAllOff, 0), bsNormal, True, 12);
+  // the events of the error OBs: a diagnostic interrupt (OB82), a module pulled (OB83)
+  Button(1036, Y + 96, 160, 28, 'Diag. interrupt (OB82)', Act(acObFault, 0), bsNormal, Rt.Mode = rmRun, 10.5);
+  Button(1400, Y + 62, 150, 28, 'Pull module (OB83)', Act(acObFault, 1), bsNormal, Rt.Mode = rmRun, 10.5);
   Button(1204, Y + 62, 190, 28, 'Export I/O list (CSV) ...', Act(acExportPc, 5 * 4096), bsGold, True, 12);
   // the import: tags, input kinds, values from a CSV; its help for developers (a window, HTML, PDF)
   Button(1204, Y + 96, 190, 28, 'Import I/O list (CSV) ...', Act(acIoImport, 0), bsGold, True, 12);
@@ -8166,6 +10339,126 @@ begin
   end;
   if NRows = 0 then ;
   if E = '' then ;
+end;
+
+{ ---------- the I/O list: the inputs and outputs in use ---------- }
+
+procedure TPlcUI.BuildIoList;
+const
+  Fil: array[0..3] of string = ('All', 'Inputs', 'Outputs', 'Not used in the code');
+  RowH = 28;
+var
+  K, J, Ni, Nq, Nu, Vis, F0: Integer;
+  Show: Boolean;
+  Y, Top, ListH: Single;
+  S: string;
+  C: TBGRAPixel;
+begin
+  // the uses come from the cross reference: made again every 2 s (and when the view opens)
+  if (FIoListT = 0) or (FTime - FIoListT > 2) then
+  begin
+    FIoList := XrefIoUsage(Project);
+    FIoListT := Max(0.001, FTime);
+  end;
+  Ni := 0;
+  Nq := 0;
+  Nu := 0;
+  for K := 0 to High(FIoList) do
+  begin
+    if FIoList[K].IsInput then Inc(Ni) else Inc(Nq);
+    if FIoList[K].Reads + FIoList[K].Writes = 0 then Inc(Nu);
+  end;
+  for J := 0 to 3 do
+  begin
+    case J of
+      0: S := Format('%s  (%d)', [Fil[J], Length(FIoList)]);
+      1: S := Format('%s  (%d)', [Fil[J], Ni]);
+      2: S := Format('%s  (%d)', [Fil[J], Nq]);
+    else
+      S := Format('%s  (%d)', [Fil[J], Nu]);
+    end;
+    if J = FIoListFil then Button(36 + J * 196, 138, 188, 26, S, Act(acIoListFil, J), bsToggleOn, True, 11)
+    else Button(36 + J * 196, 138, 188, 26, S, Act(acIoListFil, J), bsNormal, True, 11);
+  end;
+  D.Layer := lyText;
+  TxtFit(fkUI, 10.5, 830, 144, 730, 'R: read (a decision: contact, A, IF ..)   W: written (coil, =, S, R, :=); an output written in ' +
+    'more than one place is red', cInkFaint);
+  Txt(fkUIB, 11, 44, 178, 'Address', cInkSoft);
+  Txt(fkUIB, 11, 190, 178, 'Symbol', cInkSoft);
+  Txt(fkUIB, 11, 480, 178, 'Type', cInkSoft);
+  Txt(fkUIB, 11, 590, 178, 'Comment', cInkSoft);
+  Txt(fkUIB, 11, 1130, 178, 'Used in the code', cInkSoft);
+  Txt(fkUIB, 11, 1290, 178, 'Tables', cInkSoft);
+  Txt(fkUIB, 11, 1380, 178, 'Value now', cInkSoft);
+  D.Layer := lyOrnament;
+  Ln(36, 196, 1564, 196, 0.8, Alpha(cGoldDark, 160));
+  SetLength(FIoListView, 0);
+  for K := 0 to High(FIoList) do
+  begin
+    case FIoListFil of
+      1: Show := FIoList[K].IsInput;
+      2: Show := not FIoList[K].IsInput;
+      3: Show := FIoList[K].Reads + FIoList[K].Writes = 0;
+    else
+      Show := True;
+    end;
+    if Show then
+    begin
+      SetLength(FIoListView, Length(FIoListView) + 1);
+      FIoListView[High(FIoListView)] := K;
+    end;
+  end;
+  Top := 200;
+  ListH := 648;
+  Vis := Trunc(ListH / RowH);
+  FIoListScroll := EnsureRange(FIoListScroll, 0, Max(0, Length(FIoListView) - Vis));
+  F0 := Round(FIoListScroll);
+  ClipD(28, Top, 1544, ListH);
+  Hit(28, Top, 1544, ListH, whIoList, hkWheel);
+  for J := F0 to Min(High(FIoListView), F0 + Vis) do
+    with FIoList[FIoListView[J]] do
+    begin
+      Y := Top + (J - F0) * RowH;
+      D.Layer := lyControls;
+      if Hot(30, Y, 1528, RowH - 2) then RR(30, Y, 1528, RowH - 2, 4, Alpha(cGold, 70))
+      else if Odd(J) then Rc(30, Y, 1528, RowH - 2, Alpha(cSheet2, 120));
+      if IsInput then C := cJade else C := cRed;
+      RR(34, Y + 6, 4, RowH - 14, 2, C);
+      Hit(30, Y, 1528, RowH - 2, Act(acIoListRow, FIoListView[J]));
+      D.Layer := lyText;
+      TxtFit(fkMonoB, 12, 44, Y + 5, 140, Addr, cInk);
+      if Symbol <> '' then TxtFit(fkMono, 11.5, 190, Y + 6, 280, Symbol, cRedDark)
+      else Txt(fkUI, 10.5, 190, Y + 7, '(no tag)', cInkFaint);
+      TxtFit(fkMono, 11, 480, Y + 6, 104, TypeText, cInkSoft);
+      TxtFit(fkUI, 11, 590, Y + 6, 530, Comment, cInkSoft);
+      if Reads + Writes = 0 then
+        Txt(fkUI, 10.5, 1130, Y + 7, 'not used', cInkFaint)
+      else
+      begin
+        Txt(fkMono, 11.5, 1130, Y + 6, Format('R %d', [Reads]), cJade);
+        if (Writes > 1) and not IsInput then Txt(fkMonoB, 11.5, 1196, Y + 6, Format('W %d', [Writes]), cRed)
+        else Txt(fkMono, 11.5, 1196, Y + 6, Format('W %d', [Writes]), PickC(Writes > 0, cRedDark, cInkFaint));
+      end;
+      if Tables > 0 then Txt(fkMono, 11, 1290, Y + 6, IntToStr(Tables), cInkSoft);
+      if Rt.Prog <> nil then
+      begin
+        S := LiveOf(Addr);
+        if S = 'TRUE' then TxtFit(fkMonoB, 12, 1380, Y + 5, 170, S, cRed) else TxtFit(fkMonoB, 12, 1380, Y + 5, 170, S, cInk);
+      end;
+    end;
+  UnclipD;
+  if Length(FIoListView) > Vis then VScrollBar(20, 1552, Top, ListH, Length(FIoListView), Vis, FIoListScroll)
+  else FVs[20].Range := 0;
+  D.Layer := lyText;
+  if Length(FIoListView) = 0 then Txt(fkUI, 12, 44, Top + 8, 'No I / O here.', cInkSoft);
+end;
+
+function TPlcUI.IoListText(I: Integer): string;
+begin
+  FIoList := XrefIoUsage(Project);
+  if (I < 0) or (I > High(FIoList)) then Exit('');
+  with FIoList[I] do
+    Result := Format('%s | %s | %s | %s | R %d W %d T %d', [Addr, Symbol, TypeText, Comment, Reads, Writes, Tables]);
 end;
 
 { ---------- the tags outside the PLC's own I/O ---------- }
@@ -8584,6 +10877,9 @@ end;
 { ====================================================================== }
 
 procedure TPlcUI.BuildWatch;
+var
+  XS: Single;
+  Db0: TDataBlock;
 const
   ColX: array[0..7] of Single = (36, 76, 360, 560, 660, 900, 1100, 1146);
   SortNames: array[1..3] of string = ('Address / symbol', 'Absolute / symbol', 'Type');
@@ -8599,7 +10895,13 @@ var
   C: TBGRAPixel;
   F: TCpuFamily;
 begin
-  BuildGroupTree(1, 1230, 112, 340, 420);
+  // the right panel: the groups of the table, or the tags and DBs to drag into it
+  if FWatchRight = 0 then Button(1232, 104, 162, 24, 'Watch groups', Act(acWatchRight, 0), bsToggleOn, True, 11)
+  else Button(1232, 104, 162, 24, 'Watch groups', Act(acWatchRight, 0), bsNormal, True, 11);
+  if FWatchRight = 1 then Button(1400, 104, 162, 24, 'Tags / DBs', Act(acWatchRight, 1), bsToggleOn, True, 11)
+  else Button(1400, 104, 162, 24, 'Tags / DBs', Act(acWatchRight, 1), bsNormal, True, 11);
+  if FWatchRight = 0 then BuildGroupTree(1, 1230, 136, 340, 396)
+  else DrawVarPick(1232, 136, 330, 388);
   MakeWatchView;
   N := Length(FWatchView);
   Button(36, 112, 90, 28, '+ Row', Act(acWatchAdd, 0), bsNormal, True, 12);
@@ -8610,15 +10912,25 @@ begin
   Button(678, 112, 130, 28, 'Unforce all', Act(acUnforceAll, 0), bsNormal, Rt.ForceCount > 0, 12);
   Button(814, 112, 100, 28, 'Table ▼', Act(acWatchMenu, 0), bsGold, True, 12);
   Button(920, 112, 110, 28, 'Group ▼', Act(acWatchGrpMenu, 0), bsGold, Length(Project.Watch) > 0, 12);
+  case FWatchMode of
+    1: S := 'View: Symbol ▼';
+    2: S := 'View: Address ▼';
+  else
+    S := 'View: Symbol + Address ▼';
+  end;
+  Button(1036, 112, 150, 28, S, Act(acWatchMode, 0), bsGold, True, 10);
   D.Layer := lyText;
-  if FWatchFile <> '' then TxtFit(fkUI, 11, 1040, 118, 150, ExtractFileName(FWatchFile), cInkSoft)
-  else TxtFit(fkUI, 11, 1040, 118, 150, 'in the project', cInkFaint);
+  if FWatchFile <> '' then TxtFit(fkUI, 10, 700, 96, 486, 'table: ' + ExtractFileName(FWatchFile), cInkSoft, 2)
+  else TxtFit(fkUI, 10, 700, 96, 486, 'the table is in the project', cInkFaint, 2);
   D.Layer := lyText;
   Txt(fkUIB, 11, ColX[0], 152, '#', cInkSoft);
   // the heads: a click sorts (alphabet, address, data type), again the other way, a third time as entered
   for K := 1 to 3 do
   begin
     S := SortNames[K];
+    if (K = 1) and (FWatchMode = 1) then S := 'Symbol';
+    if (K = 1) and (FWatchMode = 2) then S := 'Address';
+    if (K = 2) and (FWatchMode > 0) then S := 'Comment';
     if FWatchSort = K then
       if FWatchDesc then S := S + '  ▼' else S := S + '  ▲';
     if FWatchSort = K then Txt(fkUIB, 11, SortX[K], 152, S, cRed)
@@ -8638,18 +10950,57 @@ begin
     D.Layer := lyText;
     Txt(fkUI, 12, ColX[1], 184, 'No row in this group: + Row, or Group ▼ on a selected row.', cInkSoft);
   end;
+  BuildWatchRows;
+  N := Length(FWRows);
   FWatchScroll := EnsureRange(FWatchScroll, 0, Max(0, N - 21));
   ClipD(30, 172, 1160, 680);
   Hit(30, 172, 1160, 680, whWatch, hkWheel);
   for J := 0 to 21 do
   begin
     if J + Round(FWatchScroll) >= N then Break;
-    I := FWatchView[J + Round(FWatchScroll)];
+    I := FWRows[J + Round(FWatchScroll)].WI;
     Y := 176 + J * 31;
+    if FWRows[J + Round(FWatchScroll)].Sub then
+      with FWRows[J + Round(FWatchScroll)] do
+      begin
+        // a member / an element of an open struct / array row: its absolute address, its type, its value now
+        D.Layer := lyControls;
+        Rc(32, Y - 2, 1156, 29, Alpha(cGoldLight, IfThen(Odd(J), 55, 30)));
+        for K := 1 to Depth do Rc(ColX[1] + (K - 1) * 16, Y - 2, 2, 29, Alpha(cGoldDark, 120));
+        Hit(32, Y - 2, 1156, 29, Act(acWatchRow, I));
+        XS := ColX[1] + Depth * 16;
+        if CanOpen then
+        begin
+          if (FWatchOpen <> nil) and (FWatchOpen.IndexOf(Key) >= 0) then
+            PolyD([PointF(XS - 12, Y + 7), PointF(XS - 3, Y + 7), PointF(XS - 7.5, Y + 13)], cRedDark)
+          else
+            PolyD([PointF(XS - 10, Y + 5), PointF(XS - 5, Y + 10), PointF(XS - 10, Y + 15)], cRedDark);
+          Hit(XS - 14, Y - 2, 14, 29, Act(acWatchOpen, J + Round(FWatchScroll)));
+        end;
+        D.Layer := lyText;
+        Db0 := Project.FindDB(DbNr);
+        if (FWatchMode = 2) and (Db0 <> nil) then
+          TxtFit(fkMono, 11, XS, Y + 4, ColX[2] - XS - 8, DbRowAddr(Db0, DType, Udt, Ofs, Bit, IsTia(Project.Family),
+            Db0.Optimized and IsTia(Project.Family), Copy(TypeText, 1, 6) = 'Array['), cInkSoft)
+        else
+          TxtFit(fkMono, 11.5, XS, Y + 4, ColX[2] - XS - 8, Lbl, cInkSoft);
+        if (Db0 <> nil) and (FWatchMode = 0) then
+          TxtFit(fkMono, 10.5, ColX[2], Y + 5, 134, DbRowAddr(Db0, DType, Udt, Ofs, Bit, IsTia(Project.Family),
+            Db0.Optimized and IsTia(Project.Family), Copy(TypeText, 1, 6) = 'Array['), cInkSoft);
+        TxtFit(fkMono, 10, SortX[3], Y + 5, 56, TypeText, cInkFaint);
+        Mv := '';
+        if CanOpen and (DType in [dtStruct, dtIECTimer, dtIECCounter]) then
+          Mv := StructLive(Project.Watch[I].Address + Path, Udt)
+        else if not CanOpen and FRes.Resolve(Project.Watch[I].Address + Path, O, E, False) and (O.Kind = okAddr) then
+          Mv := LiveText(O, '?');
+        if Mv = 'TRUE' then C := cRed else C := cInk;
+        TxtFit(fkMonoB, 12, ColX[4], Y + 4, 230 + 190, Mv, C);
+        Continue;
+      end;
     D.Layer := lyControls;
-    // an address / symbol that does not resolve: the row is red
-    if (Trim(Project.Watch[I].Address) <> '') and not (FRes.Resolve(Project.Watch[I].Address, O, E, False) and
-      (O.Kind = okAddr)) then
+    // an address / symbol that does not resolve: the row is red (a struct / an array is fine: it opens)
+    if (Trim(Project.Watch[I].Address) <> '') and not FWRows[J + Round(FWatchScroll)].CanOpen and
+      not (FRes.Resolve(Project.Watch[I].Address, O, E, False) and (O.Kind = okAddr)) then
     begin
       RR(32, Y - 2, 1156, 29, 4, Alpha(cRed, IfThen(I = FWatchSel, 95, 60)));
       RRL(32, Y - 2, 1156, 29, 4, 1, Alpha(cRed, 200));
@@ -8658,11 +11009,69 @@ begin
     else if Odd(J) then Rc(32, Y - 2, 1156, 29, Alpha(cSheet2, 130));
     Hit(32, Y - 2, 1156, 29, Act(acWatchRow, I));
     D.Layer := lyText;
-    Txt(fkMono, 11, ColX[0], Y + 4, IntToStr(J + Round(FWatchScroll) + 1), cInkSoft);
-    Field(ColX[1] - 4, Y, 270, 24, Act(fdWatchAddr, I), Project.Watch[I].Address, fkMono, 12, 0, True, 'address');
+    Txt(fkMono, 11, ColX[0], Y + 4, IntToStr(FWRows[J + Round(FWatchScroll)].VI + 1), cInkSoft);
+    if FWRows[J + Round(FWatchScroll)].CanOpen then
+    begin
+      // a struct / an array: it opens to its members / elements
+      D.Layer := lyControls;
+      if (FWatchOpen <> nil) and (FWatchOpen.IndexOf(FWRows[J + Round(FWatchScroll)].Key) >= 0) then
+        PolyD([PointF(ColX[1] - 16, Y + 7), PointF(ColX[1] - 7, Y + 7), PointF(ColX[1] - 11.5, Y + 13)], cRedDark)
+      else
+        PolyD([PointF(ColX[1] - 14, Y + 5), PointF(ColX[1] - 9, Y + 10), PointF(ColX[1] - 14, Y + 15)], cRedDark);
+      Hit(ColX[1] - 18, Y - 2, 14, 29, Act(acWatchOpen, J + Round(FWatchScroll)));
+      D.Layer := lyText;
+    end;
+    Field(ColX[1] - 4, Y, 270, 24, Act(fdWatchAddr, I), WatchShown(Project.Watch[I].Address), fkMono, 12, 0, True, 'address');
+    if FWRows[J + Round(FWatchScroll)].CanOpen then
+      with FWRows[J + Round(FWatchScroll)] do
+      begin
+        // the struct / array row: where it starts, its type, the first members now
+        Db0 := Project.FindDB(DbNr);
+        D.Layer := lyText;
+        if (Db0 <> nil) and Db0.Optimized and IsTia(Project.Family) then
+        begin
+          if Hot(ColX[2] - 2, Y, 100, 24) then TxtFit(fkUI, 10, ColX[2], Y + 5, 134, 'optimized DB ›', cRed)
+          else TxtFit(fkUI, 10, ColX[2], Y + 5, 134, 'optimized DB ›', cRedDark);
+          Hit(ColX[2] - 2, Y, 100, 24, Act(acDbJump, DbNr));
+        end
+        else if Db0 <> nil then
+          TxtFit(fkMono, 10.5, ColX[2], Y + 5, 134, DbRowAddr(Db0, DType, Udt, Ofs, Bit, IsTia(Project.Family),
+            Db0.Optimized and IsTia(Project.Family), Copy(TypeText, 1, 6) = 'Array['), cInkSoft);
+        TxtFit(fkMono, 10, SortX[3], Y + 5, 56, TypeText, cInkFaint);
+        if (Rt.Prog <> nil) and (DType in [dtStruct, dtIECTimer, dtIECCounter]) and (Copy(TypeText, 1, 6) <> 'Array[') then
+          TxtFit(fkMonoB, 11.5, ColX[4], Y + 4, 230 + 190, StructLive(Project.Watch[I].Address, Udt), cRedDark)
+        else
+          TxtFit(fkUI, 10.5, ColX[4], Y + 5, 230, '▸ open: its elements', cInkFaint);
+        Continue;
+      end;
     Ok := FRes.Resolve(Project.Watch[I].Address, O, E, False) and (O.Kind = okAddr);
     D.Layer := lyText;
-    if Ok then
+    if Ok and (FWatchMode = 0) and (O.A.Area = arDB) and (Project.FindDB(O.A.DB) <> nil) and
+      Project.FindDB(O.A.DB).Optimized and IsTia(Project.Family) then
+    begin
+      // a variable of an optimized DB has no absolute address: the link to the DB and its setting
+      if Hot(ColX[2] - 2, Y, 100, 24) then TxtFit(fkUI, 10, ColX[2], Y + 5, 134, 'optimized DB ›', cRed)
+      else TxtFit(fkUI, 10, ColX[2], Y + 5, 134, 'optimized DB ›', cRedDark);
+      Hit(ColX[2] - 2, Y, 100, 24, Act(acDbJump, O.A.DB));
+      if O.DType <> dtNone then S := DataTypeNames[O.DType] else S := '';
+      TxtFit(fkMono, 10, SortX[3], Y + 5, 56, S, cInkFaint);
+    end
+    else if Ok and (FWatchMode > 0) then
+    begin
+      // the view of the symbol or of the address: the comment of the operand beside it
+      TxtFit(fkUI, 10.5, ColX[2], Y + 5, 134, OperandComment(Project.Watch[I].Address), cInkSoft);
+      if O.DType <> dtNone then S := DataTypeNames[O.DType]
+      else
+        case O.A.Size of
+          osBit: S := 'Bool';
+          osByte: S := 'Byte';
+          osWord: S := 'Word';
+        else
+          S := 'DWord';
+        end;
+      TxtFit(fkMono, 10, SortX[3], Y + 5, 56, S, cInkFaint);
+    end
+    else if Ok then
     begin
       if (Project.Watch[I].Address <> '') and (Project.Watch[I].Address[1] = '"') then
         SymS := FormatAddr(O.A, Project.Family)
@@ -8746,6 +11155,7 @@ begin
       TxtFit(fkMono, 11, 1266, Y + 3, 290, Project.Watch[I].Address + ' = ' + Project.Watch[I].ModifyValue, cInk);
       Inc(FC);
     end;
+  DrawDrag;
 end;
 
 { ====================================================================== }
@@ -8756,7 +11166,8 @@ procedure TPlcUI.BuildDB;
 const
   ColX: array[0..7] of Single = (372, 396, 600, 796, 864, 1012, 1190, 1250);
 var
-  I, J, K, N: Integer;
+  XN: Single;
+  I, J, K, N, AL, AH: Integer;
   Db: TDataBlock;
   Y: Single;
   V: TDbVar;
@@ -8790,6 +11201,8 @@ begin
     Txt(fkUIB, 14, 48, Y + 3, Format('DB%d', [Db.Number]), C);
     if Sel then C := cGoldLight else C := cInkSoft;
     if Db.InstanceOf > 0 then TxtFit(fkUI, 11, 48, Y + 21, 250, Format('"%s"  %d bytes, instance of FB%d', [Db.Name, Db.Size, Db.InstanceOf]), C)
+    else if Db.Optimized and IsTia(Project.Family) then
+      TxtFit(fkUI, 11, 48, Y + 21, 250, Format('"%s"  %d bytes, optimized', [Db.Name, Db.Size]), C)
     else TxtFit(fkUI, 11, 48, Y + 21, 250, Format('"%s"  %d bytes', [Db.Name, Db.Size]), C);
     Hit(36, Y, 268, 40, Act(acDBSel, I));
   end;
@@ -8866,9 +11279,12 @@ begin
   end
   else if IsTia(Project.Family) then
   begin
-    Check(1040, 128, 16, Opt, Act(acDBOpt, 0));
+    // optimized block access: on / off (off: a standard DB with offsets and absolute addresses)
+    if Opt then Button(1040, 122, 200, 28, 'Optimized DB: ON', Act(acDBOpt, 0), bsToggleOn, True, 11.5)
+    else Button(1040, 122, 200, 28, 'Optimized DB: OFF', Act(acDBOpt, 0), bsNormal, True, 11.5);
     D.Layer := lyText;
-    Txt(fkUI, 11, 1062, 128, 'optimized block access', cInk);
+    if Opt then TxtFit(fkUI, 9.5, 1040, 106, 206, 'symbolic only: no offset / absolute address', cInkSoft)
+    else TxtFit(fkUI, 9.5, 1040, 106, 206, 'standard: offsets, %DB.DBX / DBW / DBD', cInkSoft);
   end
   else
     Txt(fkUI, 11, 1040, 128, 'standard DB, retentive', cInkSoft);
@@ -8885,9 +11301,20 @@ begin
   end;
   D.Layer := lyText;
   Txt(fkUIB, 11, ColX[0], 164, '#', cInkSoft);
-  Txt(fkUIB, 11, ColX[1], 164, 'Name', cInkSoft);
+  if Db.IsUdt then Txt(fkUIB, 11, ColX[1], 164, 'Name', cInkSoft)
+  else
+  begin
+    case FDbMode of
+      1: S := 'Address ▼';
+      2: S := 'Symbol + Address ▼';
+    else
+      S := 'Symbol ▼';
+    end;
+    Button(ColX[1] - 4, 160, 150, 22, S, Act(acDbMode, 0), bsGold, True, 10);
+  end;
   Txt(fkUIB, 11, ColX[2], 164, 'Data type', cInkSoft);
-  Txt(fkUIB, 11, ColX[3], 164, 'Offset', cInkSoft);
+  if (FDbMode = 2) and not Db.IsUdt then Txt(fkUIB, 11, ColX[3], 164, 'Address', cInkSoft)
+  else Txt(fkUIB, 11, ColX[3], 164, 'Offset', cInkSoft);
   if Db.IsUdt then Txt(fkUIB, 11, ColX[4], 164, 'Default value', cInkSoft)
   else Txt(fkUIB, 11, ColX[4], 164, 'Start value', cInkSoft);
   if not Db.IsUdt then Txt(fkUIB, 11, ColX[5], 164, 'Monitor value', cInkSoft);
@@ -8895,22 +11322,92 @@ begin
   Txt(fkUIB, 11, ColX[7], 164, 'Comment', cInkSoft);
   D.Layer := lyOrnament;
   Ln(366, 182, 1560, 182, 0.8, Alpha(cGoldDark, 160));
-  N := Length(Db.Vars);
+  BuildDbRows(Db);
+  N := Length(FDbRows);
   FVarScroll := EnsureRange(FVarScroll, 0, Max(0, N - 20));
   ClipD(360, 184, 1212, 640);
   Hit(360, 184, 1212, 640, whVars, hkWheel);
   for J := 0 to 20 do
   begin
-    I := J + Round(FVarScroll);
-    if I >= N then Break;
+    if J + Round(FVarScroll) >= N then Break;
+    I := FDbRows[J + Round(FVarScroll)].Vi;
     V := Db.Vars[I];
     Y := 188 + J * 30;
+    if FDbRows[J + Round(FVarScroll)].Sub then
+      with FDbRows[J + Round(FVarScroll)] do
+      begin
+        // an element / a member: indented, its offset and absolute address, its start / default value, its value now
+        K := Ei;
+        D.Layer := lyControls;
+        Rc(362, Y - 2, 1208, 28, Alpha(cGoldLight, IfThen(Odd(J), 55, 30)));
+        for AL := 1 to Depth do Rc(ColX[1] + 2 + (AL - 1) * 16, Y - 2, 2, 28, Alpha(cGoldDark, 120));
+        Hit(362, Y - 2, 1208, 28, Act(acVarSel, I));
+        XN := ColX[1] + Depth * 16;   // the x of the name
+        if CanOpen then
+        begin
+          if (FArrOpen <> nil) and (FArrOpen.IndexOf(Key) >= 0) then
+            PolyD([PointF(XN - 12, Y + 7), PointF(XN - 3, Y + 7), PointF(XN - 7.5, Y + 13)], cRedDark)
+          else
+            PolyD([PointF(XN - 10, Y + 5), PointF(XN - 5, Y + 10), PointF(XN - 10, Y + 15)], cRedDark);
+          Hit(XN - 14, Y - 2, 14, 28, Act(acDbRowOpen, J + Round(FVarScroll)));
+        end;
+        D.Layer := lyText;
+        S := DbRowAddr(Db, DType, Udt, Ofs, Bit, IsTia(Project.Family), Db.Optimized and IsTia(Project.Family),
+          CanOpen and (Copy(TypeText, 1, 6) = 'Array['));
+        if (FDbMode = 1) and not (Db.Optimized and IsTia(Project.Family)) then
+          TxtFit(fkMono, 11, XN, Y + 4, ColX[2] - XN - 8, S, cInkSoft)
+        else
+          TxtFit(fkMono, 11.5, XN, Y + 4, ColX[2] - XN - 8, Lbl, cInkSoft);
+        TxtFit(fkMono, 11, ColX[2], Y + 4, 186, TypeText, cInkSoft);
+        if (FDbMode = 2) and (S <> '') then TxtFit(fkMono, 10, ColX[3] - 2, Y + 5, 70, S, cInkFaint)
+        else if DType = dtBool then Txt(fkMono, 11, ColX[3], Y + 4, Format('%d.%d', [Ofs, Bit]), cInkFaint)
+        else Txt(fkMono, 11, ColX[3], Y + 4, Format('%d.0', [Ofs]), cInkFaint);
+        if K >= 0 then
+        begin
+          if (Db.InstanceOf > 0) or (V.DType in [dtIECTimer, dtIECCounter]) then
+            TxtFit(fkMono, 11.5, ColX[4], Y + 4, 136, ArrayStartOf(V.Start, V.Hi - V.Lo + 1, K), cInkSoft)
+          else
+            Field(ColX[4] - 4, Y, 140, 24, Act(fdVarElem, J + Round(FVarScroll)), ArrayStartOf(V.Start, V.Hi - V.Lo + 1, K),
+              fkMono, 12, 0, True, ElemDefault(V.DType));
+        end
+        else if CanOpen then
+          Txt(fkUI, 10, ColX[4], Y + 5, '(its members)', cInkFaint)
+        else if Start <> '' then
+          TxtFit(fkMono, 11, ColX[4], Y + 4, 136, Start, cInkFaint)
+        else
+          Txt(fkMono, 11, ColX[4], Y + 4, ElemDefault(DType), cInkFaint);
+        Live := '';
+        if V.Valid and (Rt.Prog <> nil) and not Db.IsUdt then
+        begin
+          if CanOpen and (DType = dtStruct) then
+            Live := StructLive(Format('"%s".%s%s', [Db.Name, V.Name, Path]), Udt)
+          else if not CanOpen and FRes.Resolve(Format('"%s".%s%s', [Db.Name, V.Name, Path]), O, E, False) then
+            Live := LiveText(O, '?');
+        end;
+        D.Layer := lyText;
+        TxtFit(fkMonoB, 11.5, ColX[5], Y + 4, 176, Live, cRedDark);
+        // the absolute address (a standard DB), the comment of the member
+        S := DbRowAddr(Db, DType, Udt, Ofs, Bit, IsTia(Project.Family), Db.Optimized and IsTia(Project.Family),
+          CanOpen and (Copy(TypeText, 1, 6) = 'Array['));
+        TxtFit(fkMono, 10.5, ColX[7], Y + 5, 220, S, cInkSoft);
+        TxtFit(fkUI, 10.5, ColX[7] + 228, Y + 5, 1550 - ColX[7] - 232, Comment, cInkFaint);
+        Continue;
+      end;
     D.Layer := lyControls;
     if I = FVarSel then RR(362, Y - 2, 1208, 28, 4, Alpha(cGold, 70))
     else if Odd(J) then Rc(362, Y - 2, 1208, 28, Alpha(cSheet2, 130));
     Hit(362, Y - 2, 1208, 28, Act(acVarSel, I));
+    // an array opens to its elements, a struct (a timer / counter) to its members (a click on the mark)
+    if FDbRows[J + Round(FVarScroll)].CanOpen then
+    begin
+      if ArrIsOpen(Db, V.Name) then
+        PolyD([PointF(363, Y + 7), PointF(372, Y + 7), PointF(367.5, Y + 13)], cRedDark)
+      else
+        PolyD([PointF(365, Y + 5), PointF(370, Y + 10), PointF(365, Y + 15)], cRedDark);
+      Hit(362, Y - 2, 12, 28, Act(acVarArrOpen, I));
+    end;
     D.Layer := lyText;
-    Txt(fkMono, 11, ColX[0], Y + 4, IntToStr(I + 1), cInkSoft);
+    Txt(fkMono, 11, ColX[0] + 4, Y + 4, IntToStr(I + 1), cInkSoft);
     if Db.InstanceOf > 0 then
     begin
       // an instance DB: the FB interface, read only here
@@ -8921,13 +11418,25 @@ begin
     end
     else
     begin
-      Field(ColX[1] - 4, Y, 200, 24, Act(fdVarName, I), V.Name, fkUI, 12);
+      if (FDbMode = 1) and not Db.IsUdt then
+      begin
+        // the view of the address: the absolute address (an optimized DB has none: its name)
+        D.Layer := lyText;
+        if Db.Optimized and IsTia(Project.Family) then TxtFit(fkUI, 12, ColX[1], Y + 3, 190, V.Name + '  (optimized)', cInkSoft)
+        else TxtFit(fkMono, 11.5, ColX[1], Y + 4, 190, DbRowAddr(Db, V.DType, V.Udt, V.Ofs, V.Bit, IsTia(Project.Family), False,
+          V.IsArray), cInk);
+      end
+      else
+        Field(ColX[1] - 4, Y, 200, 24, Act(fdVarName, I), V.Name, fkUI, 12);
       Field(ColX[2] - 4, Y, 164, 24, Act(fdVarType, I), V.TypeText, fkMono, 12);
       Button(ColX[2] + 162, Y, 24, 24, '▼', Act(acVarTypeMenu, I), bsGold, True, 9.5);
     end;
     D.Layer := lyText;
     if not V.Valid then
       Txt(fkUI, 10, ColX[3], Y + 5, 'type?', cRed)
+    else if (FDbMode = 2) and not Db.IsUdt and not (Db.Optimized and IsTia(Project.Family)) then
+      TxtFit(fkMono, 10, ColX[3] - 2, Y + 5, 70, StringReplace(DbRowAddr(Db, V.DType, V.Udt, V.Ofs, V.Bit, IsTia(Project.Family),
+        Db.Optimized and IsTia(Project.Family), V.IsArray), '  (', ' (', []), cInkSoft)
     else if (V.DType = dtBool) and not V.IsArray then
       Txt(fkMono, 11, ColX[3], Y + 4, Format('%d.%d', [V.Ofs, V.Bit]), cInkSoft)
     else
@@ -8992,6 +11501,235 @@ begin
   Txt(fkUI, 10.5, 380, 834, 'PLC data types: ' + IfThen(IsTia(Project.Family), '"Name"', 'UDTn or "Name"') +
     ', also Array[0..3] of ' + IfThen(IsTia(Project.Family), '"Name"', 'UDTn') +
     '.  Access: "DB".Arr[2].Member  ("DB".Arr[#i].Member in SCL).', cInkFaint);
+end;
+
+function TPlcUI.ArrIsOpen(Db: TDataBlock; const VarName: string): Boolean;
+begin
+  Result := (FArrOpen <> nil) and (FArrOpen.IndexOf(Db.Name + '.' + VarName) >= 0);
+end;
+
+{ the rows of the variables table: every variable; an open array its elements, an open struct (also a timer /
+  counter) its members, deeper as they are opened: [3], .Member, [3].Member, .Member.Sub }
+procedure TPlcUI.BuildDbRows(Db: TDataBlock);
+begin
+  BuildVarRows(Db, Db.Name, FDbRows);
+end;
+
+procedure TPlcUI.BuildIfRows(B: TBlock);
+begin
+  // the keys of the interface: #Block.Var.Member (a DB's: Block.Var)
+  B.Iface.Layout;
+  BuildVarRows(B.Iface, '#' + B.Name, FIfRows);
+end;
+
+procedure TPlcUI.BuildVarRows(Db: TDataBlock; const KeyPre: string; var Rows: TVarRows);
+var
+  K: Integer;
+
+  function Opens(const V: TDbVar): Boolean;
+  begin
+    Result := V.Valid and (V.IsArray or ((V.DType in [dtStruct, dtIECTimer, dtIECCounter]) and (V.Udt <> nil) and
+      (Length(V.Udt.Vars) > 0)));
+  end;
+
+  function Add(AVi, AEi: Integer; ASub: Boolean; const APath, ALbl, AType, AStart, ACmt, AKey: string;
+    ADepth, AOfs, ABit: Integer; ADT: TDataType; AUdt: TDataBlock; AOpen: Boolean): Integer;
+  begin
+    Result := Length(Rows);
+    SetLength(Rows, Result + 1);
+    with Rows[Result] do
+    begin
+      Vi := AVi;
+      Ei := AEi;
+      Sub := ASub;
+      Path := APath;
+      Lbl := ALbl;
+      TypeText := AType;
+      Start := AStart;
+      Comment := ACmt;
+      Key := AKey;
+      Depth := ADepth;
+      Ofs := AOfs;
+      Bit := ABit;
+      DType := ADT;
+      Udt := AUdt;
+      CanOpen := AOpen;
+    end;
+  end;
+
+  function IsOpen(const AKey: string): Boolean;
+  begin
+    Result := (FArrOpen <> nil) and (FArrOpen.IndexOf(AKey) >= 0);
+  end;
+
+  procedure Expand(AVi: Integer; const V: TDbVar; const APath: string; AOfs, ABit, ADepth: Integer; const AKey: string); forward;
+
+  { the members of a struct that starts at AOfs }
+  procedure Members(AVi: Integer; U: TDataBlock; const APath: string; AOfs, ADepth: Integer; const AKey: string);
+  var
+    M: Integer;
+    MV: TDbVar;
+    MKey: string;
+  begin
+    if U = nil then Exit;
+    U.Layout;
+    for M := 0 to High(U.Vars) do
+    begin
+      MV := U.Vars[M];
+      MKey := AKey + '.' + MV.Name;
+      Add(AVi, -1, True, APath + '.' + MV.Name, MV.Name, MV.TypeText, MV.Start, MV.Comment, MKey, ADepth, AOfs + MV.Ofs,
+        MV.Bit, MV.DType, MV.Udt, Opens(MV));
+      if Opens(MV) and IsOpen(MKey) then Expand(AVi, MV, APath + '.' + MV.Name, AOfs + MV.Ofs, MV.Bit, ADepth + 1, MKey);
+    end;
+  end;
+
+  { an open variable that starts at AOfs.ABit: its elements, or its members }
+  procedure Expand(AVi: Integer; const V: TDbVar; const APath: string; AOfs, ABit, ADepth: Integer; const AKey: string);
+  var
+    E, N, EOfs, EBit: Integer;
+    Ix, EKey, ET: string;
+    Lo, Hi: Integer;
+    St: Boolean;
+  begin
+    if V.IsArray then
+    begin
+      N := V.Hi - V.Lo + 1;
+      SplitArrayType(V.TypeText, Lo, Hi, ET);
+      St := (V.DType in [dtStruct, dtIECTimer, dtIECCounter]) and (V.Udt <> nil) and (Length(V.Udt.Vars) > 0);
+      for E := 0 to N - 1 do
+      begin
+        Ix := '[' + ElemIdx(V, V.Lo + E) + ']';
+        EKey := AKey + Ix;
+        if V.DType = dtBool then
+        begin
+          EOfs := AOfs + (ABit + E) div 8;
+          EBit := (ABit + E) mod 8;
+        end
+        else
+        begin
+          EOfs := AOfs + E * ElemStride(V.DType, V.Udt);
+          EBit := 0;
+        end;
+        // the elements of an array of the DB itself have their own start value (Ei)
+        if (ADepth = 1) and not St then
+          Add(AVi, E, True, APath + Ix, V.Name + Ix, ET, '', '', EKey, ADepth, EOfs, EBit, V.DType, V.Udt, False)
+        else
+          Add(AVi, -1, True, APath + Ix, V.Name + Ix, ET, '', '', EKey, ADepth, EOfs, EBit, V.DType, V.Udt, St);
+        if St and IsOpen(EKey) then Members(AVi, V.Udt, APath + Ix, EOfs, ADepth + 1, EKey);
+      end;
+    end
+    else
+      Members(AVi, V.Udt, APath, AOfs, ADepth, AKey);
+  end;
+
+begin
+  SetLength(Rows, 0);
+  for K := 0 to High(Db.Vars) do
+  begin
+    Add(K, -1, False, '', Db.Vars[K].Name, Db.Vars[K].TypeText, Db.Vars[K].Start, Db.Vars[K].Comment,
+      KeyPre + '.' + Db.Vars[K].Name, 0, Db.Vars[K].Ofs, Db.Vars[K].Bit, Db.Vars[K].DType, Db.Vars[K].Udt,
+      Opens(Db.Vars[K]));
+    if Opens(Db.Vars[K]) and IsOpen(KeyPre + '.' + Db.Vars[K].Name) then
+      Expand(K, Db.Vars[K], '', Db.Vars[K].Ofs, Db.Vars[K].Bit, 1, KeyPre + '.' + Db.Vars[K].Name);
+  end;
+end;
+
+procedure TPlcUI.SetVsPosPublic(Bar: Integer; V: Single);
+begin
+  FVarScroll := V;
+  if Bar <> 5 then SetVsPos(Bar, V);
+end;
+
+function TPlcUI.LiveOfPublic(const Operand: string): string;
+begin
+  Result := LiveOf(Operand);
+end;
+
+function TPlcUI.CtxIndex(const Prefix: string): Integer;
+var
+  K: Integer;
+begin
+  Result := -1;
+  if not FCtxOn then Exit;
+  for K := 0 to High(FCtxNames) do
+    if Copy(FCtxNames[K], 1, Length(Prefix)) = Prefix then Exit(K);
+end;
+
+procedure TPlcUI.TestOpenKey(const Key: string);
+begin
+  if FArrOpen = nil then
+  begin
+    FArrOpen := TStringList.Create;
+    FArrOpen.CaseSensitive := False;
+  end;
+  if FArrOpen.IndexOf(Key) < 0 then FArrOpen.Add(Key);
+end;
+
+function TPlcUI.DbRowText(I: Integer): string;
+begin
+  Result := '';
+  if CurDB = nil then Exit;
+  BuildDbRows(CurDB);
+  if (I < 0) or (I > High(FDbRows)) then Exit;
+  with FDbRows[I] do
+    Result := Format('%s%s : %s @ %d.%d  %s', [StringOfChar(' ', Depth * 2), Lbl, TypeText, Ofs, Bit,
+      DbRowAddr(CurDB, DType, Udt, Ofs, Bit, IsTia(Project.Family), CurDB.Optimized and IsTia(Project.Family),
+      CanOpen and (Copy(TypeText, 1, 6) = 'Array['))]);
+end;
+
+function TPlcUI.IfRowText(I: Integer): string;
+var
+  B: TBlock;
+begin
+  Result := '';
+  B := CurBlock;
+  if B = nil then Exit;
+  BuildIfRows(B);
+  if (I < 0) or (I > High(FIfRows)) then Exit;
+  with FIfRows[I] do
+    Result := Format('%s%s : %s @ %d.%d%s  drag: #%s%s', [StringOfChar(' ', Depth * 2), Lbl, TypeText, Ofs, Bit,
+      IfThen(CanOpen, IfThen((FArrOpen <> nil) and (FArrOpen.IndexOf(Key) >= 0), ' [open]', ' [shut]'), ''),
+      B.Iface.Vars[Vi].Name, Path]);
+end;
+
+procedure TPlcUI.TestProgScroll(V: Single);
+begin
+  FProgScroll := V;
+end;
+
+procedure TPlcUI.TestIfaceVar(const Sec, AName, AType: string);
+var
+  Sc: TVarSection;
+begin
+  if CurBlock = nil then Exit;
+  for Sc := Low(TVarSection) to High(TVarSection) do
+    if SameText(SectionNames[Sc], Sec) then
+    begin
+      CurBlock.Iface.AddSecVar(Sc, AName, AType, '', '');
+      Project.Modified := True;
+      Exit;
+    end;
+end;
+
+procedure TPlcUI.TestArrOpen(VarIdx: Integer);
+begin
+  DoClick(Act(acVarArrOpen, VarIdx), '');
+end;
+
+procedure TPlcUI.TestElemStart(VarIdx, Elem: Integer; const S: string);
+var
+  K: Integer;
+begin
+  if CurDB = nil then Exit;
+  BuildDbRows(CurDB);
+  for K := 0 to High(FDbRows) do
+    if (FDbRows[K].Vi = VarIdx) and (FDbRows[K].Ei = Elem) then
+    begin
+      StartEdit(Act(fdVarElem, K), '');
+      TextInput(S);
+      EndEdit(True);
+      Exit;
+    end;
 end;
 
 function TPlcUI.CurDB: TDataBlock;
@@ -9687,6 +12425,9 @@ begin
   end;
 end;
 
+const
+  ArrayChoice = 'Array[..] of ...   ▸';
+
 { the data types to choose from: the elementary ones of the family; a variable also the IEC timer /
   counter, the PLC data types and an array to edit }
 procedure TPlcUI.TypeMenu(ForVar: Boolean; Row: Integer; X, Y: Single);
@@ -9753,7 +12494,8 @@ begin
       L.Add('RS');
       L.Add('SR');
       for K := 0 to Project.UdtCount - 1 do L.Add('"' + Project.Udt(K).Name + '"');
-      L.Add('Array[0..9] of Int');
+      // an array: its element type from a second list (the bounds of the array stay)
+      L.Add(ArrayChoice);
       L.Add('Array[0..2, 0..3] of Int');
     end;
     if ForVar then
@@ -9777,7 +12519,10 @@ begin
     for K := 0 to L.Count - 1 do
     begin
       FTypeChoices[K] := L[K];
-      if SameText(L[K], Cur) then Names[K] := L[K] + '   ✓' else Names[K] := L[K];
+      if SameText(L[K], Cur) or ((L[K] = ArrayChoice) and SameText(Copy(Cur, 1, 6), 'Array[')) then
+        Names[K] := L[K] + '   ✓'
+      else
+        Names[K] := L[K];
       Acts[K] := Act(acTypePick, K);
       Ens[K] := True;
     end;
@@ -10281,18 +13026,39 @@ begin
   D.Layer := lyText;
   Txt(fkUI, 11, 60, 828, Format('%d active, %d requests in total', [Hub.ActiveCount, Hub.Requests]), cInkSoft);
 
+  // ---------- Claude Code (MCP): the tools through the IPC server ----------
+  D.Layer := lyText;
+  Switch(820, 436, 46, 22, Project.Comm.McpWrite, Act(acMcpWrite, 0));
+  D.Layer := lyText;
+  Txt(fkUIB, 12, 876, 437, 'Claude Code may change the program', cInk);
+  Button(1416, 432, 150, 28, 'Copy setup command', Act(acMcpCopy, 0), bsGold, True, 10.5);
+  D.Layer := lyText;
+  if Project.Comm.McpWrite then
+    TxtFit(fkUI, 10.5, 820, 466, 740, 'on: it writes networks, blocks, interfaces, DB variables, tags, sets the inputs, ' +
+      'downloads and runs (each change has its undo in AI ▼)', cRedDark)
+  else
+    TxtFit(fkUI, 10.5, 820, 466, 740, 'off: it reads only: the project, the blocks, compile, values, diagnostics', cInkSoft);
+  if FIpc = nil then
+    TxtFit(fkUIB, 10.5, 820, 486, 740, 'the IPC server (left) is off: Claude Code cannot connect', cRed)
+  else if FMcpCalls = 0 then
+    TxtFit(fkUI, 10.5, 820, 486, 740, 'IPC on: Claude Code connects with the server mcp\vplc_mcp.py (no tool call yet)', cJade)
+  else
+    TxtFit(fkUI, 10.5, 820, 486, 740, Format('IPC on: %d tool calls, the last: %s at %s', [FMcpCalls, FMcpLast,
+      FormatDateTime('hh:nn:ss', FMcpLastT)]), cJade);
+  TxtFit(fkMono, 10, 820, 508, 740, 'claude mcp add virtual-plc -- python "' + ExtractFilePath(ParamStr(0)) +
+    'mcp\vplc_mcp.py"', cInkFaint);
   // ---------- traffic ----------
-  Lg := Hub.LogCopy(17);
+  Lg := Hub.LogCopy(10);
   D.Layer := lyText;
   for I := 0 to High(Lg) do
   begin
-    Y := 432 + I * 24;
+    Y := 598 + I * 24;
     if Lg[I].Ok then C := cInk else C := cRed;
     Txt(fkMono, 10.5, 820, Y, FormatDateTime('hh:nn:ss.zzz', Lg[I].Time), cInkSoft);
     Txt(fkUIB, 10.5, 916, Y - 1, ProtoNames[Lg[I].Proto], cRedDark);
     TxtFit(fkUI, 11, 970, Y - 1, 590, IfThen(Lg[I].Peer <> '', Lg[I].Peer + '  ', '') + Lg[I].Text, C);
   end;
-  if Length(Lg) = 0 then Txt(fkUI, 12, 820, 432, 'No traffic yet.', cInkSoft);
+  if Length(Lg) = 0 then Txt(fkUI, 12, 820, 598, 'No traffic yet.', cInkSoft);
 end;
 
 { ====================================================================== }
@@ -10335,6 +13101,9 @@ end;
 
 procedure TPlcUI.DoClick(Id: Integer; const S: string);
 var
+  V9: TDbVar;
+  Lo9, Hi9: Integer;
+  S9: string;
   A9: TAddr;
   O9: TOperand;
   E9: string;
@@ -10457,7 +13226,7 @@ begin
     acIfToggle: FIfaceShut := not FIfaceShut;
     acIfSel: FIfSel := Par;
     acIfAdd:
-      if (CurBlock <> nil) and (CurBlock.Kind <> bkOB) then
+      if (CurBlock <> nil) and ((CurBlock.Kind <> bkOB) or (TVarSection(Par) = vsTemp)) then
       begin
         B := CurBlock;
         if TVarSection(Par) = vsReturn then
@@ -10491,14 +13260,15 @@ begin
         MarkDirty;
       end;
     acIfDel:
-      if (CurBlock <> nil) and (Length(CurBlock.Iface.Vars) > 0) then
+      if (CurBlock <> nil) and (Length(CurBlock.Iface.Vars) > 0) and
+        not CurBlock.Iface.Vars[EnsureRange(FIfSel, 0, High(CurBlock.Iface.Vars))].System then
       begin
         CurBlock.Iface.DeleteVar(FIfSel);
         FIfSel := Max(0, Min(FIfSel, High(CurBlock.Iface.Vars)));
         MarkDirty;
       end;
     acIfSec:
-      if CurBlock <> nil then
+      if (CurBlock <> nil) and (CurBlock.Kind <> bkOB) then
       begin
         B := CurBlock;
         if Par > High(B.Iface.Vars) then Exit;
@@ -10650,6 +13420,7 @@ begin
           9: FindDeclaration;
           10: ShowView(0);
           11: ShowView(1);
+          12: XrefOpen(XrefAtCaret, CurBlock);
         end;
     acNetUp, acNetDown:
       begin
@@ -10747,6 +13518,7 @@ begin
           2: LadPaste;
           3: LadDeleteSel;
           4: DoKey(ukChar, 'a', [umCtrl]);
+          5: XrefOpen(XrefAtCaret, CurBlock);
         end;
       end;
     acColAdd:
@@ -11232,7 +14004,119 @@ begin
         Act(acSclSrc, 3), Act(acSclSrc, 4)], [True, CurBlock <> nil, True, True, True]);
     acSclSrc: SclSourceMenu(Par);
     acGrpSel..acDbScl: GroupAction(Code, Par);
-    acIoView: FIoView := Par;
+    acRightTab: FRightTab := Par;
+    acWatchRight: FWatchRight := Par;
+    acDbJump:
+      for I := 0 to Project.DBCount - 1 do
+        if Project.DB(I).Number = Par then
+        begin
+          // the DB on its screen: its button Optimized DB ON / OFF
+          Screen := scDB;
+          FDBSel := I;
+          FVarScroll := 0;
+          Toast(Format('DB%d "%s": the button Optimized DB switches its absolute addresses on / off',
+            [Par, Project.DB(I).Name]));
+        end;
+    acMcpWrite:
+      begin
+        Project.Comm.McpWrite := not Project.Comm.McpWrite;
+        Project.Modified := True;
+        if Project.Comm.McpWrite then Toast('Claude Code may change the program (MCP)')
+        else Toast('Claude Code reads only (MCP)');
+      end;
+    acMcpCopy:
+      begin
+        ClipboardOut := 'claude mcp add virtual-plc -- python "' + ExtractFilePath(ParamStr(0)) + 'mcp\vplc_mcp.py"';
+        Toast('Copied: ' + ClipboardOut);
+      end;
+    acIoListRow: if Par <= High(FIoList) then XrefOpen(FIoList[Par].Addr, nil);
+    acIoListFil:
+      begin
+        FIoListFil := Par;
+        FIoListScroll := 0;
+      end;
+    acWatchMode:
+      OpenCtx(FMX, FMY, ['Symbol + Address', 'Symbol', 'Address'], [Act(acWatchModePick, 0), Act(acWatchModePick, 1),
+        Act(acWatchModePick, 2)], [True, True, True]);
+    acWatchModePick: FWatchMode := Par;
+    acDbMode:
+      OpenCtx(FMX, FMY, ['Symbol', 'Address', 'Symbol + Address'], [Act(acDbModePick, 0), Act(acDbModePick, 1),
+        Act(acDbModePick, 2)], [True, True, True]);
+    acDbModePick: FDbMode := Par;
+    acWatchOpen:
+      if Par <= High(FWRows) then
+      begin
+        if FWatchOpen = nil then
+        begin
+          FWatchOpen := TStringList.Create;
+          FWatchOpen.CaseSensitive := False;
+        end;
+        I := FWatchOpen.IndexOf(FWRows[Par].Key);
+        if I >= 0 then FWatchOpen.Delete(I) else FWatchOpen.Add(FWRows[Par].Key);
+        FWatchSel := FWRows[Par].WI;
+      end;
+    acXrefClose: FXrefOn := False;
+    acIoOut: ;
+    acXrefFilter:
+      begin
+        FXrefFilter := Par;
+        FXrefScroll := 0;
+      end;
+    acXrefRow: XrefJump(Par);
+    acXrefOpen: XrefOpen(FXrefAsk, CurBlock);
+    acIfOpen:
+      if (Par <= High(FIfRows)) and FIfRows[Par].CanOpen then
+      begin
+        if FArrOpen = nil then
+        begin
+          FArrOpen := TStringList.Create;
+          FArrOpen.CaseSensitive := False;
+        end;
+        I := FArrOpen.IndexOf(FIfRows[Par].Key);
+        if I >= 0 then FArrOpen.Delete(I) else FArrOpen.Add(FIfRows[Par].Key);
+        FIfSel := FIfRows[Par].Vi;
+      end;
+    acDbRowOpen:
+      if (Par <= High(FDbRows)) and FDbRows[Par].CanOpen then
+      begin
+        if FArrOpen = nil then
+        begin
+          FArrOpen := TStringList.Create;
+          FArrOpen.CaseSensitive := False;
+        end;
+        I := FArrOpen.IndexOf(FDbRows[Par].Key);
+        if I >= 0 then FArrOpen.Delete(I) else FArrOpen.Add(FDbRows[Par].Key);
+      end;
+    acVarArrOpen:
+      if (CurDB <> nil) and (Par <= High(CurDB.Vars)) then
+      begin
+        if FArrOpen = nil then
+        begin
+          FArrOpen := TStringList.Create;
+          FArrOpen.CaseSensitive := False;
+        end;
+        I := FArrOpen.IndexOf(CurDB.Name + '.' + CurDB.Vars[Par].Name);
+        if I >= 0 then FArrOpen.Delete(I) else FArrOpen.Add(CurDB.Name + '.' + CurDB.Vars[Par].Name);
+        FVarSel := Par;
+      end;
+    acPickSrc:
+      begin
+        FPickSrc := Par;
+        FPickScroll := 0;
+      end;
+    acPickHead:
+      if (Par <= High(FPick)) and FPick[Par].Head then
+      begin
+        // open / shut: remembered against the default of the row
+        I := FPickTog.IndexOf(FPick[Par].Key);
+        if I >= 0 then FPickTog.Delete(I) else FPickTog.Add(FPick[Par].Key);
+      end;
+    acObDlg..acObFault: ObAction(Code, Par);
+    acIoView:
+      begin
+        FIoView := Par;
+        FIoListT := 0;
+      end;
     acIoPage:
       case Par of
         0: Dec(FDIPage);
@@ -11408,7 +14292,54 @@ begin
     acTagTypeMenu: TypeMenu(False, Par, 376, FMY + 12);
     acVarTypeMenu: TypeMenu(True, Par, 596, FMY + 12);
     acTypePick:
-      if Par <= High(FTypeChoices) then
+      if (Par <= High(FTypeChoices)) and (FTypeChoices[Par] = ArrayChoice) and (FTypeFor shr 16 = fdVarType) and
+        (CurDB <> nil) and ((FTypeFor and $FFFF) <= High(CurDB.Vars)) then
+      begin
+        // the second list: an array of Bool, Word, Real, a PLC data type .. with the bounds it has
+        V9 := CurDB.Vars[FTypeFor and $FFFF];
+        if SameText(Copy(Trim(V9.TypeText), 1, 6), 'Array[') and (Pos(']', V9.TypeText) > 0) then
+          S9 := Copy(Trim(V9.TypeText), 1, Pos(']', Trim(V9.TypeText)))
+        else
+          S9 := 'Array[0..9]';
+        SL := TStringList.Create;
+        try
+          SL.CommaText := 'Bool,Byte,Word,DWord,Char,Int,DInt,Real,Time,S5Time,Date,Time_Of_Day';
+          if IsTia(Project.Family) then
+          begin
+            SL.Add('SInt');
+            SL.Add('USInt');
+            SL.Add('UInt');
+            SL.Add('UDInt');
+            SL.Add('LReal');
+            SL.Add('WChar');
+          end;
+          if Project.Family = cfS71500 then
+          begin
+            SL.Add('LInt');
+            SL.Add('ULInt');
+            SL.Add('LWord');
+            SL.Add('LTime');
+          end;
+          SL.Add('String[20]');
+          if IsTia(Project.Family) then SL.Add('WString[20]');
+          for I := 0 to Project.UdtCount - 1 do SL.Add('"' + Project.Udt(I).Name + '"');
+          SetLength(FTypeChoices, SL.Count);
+          SetLength(Names, SL.Count);
+          SetLength(Acts, SL.Count);
+          SetLength(Ens, SL.Count);
+          for I := 0 to SL.Count - 1 do
+          begin
+            FTypeChoices[I] := S9 + ' of ' + SL[I];
+            if SameText(FTypeChoices[I], V9.TypeText) then Names[I] := FTypeChoices[I] + '   ✓' else Names[I] := FTypeChoices[I];
+            Acts[I] := Act(acTypePick, I);
+            Ens[I] := True;
+          end;
+        finally
+          SL.Free;
+        end;
+        OpenCtx(FMX, FMY, Names, Acts, Ens);
+      end
+      else if Par <= High(FTypeChoices) then
       begin
         CommitEdit(FTypeFor, FTypeChoices[Par]);
         if FTypeFor shr 16 = fdVarType then FVarSel := FTypeFor and $FFFF else FTagSel := FTypeFor and $FFFF;
@@ -11661,6 +14592,28 @@ begin
     end;
     Exit;
   end;
+  if Id shr 16 = acVarPick then
+  begin
+    // a variable of the panel: a double click puts it in, a drag takes it into the code / onto an element
+    I := Id and $FFFF;
+    if FDragPress <> FPressNo then
+    begin
+      FDragPress := FPressNo;
+      FVarDragOn := False;
+      FDropKind := 0;
+      if I > High(FPick) then Exit;
+      if FPick[I].Head and (Screen = scWatch) then FVarDrag := PickHeadItems(I) else FVarDrag := FPick[I].Ins;
+      if FVarDrag = '' then Exit;
+      FVarX0 := X;
+      FVarY0 := Y;
+      if MouseClicks >= 2 then PickInsert(I);
+      Exit;
+    end;
+    if not FVarDragOn and (Abs(X - FVarX0) + Abs(Y - FVarY0) < 6) then Exit;
+    FVarDragOn := True;
+    DropTrack(X, Y, True);
+    Exit;
+  end;
   if Id shr 16 = acIfDrag then
   begin
     I := Id and $FFFF;
@@ -11672,6 +14625,27 @@ begin
       FDropKind := 0;
       if (CurBlock = nil) or (I > High(CurBlock.Iface.Vars)) then Exit;
       FVarDrag := '#' + CurBlock.Iface.Vars[I].Name;
+      FVarX0 := X;
+      FVarY0 := Y;
+      Exit;
+    end;
+    if not FVarDragOn and (Abs(X - FVarX0) + Abs(Y - FVarY0) < 6) then Exit;
+    FVarDragOn := True;
+    DropTrack(X, Y, True);
+    Exit;
+  end;
+  if Id shr 16 = acIfSub then
+  begin
+    // a member / an element of the interface: #Var.Member, #Arr[2]
+    I := Id and $FFFF;
+    if FDragPress <> FPressNo then
+    begin
+      FDragPress := FPressNo;
+      FVarDragOn := False;
+      FDropKind := 0;
+      if (CurBlock = nil) or (I > High(FIfRows)) or (FIfRows[I].Vi > High(CurBlock.Iface.Vars)) then Exit;
+      FIfSel := FIfRows[I].Vi;
+      FVarDrag := '#' + CurBlock.Iface.Vars[FIfRows[I].Vi].Name + FIfRows[I].Path;
       FVarX0 := X;
       FVarY0 := Y;
       Exit;
@@ -11936,6 +14910,9 @@ begin
     whElem: FElemScroll := FElemScroll - DY * 48;
     whIo..whIo + 4: FIoScroll[Id - whIo] := FIoScroll[Id - whIo] - DY;
     whGrpTree, whGrpTree + 1: FGrpScroll[Id - whGrpTree] := FGrpScroll[Id - whGrpTree] - DY;
+    whPick: FPickScroll := FPickScroll - DY * 34;
+    whXref: FXrefScroll := FXrefScroll - DY;
+    whIoList: FIoListScroll := FIoListScroll - DY;
     whVars: FVarScroll := FVarScroll - DY;
     whTags: FTagScroll := FTagScroll - DY;
     whDiag: FDiagScroll := FDiagScroll - DY;
@@ -12275,6 +15252,26 @@ begin
     EdEnd(N);
     Exit;
   end;
+  // the ghost / the parameter help: Tab inserts it, Esc hides it here
+  if (Key = ukTab) and not Sh and not Ct and (FGhostIns <> '') and (N.Kind = nkSCL) then
+  begin
+    GhostAccept(N);
+    EdEnd(N);
+    Exit;
+  end;
+  if (Key = ukTab) and not Sh and not Ct and PlaceholderNext(N) then
+  begin
+    EdEnd(N);
+    Exit;
+  end;
+  if (Key = ukEsc) and ((FGhost <> '') or FSigOn) and (AssistKey <> FGhostKey) then
+  begin
+    FGhostKey := AssistKey;
+    FGhost := '';
+    FGhostIns := '';
+    FSigOn := False;
+    Exit;
+  end;
   case Key of
     ukEsc:
       if FFindMode > 0 then FFindMode := 0
@@ -12498,9 +15495,15 @@ end;
 
 procedure TPlcUI.DoKey(Key: TUiKey; Ch: Char; Mods: TUiMods);
 var
+  S11: string;
   N: TNetwork;
   Ce: TLadCell;
 begin
+  if FXrefOn and (Key = ukEsc) then
+  begin
+    FXrefOn := False;
+    Exit;
+  end;
   // global keys
   case Key of
     ukF5: begin Rt.CmdRun; Exit; end;
@@ -12509,6 +15512,21 @@ begin
     ukF8: begin Download; Exit; end;
     ukF9: begin DoClick(Act(acMonitor, 0), ''); Exit; end;
     ukF12: begin ShotRequested := True; Exit; end;
+    ukF11:
+      begin
+        // the cross reference of the operand here: the caret / the LAD element, the tag, the DB variable, the watch row
+        S11 := '';
+        case Screen of
+          scProgram: S11 := XrefAtCaret;
+          scTags: if FTagSel <= High(Project.Tags) then S11 := '"' + Project.Tags[FTagSel].Name + '"';
+          scDB:
+            if (CurDB <> nil) and not CurDB.IsUdt and (FVarSel <= High(CurDB.Vars)) then
+              S11 := Format('"%s".%s', [CurDB.Name, CurDB.Vars[FVarSel].Name]);
+          scWatch: if (FWatchSel >= 0) and (FWatchSel <= High(Project.Watch)) then S11 := Project.Watch[FWatchSel].Address;
+        end;
+        XrefOpen(S11, CurBlock);
+        Exit;
+      end;
     ukF1: begin InfoRequested := True; Exit; end;
   end;
   if (Key = ukChar) and (umCtrl in Mods) and (UpCase(Ch) = 'S') then
@@ -12665,6 +15683,10 @@ end;
 
 procedure TPlcUI.CommitEdit(Id: Integer; const S: string);
 var
+  Info9: TObInfo;
+  L9: TObInfos;
+  Std9: Boolean;
+  Dt9: TDateTime;
   Kg9, Gi9: Integer;
   Nm9: string;
   A9: TAddr;
@@ -12729,6 +15751,54 @@ begin
           ResetResolver;
           if N2 > 0 then Toast(Format('renamed: %d places in the code follow', [N2]))
           else Toast('renamed');
+        end;
+        MarkDirty;
+      end;
+    fdObDlgName: FObDlgName := Trim(S);
+    fdXref: XrefOpen(S, FXrefBlk);
+    fdPickFilter:
+      begin
+        FPickFilter := S;
+        FPickScroll := 0;
+      end;
+    fdObDlgNum:
+      if TryStrToInt(Trim(S), V) and (V >= 1) and (V <= 32767) then
+      begin
+        FObDlgNum := V;
+        // a number of its own: a name of its own (the event and a count), unless one was typed
+        if (V >= 123) and ObInfoOf(Project.Family, V, Info9) = False then
+        begin
+          Gi9 := 1;
+          L9 := ObCatalog(Project.Family);
+          Std9 := False;
+          for Kg9 := 0 to High(L9) do
+            if SameText(L9[Kg9].Name, FObDlgName) then Std9 := True;
+          if Std9 or (FObDlgName = '') then
+            repeat
+              FObDlgName := Format('%s_%d', [ObEventNames[FObDlgEv], Gi9]);
+              Inc(Gi9);
+            until ObNameFree(Project, FObDlgName);
+        end;
+      end
+      else
+        Toast('an OB number: 1 .. 32767', True);
+    fdObCycle, fdObPhase, fdObTrig, fdObTod:
+      if (CurBlock <> nil) and (CurBlock.Kind = bkOB) then
+      begin
+        B := CurBlock;
+        case Code of
+          fdObCycle:
+            if TryStrToInt(Trim(S), V) and (V >= 1) and (V <= 60000) then B.CycleMs := V
+            else Toast('a cycle time of 1 .. 60000 ms', True);
+          fdObPhase:
+            if TryStrToInt(Trim(S), V) and (V >= 0) and (V <= 60000) then B.PhaseMs := V
+            else Toast('a phase of 0 .. 60000 ms', True);
+          fdObTrig:
+            if ParseAddr(Trim(S), A9, E9) and (A9.Area in [arI, arPI]) and (A9.Size = osBit) then B.TrigAddr := Trim(S)
+            else Toast('an input bit, e.g. %I0.0 / I0.0', True);
+        else
+          if ParseTodStart(S, Dt9) then B.TodStart := FormatTodStart(Dt9)
+          else Toast('a date and time: yyyy-mm-dd hh:mm:ss', True);
         end;
         MarkDirty;
       end;
@@ -12868,6 +15938,23 @@ begin
       begin
         CurDB.Comment := S;
         Project.Modified := True;
+      end;
+    fdVarElem:
+      if (CurDB <> nil) and (Par <= High(FDbRows)) and (FDbRows[Par].Ei >= 0) and (FDbRows[Par].Vi <= High(CurDB.Vars)) then
+      begin
+        // the start value of one element: the list of the array's start values
+        Db := CurDB;
+        with Db.Vars[FDbRows[Par].Vi] do
+        begin
+          if (Trim(S) <> '') and not (DType in [dtString, dtWString]) and not ParseStartValue(Trim(S), C9) then
+          begin
+            Toast(Format('"%s" is not a value of %s', [Trim(S), DataTypeNames[DType]]), True);
+            Exit;
+          end;
+          Start := ArrayStartSet(Start, Hi - Lo + 1, FDbRows[Par].Ei, S, ElemDefault(DType));
+        end;
+        Db.Layout;
+        MarkDirty;
       end;
     fdVarName, fdVarType, fdVarStart, fdVarComment:
       begin

@@ -22,7 +22,7 @@ unit uPlcCompiler;
 interface
 
 uses
-  Classes, SysUtils, Math, StrUtils, uPlcTypes, uPlcProject;
+  Classes, SysUtils, Math, StrUtils, uPlcTypes, uPlcProject, uObCatalog;
 
 type
   TOpCode = (
@@ -138,7 +138,26 @@ type
     Nets: array of TNetInfo;
     Mon: array of TMonSlot;
     CodeBytes: Integer;   // estimate of the work memory
+    { an OB: its start information in the local data (Key: ObStartKey of the variable) }
+    StartInfo: array of record
+      Key: string;
+      Ofs, Bit: Integer;
+      DType: TDataType;
+    end;
     function Title: string;
+  end;
+
+  { an OB of the program and what starts it }
+  TCObRef = record
+    BI, Number: Integer;
+    Event: TObEvent;
+    Prio: Integer;
+    CycleMs, PhaseMs: Integer;          // cyclic interrupt
+    TrigOk: Boolean;                    // hardware interrupt: its input bit
+    TrigOfs, TrigBit, TrigEdge: Integer;
+    TodOk, TodActive: Boolean;          // time of day
+    TodStart: TDateTime;
+    TodMode: Integer;
   end;
 
   TCDb = record
@@ -168,6 +187,7 @@ type
     Msgs: array of TCompileMsg;
     ErrorCount, WarnCount: Integer;
     OB1, OBCyc, OB100: Integer;   // block indexes, -1 = none
+    Obs: array of TCObRef;         // every OB, by number
     CyclicMs: Integer;
     ClockByte: Integer;
     CodeBytes, DataBytes: Integer;
@@ -1336,9 +1356,10 @@ end;
   instance (CALL #Delay with IN := .., PT := .., Q := ..; TON_TIME, CTU_INT, R_TRIG, RS ..): compiled as SCL }
 function TCompiler.StlSclCall(const Tgt: string; const Names, Acts: array of string): Boolean;
 const
-  Fns: array[0..37] of string = ('SEL', 'MUX', 'LIMIT', 'MIN', 'MAX', 'NORM_X', 'SCALE_X', 'CONCAT', 'LEN', 'LEFT',
+  Fns: array[0..39] of string = ('SEL', 'MUX', 'LIMIT', 'MIN', 'MAX', 'NORM_X', 'SCALE_X', 'CONCAT', 'LEN', 'LEFT',
     'RIGHT', 'MID', 'FIND', 'SHL', 'SHR', 'ROL', 'ROR', 'ABS', 'SQR', 'SQRT', 'EXP', 'LN', 'LOG', 'SIN', 'COS', 'TAN',
-    'ASIN', 'ACOS', 'ATAN', 'FRAC', 'TRUNC', 'ROUND', 'CEIL', 'FLOOR', 'S_MOVE', 'EXPT', 'MOD', 'NEG');
+    'ASIN', 'ACOS', 'ATAN', 'FRAC', 'TRUNC', 'ROUND', 'CEIL', 'FLOOR', 'S_MOVE', 'EXPT', 'MOD', 'NEG', 'SRT_DINT',
+    'CAN_DINT');
   Outs: array[0..7] of string = ('Q', 'ET', 'QU', 'QD', 'CV', 'Q1', 'RET_VAL', 'OUT');
 var
   U, Res, Args, Code: string;
@@ -2602,7 +2623,7 @@ begin
   B.Iface.Number := B.Number;
   B.Iface.Layout;
   FRes.Iface := nil;
-  if B.Kind in [bkFB, bkFC] then FRes.Iface := B.Iface;
+  if B.Kind in [bkFB, bkFC, bkOB] then FRes.Iface := B.Iface;
   K := 0;
   for I := 0 to High(B.Iface.Vars) do
   begin
@@ -2617,8 +2638,9 @@ begin
       FTemps.AddObject(UpperCase(B.Iface.Vars[I].Name) + '=' + B.Iface.Vars[I].TypeText,
         TObject(PtrInt(B.Iface.Vars[I].Ofs * 8 + B.Iface.Vars[I].Bit)));
     end
-    else if (B.Kind = bkOB) then
-      Msg(Format('%s.%s: an OB has only Temp', [B.Title, B.Iface.Vars[I].Name]))
+    else if (B.Kind = bkOB) and not B.Iface.Vars[I].System then
+      Msg(Format('%s.%s: an OB has its start information (Input) and Temp only', [B.Title, B.Iface.Vars[I].Name]))
+    else if B.Kind = bkOB then
     else if (B.Kind = bkFC) and (B.Iface.Vars[I].Section = vsStatic) then
       Msg(Format('%s.%s: an FC has no Static (no instance): use an FB or a DB', [B.Title, B.Iface.Vars[I].Name]))
     else if (B.Kind = bkFB) and (B.Iface.Vars[I].Section = vsReturn) then
@@ -2899,9 +2921,13 @@ end;
 
 function TCompiler.Run: TCProgram;
 var
-  I, Ix: Integer;
+  I, Ix, J2: Integer;
   B: TBlock;
   Allowed: Boolean;
+  Ev: TObEvent;
+  Info: TObInfo;
+  TA: TAddr;
+  Er: string;
 begin
   FProg := TCProgram.Create;
   FProg.ModelIdx := FProject.ModelIdx;
@@ -2930,15 +2956,67 @@ begin
     FSrc := B;
     if B.Kind = bkOB then
     begin
-      Allowed := (B.Number = 1) or (B.Number = 100) or (B.Number = FModel.CyclicOB) or
-        (IsTia(FModel.Family) and (B.Number >= 123));
+      // the OBs of the family: a standard number, or one of its own (>= 123) of an event that allows it
+      Ev := FProject.ObEventOfBlock(B);
+      Allowed := ObInfoOf(FModel.Family, B.Number, Info) or ((B.Number >= 123) and ObCustomOk(FModel.Family, Ev));
       if not Allowed then
-        Msg(Format('OB%d is not handled by the Virtual PLC (OB1, OB%d, OB100)', [B.Number, FModel.CyclicOB]), False);
+        Msg(Format('OB%d is not an OB of the %s (see + OB: the standard OBs and the numbers of your own)',
+          [B.Number, FamilyNames[FModel.Family]]), False)
+      else if not ObSimulated(Ev) then
+        Msg(Format('OB%d (%s): its event does not happen in the Virtual PLC, the OB is not started', [B.Number,
+          ObEventNames[Ev]]), False);
       if B.Number = 1 then FProg.OB1 := I;
       if B.Number = 100 then FProg.OB100 := I;
-      if B.Number = FModel.CyclicOB then FProg.OBCyc := I;
+      if Allowed then
+      begin
+        SetLength(FProg.Obs, Length(FProg.Obs) + 1);
+        with FProg.Obs[High(FProg.Obs)] do
+        begin
+          BI := I;
+          Number := B.Number;
+          Event := Ev;
+          Prio := Info.Prio;
+          if Prio = 0 then Prio := 1;
+          CycleMs := Max(1, FProject.ObCycleMs(B));
+          PhaseMs := Max(0, B.PhaseMs);
+          TrigOk := False;
+          TrigEdge := EnsureRange(B.TrigEdge, 0, 2);
+          if Ev = oeHardware then
+          begin
+            if ParseAddr(B.TrigAddr, TA, Er) and (TA.Area in [arI, arPI]) and (TA.Size = osBit) then
+            begin
+              TrigOk := True;
+              TrigOfs := TA.Ofs;
+              TrigBit := TA.Bit;
+            end
+            else
+              Msg(Format('OB%d: its hardware interrupt needs an input bit (e.g. %%I0.0), not "%s"', [B.Number,
+                B.TrigAddr]), False);
+          end;
+          TodMode := EnsureRange(B.TodMode, 0, High(TodModeNames));
+          TodActive := B.TodActive;
+          TodOk := ParseTodStart(B.TodStart, TodStart);
+          if (Ev = oeTimeOfDay) and TodActive and not TodOk then
+            Msg(Format('OB%d: the start "%s" is no date and time (yyyy-mm-dd hh:mm:ss)', [B.Number, B.TodStart]), False);
+          if (Ev = oeCyclic) and (FProg.OBCyc < 0) then FProg.OBCyc := I;
+        end;
+      end;
     end;
     CompileBlock(B, I);
+    if B.Kind = bkOB then
+    begin
+      // where the CPU writes the start information
+      for Ix := 0 to High(B.Iface.Vars) do
+        if B.Iface.Vars[Ix].System and B.Iface.Vars[Ix].Valid then
+        begin
+          J2 := Length(FProg.Blocks[I].StartInfo);
+          SetLength(FProg.Blocks[I].StartInfo, J2 + 1);
+          FProg.Blocks[I].StartInfo[J2].Key := ObStartKey(B.Iface.Vars[Ix].Name);
+          FProg.Blocks[I].StartInfo[J2].Ofs := B.Iface.Vars[Ix].Ofs;
+          FProg.Blocks[I].StartInfo[J2].Bit := B.Iface.Vars[Ix].Bit;
+          FProg.Blocks[I].StartInfo[J2].DType := B.Iface.Vars[Ix].DType;
+        end;
+    end;
     Inc(FProg.CodeBytes, FProg.Blocks[I].CodeBytes);
   end;
   FSrc := nil;

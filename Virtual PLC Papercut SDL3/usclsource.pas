@@ -1117,6 +1117,7 @@ begin
       Made.Add(Format('DB%d "%s"', [D.Number, D.Name]));
     end;
     P.SortBlocks;
+    P.SyncObIfaces;   // an OB's VAR_INPUT / start Temps of the source: the start information of the family
     Report := 'imported: ';
     for I := 0 to Made.Count - 1 do
     begin

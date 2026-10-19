@@ -29,7 +29,7 @@ unit uPlcProject;
 interface
 
 uses
-  Classes, SysUtils, Math, fpjson, jsonparser, uPlcTypes;
+  Classes, SysUtils, Math, fpjson, jsonparser, uPlcTypes, uObCatalog;
 
 const
   LadCols = 8;        // the columns of a new LAD network (and how many show at a time)
@@ -101,6 +101,14 @@ type
     Version: string;   // VERSION : 0.1 of the SCL source
     Networks: TList;   // of TNetwork
     Iface: TDataBlock; // the interface: Vars with Section; an FB's instance layout (temps in TempSize)
+    { an OB: its event (-1: the one of its standard number) and the settings of its event }
+    ObEvent: Integer;
+    CycleMs, PhaseMs: Integer;   // a cyclic interrupt (0: the default of its number)
+    TrigAddr: string;            // a hardware interrupt: the input bit (%I0.0) ..
+    TrigEdge: Integer;           // .. 0 rising, 1 falling, 2 both edges
+    TodStart: string;            // a time of day interrupt: 'yyyy-mm-dd hh:nn:ss' ..
+    TodMode: Integer;            // .. TodModeNames
+    TodActive: Boolean;
     constructor Create(AKind: TBlockKind; ANumber: Integer; const AName: string);
     destructor Destroy; override;
     function Net(I: Integer): TNetwork;
@@ -122,6 +130,7 @@ type
     Dims: TArrDims;         // an array of more dimensions (Lo..Hi is then 0..n-1)
     Ofs, Bit: Integer;
     Valid: Boolean;
+    System: Boolean;        // the start information of an OB: written by the CPU, not edited, not saved
   end;
 
   { TDataBlock }
@@ -203,6 +212,7 @@ type
     IpAddr: string;         // where the servers listen: 127.0.0.1, 0.0.0.0 (all) or an address of this PC
     Mask: string;           // the subnet mask of the interface (shown, saved)
     IpcOn: Boolean;         // the IPC server (the named pipe \\.\pipe\VirtualPLC) for programs on this PC
+    McpWrite: Boolean;      // Claude Code (MCP, through the IPC server) may change the program, download and run
   end;
 
   TIoChannel = record
@@ -271,6 +281,11 @@ type
     procedure DeleteSignal(I: Integer);
     procedure SortBlocks;
     function CyclicOB: Integer;
+    { an OB: its start information in the interface (after the CPU family changed, a load, an import) }
+    procedure SyncObIface(B: TBlock);
+    procedure SyncObIfaces;
+    function ObEventOfBlock(B: TBlock): TObEvent;
+    function ObCycleMs(B: TBlock): Integer;   // a cyclic interrupt OB: its cycle time
     procedure SaveToFile(const AFile: string);
     procedure LoadFromFile(const AFile: string);
     function ToJsonText(Pretty: Boolean = True): string;   // the project file's text
@@ -388,6 +403,7 @@ begin
   Result.IpAddr := '127.0.0.1';
   Result.Mask := '255.255.255.0';
   Result.IpcOn := False;
+  Result.McpWrite := False;
 end;
 
 function IsIPv4(const S: string): Boolean;
@@ -806,7 +822,9 @@ begin
   Iface := TDataBlock.Create(ANumber, AName);
   Iface.IsUdt := True;
   Iface.IsIface := True;
-  Iface.IsFC := AKind = bkFC;
+  // an OB as an FC: its start information (Input) in the local data, the Temps after it
+  Iface.IsFC := AKind in [bkFC, bkOB];
+  ObEvent := -1;
 end;
 
 destructor TBlock.Destroy;
@@ -1177,6 +1195,81 @@ begin
   Result.Iface.Owner := Self;
   Blocks.Add(Result);
   SortBlocks;
+  if AKind = bkOB then SyncObIface(Result);
+end;
+
+function TPlcProject.ObEventOfBlock(B: TBlock): TObEvent;
+begin
+  Result := ObEventOf(Family, B.Number, B.ObEvent);
+end;
+
+function TPlcProject.ObCycleMs(B: TBlock): Integer;
+begin
+  if B.CycleMs > 0 then Result := B.CycleMs
+  else if B.Number = CyclicOB then Result := CyclicMs
+  else Result := ObDefaultCycleMs(B.Number);
+end;
+
+{ the start information first (S7-1200 / 1500: the Input section; S7-300 / 400: the first Temps), the
+  variables of the user after it; a user variable of the same name as one of the start information goes }
+procedure TPlcProject.SyncObIface(B: TBlock);
+var
+  SV: TObStartVars;
+  Res: array of TDbVar;
+  K, J, SV2: Integer;
+  Dup: Boolean;
+
+  procedure Put(const V: TDbVar);
+  begin
+    SetLength(Res, Length(Res) + 1);
+    Res[High(Res)] := V;
+  end;
+
+  procedure PutSys(const S: TObStartVar);
+  var
+    V: TDbVar;
+  begin
+    FillChar(V, SizeOf(V), 0);
+    V.Name := S.Name;
+    V.TypeText := S.TypeText;
+    V.Comment := S.Comment;
+    if S.InputSec then V.Section := vsInput else V.Section := vsTemp;
+    V.System := True;
+    Put(V);
+  end;
+
+begin
+  if (B = nil) or (B.Kind <> bkOB) then Exit;
+  B.Iface.IsFC := True;
+  SV := ObStartInfo(Family, ObEventOfBlock(B), B.Number);
+  Res := nil;
+  for K := 0 to High(SV) do
+    if SV[K].InputSec then PutSys(SV[K]);
+  for J := 0 to 1 do
+  begin
+    if J = 1 then
+      for K := 0 to High(SV) do
+        if not SV[K].InputSec then PutSys(SV[K]);
+    for K := 0 to High(B.Iface.Vars) do
+    begin
+      if B.Iface.Vars[K].System then Continue;
+      if (B.Iface.Vars[K].Section >= vsTemp) <> (J = 1) then Continue;
+      Dup := False;
+      for SV2 := 0 to High(SV) do
+        if SameText(SV[SV2].Name, B.Iface.Vars[K].Name) then Dup := True;
+      if not Dup then Put(B.Iface.Vars[K]);
+    end;
+  end;
+  B.Iface.Vars := Res;
+  B.Iface.Layout;
+end;
+
+procedure TPlcProject.SyncObIfaces;
+var
+  K: Integer;
+begin
+  for K := 0 to BlockCount - 1 do
+    if Block(K).Kind = bkOB then SyncObIface(Block(K));
 end;
 
 procedure TPlcProject.DeleteBlock(I: Integer);
@@ -1884,11 +1977,30 @@ begin
   Result.Add('name', B.Name);
   Result.Add('comment', B.Comment);
   if B.Version <> '0.1' then Result.Add('version', B.Version);
+  if B.Kind = bkOB then
+  begin
+    // the settings of the OB's event
+    if B.ObEvent >= 0 then Result.Add('obEvent', B.ObEvent);
+    if B.CycleMs > 0 then Result.Add('cycleMs', B.CycleMs);
+    if B.PhaseMs > 0 then Result.Add('phaseMs', B.PhaseMs);
+    if B.TrigAddr <> '' then
+    begin
+      Result.Add('trigger', B.TrigAddr);
+      Result.Add('edge', B.TrigEdge);
+    end;
+    if B.TodStart <> '' then
+    begin
+      Result.Add('todStart', B.TodStart);
+      Result.Add('todMode', B.TodMode);
+      Result.Add('todActive', B.TodActive);
+    end;
+  end;
   if Length(B.Iface.Vars) > 0 then
   begin
     AVars := TJSONArray.Create;
     for K := 0 to High(B.Iface.Vars) do
     begin
+      if B.Iface.Vars[K].System then Continue;   // the start information: made again on load
       JV := TJSONObject.Create;
       JV.Add('section', SectionNames[B.Iface.Vars[K].Section]);
       JV.Add('name', B.Iface.Vars[K].Name);
@@ -2127,6 +2239,7 @@ begin
     JW.Add('ip', CommIp(Comm));
     JW.Add('mask', Comm.Mask);
     JW.Add('ipc', Comm.IpcOn);
+    JW.Add('mcpWrite', Comm.McpWrite);
     Root.Add('comm', JW);
     if Pretty then Result := Root.FormatJSON else Result := Root.AsJSON;
   finally
@@ -2193,6 +2306,14 @@ begin
         B := TBlock.Create(Kind, JB.Get('number', 1), JB.Get('name', ''));
         B.Comment := JB.Get('comment', '');
         B.Version := JB.Get('version', '0.1');
+        B.ObEvent := JB.Get('obEvent', -1);
+        B.CycleMs := JB.Get('cycleMs', 0);
+        B.PhaseMs := JB.Get('phaseMs', 0);
+        B.TrigAddr := JB.Get('trigger', '');
+        B.TrigEdge := JB.Get('edge', 0);
+        B.TodStart := JB.Get('todStart', '');
+        B.TodMode := JB.Get('todMode', 0);
+        B.TodActive := JB.Get('todActive', False);
         B.Iface.Owner := Self;
         Blocks.Add(B);
         AVars := JB.Get('interface', TJSONArray(nil));
@@ -2353,8 +2474,10 @@ begin
       Comm.AllIfaces := Comm.IpAddr = '0.0.0.0';
       Comm.Mask := JW.Get('mask', '255.255.255.0');
       Comm.IpcOn := JW.Get('ipc', False);
+      Comm.McpWrite := JW.Get('mcpWrite', False);
       if not IsIPv4(Comm.Mask) then Comm.Mask := '255.255.255.0';
     end;
+    SyncObIfaces;
     Modified := False;
   finally
     Data.Free;

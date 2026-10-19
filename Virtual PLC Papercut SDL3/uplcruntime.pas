@@ -36,7 +36,7 @@ interface
 
 uses
   {$IFDEF UNIX}cthreads,{$ENDIF}
-  Classes, SysUtils, Math, SyncObjs, fgl, uPlcTypes, uPlcProject, uPlcCompiler;
+  Classes, SysUtils, Math, SyncObjs, fgl, uPlcTypes, uPlcProject, uPlcCompiler, uObCatalog;
 
 const
   HistCycles = 256;
@@ -107,7 +107,16 @@ type
   TDiagArray = array of TDiagEntry;
 
   TPlcCmdKind = (ckRun, ckStop, ckMres, ckDownload, ckModify, ckForce, ckUnforce, ckUnforceAll,
-    ckSetModel, ckBusFault, ckClearDiag, ckPacing, ckAreaIO);
+    ckSetModel, ckBusFault, ckClearDiag, ckPacing, ckAreaIO, ckObEvent);
+
+  { what the CPU writes into the start information of an OB }
+  TObCall = record
+    EvClass, FaultId, EventType: Byte;
+    Initial, CaughtUp: Boolean;
+    Sign, Laddr: Word;
+    DTime, EventCount, Channel, CsgOb, CsgPrio, BlockNr, BlockType, Area, Width: Integer;
+    PointAddr: LongWord;
+  end;
 
   TPlcCmd = record
     Kind: TPlcCmdKind;
@@ -180,6 +189,33 @@ type
     FLastErrMs: Double;
     FCpsT0: Double;
     FCpsN: Integer;
+    { the OBs of the events: one state per Prog.Obs entry }
+    FObSt: array of record
+      NextMs, DelayDue: Double;   // cyclic: the next start; time delay: when it is due (0: not started)
+      DelaySign: Word;
+      DelayMs: Integer;
+      TodNext: TDateTime;         // time of day: the next start (0: none)
+      LastBit: Boolean;           // hardware interrupt: its input as last seen
+      Missed: Integer;
+      Initial: Boolean;
+      Runs: Int64;
+    end;
+    FObStProg: TCProgram;         // FObSt belongs to this program
+    FPend: array of record        // events of the I/O for OB82 / OB83 / OB86
+      E: TObEvent;
+      EvClass: Byte;
+    end;
+    FInErrOb, FOb80Done: Boolean;
+    FTodCheckMs: Double;
+    FPrevCycMs, FMinCycMs, FMaxCycMs: Integer;
+    function ObIndex(E: TObEvent; Number: Integer = -1): Integer;
+    procedure ObStateReset;
+    procedure WriteStartInfo(OI, Depth: Integer; const C: TObCall);
+    procedure RunObEv(OI: Integer; const C: TObCall);
+    procedure RunNested(OI: Integer; const C: TObCall);
+    function SrtDint(ObNr, DTime: Integer; Sign: Word): Integer;
+    function ErrObFor(const Msg: string): Integer;
+    procedure QueueObEvent(E: TObEvent; EvClass: Byte);
     procedure PreciseWait(Ms: Double);
     procedure ThreadLoop;
     function SclRead(const O: TOperand; DT: TDataType): Double;
@@ -296,6 +332,8 @@ type
     procedure CmdUnforceAll;
     procedure CmdSetModel(AIdx: Integer);
     procedure CmdBusFault(AOn: Boolean);
+    procedure CmdObEvent(E: TObEvent);   // I/O screen: a diagnostic interrupt (OB82), a module pulled (OB83)
+    function ObRuns(Number: Integer): Int64;   // how often the OB ran since the last startup
     procedure CmdClearDiag;
     procedure CmdPacing(P: TPacing);
     procedure FreeRetired;
@@ -815,6 +853,27 @@ begin
   Post(C);
 end;
 
+procedure TPlcRuntime.CmdObEvent(E: TObEvent);
+var
+  C: TPlcCmd;
+begin
+  C := NewCmd(ckObEvent);
+  C.Int := Ord(E);
+  Post(C);
+end;
+
+function TPlcRuntime.ObRuns(Number: Integer): Int64;
+var
+  K: Integer;
+  P: TCProgram;
+begin
+  Result := 0;
+  P := Prog;
+  if (P = nil) or (FObStProg <> P) then Exit;
+  for K := 0 to Min(High(P.Obs), High(FObSt)) do
+    if P.Obs[K].Number = Number then Exit(FObSt[K].Runs);
+end;
+
 procedure TPlcRuntime.CmdClearDiag;
 begin
   Post(NewCmd(ckClearDiag));
@@ -916,6 +975,8 @@ end;
 
 procedure TPlcRuntime.DoCommand(const C: TPlcCmd);
 var
+  Ev: TObEvent;
+  K: Integer;
   Old: TCProgram;
   Was: TRunMode;
   P: PByte;
@@ -1023,14 +1084,32 @@ begin
         if BusFault then
         begin
           DiagAdd(dkError, 'PROFINET IO: station failure (device 1 "ET200SP")');
-          if StopOnStationFailure(Model.Family) and (Mode = rmRun) then
+          if (ObIndex(oeRackFailure) >= 0) and (Mode = rmRun) then QueueObEvent(oeRackFailure, $39)
+          else if StopOnStationFailure(Model.Family) and (Mode = rmRun) then
           begin
             SysFault := True;
             GoStop('station failure, OB86 not loaded');
           end;
         end
         else
+        begin
           DiagAdd(dkInfo, 'PROFINET IO: station return (device 1 "ET200SP")');
+          if (ObIndex(oeRackFailure) >= 0) and (Mode = rmRun) then QueueObEvent(oeRackFailure, $38);
+        end;
+      end;
+    ckObEvent:
+      begin
+        // a diagnostic interrupt / a module pulled: its OB, else S7-300/400 go to STOP
+        Ev := TObEvent(EnsureRange(C.Int, 0, Ord(High(TObEvent))));
+        if Ev = oeDiagnostic then K := 82 else K := 83;
+        DiagAdd(dkError, Format('%s: module 2 (DI) at the station (OB%d)', [ObEventNames[Ev], K]));
+        if Mode <> rmRun then
+        else if ObIndex(Ev) >= 0 then QueueObEvent(Ev, $39)
+        else if StopOnStationFailure(Model.Family) then
+        begin
+          SysFault := True;
+          GoStop(Format('%s, OB%d not loaded', [ObEventNames[Ev], K]));
+        end;
       end;
     ckClearDiag:
       begin
@@ -1092,6 +1171,9 @@ begin
 end;
 
 procedure TPlcRuntime.GoRun;
+var
+  K: Integer;
+  Oc: TObCall;
 begin
   if Prog = nil then
   begin
@@ -1105,7 +1187,7 @@ begin
     StopCause := 'OB1 missing';
     Exit;
   end;
-  if StopOnStationFailure(Model.Family) and BusFault then
+  if StopOnStationFailure(Model.Family) and BusFault and (ObIndex(oeRackFailure) < 0) then
   begin
     DiagAdd(dkError, 'STOP -> RUN refused: station failure, OB86 not loaded');
     SysFault := True;
@@ -1121,20 +1203,28 @@ begin
   FErrThisCycle := 0;
   ReadInputs;
   FCycleStartMs := PlcNowMs;
-  if Prog.OB100 >= 0 then
-  begin
-    try
-      RunOB(Prog.OB100);
-    except
-      on E: Exception do
-      begin
-        SysFault := True;
-        GoStop('error in OB100: ' + E.Message);
-        Exit;
+  // the startup OBs: OB100, then the others of the event by number
+  ObStateReset;
+  FPrevCycMs := 0;
+  FMinCycMs := 0;
+  FMaxCycMs := 0;
+  for K := 0 to High(Prog.Obs) do
+    if Prog.Obs[K].Event = oeStartup then
+    begin
+      try
+        FillChar(Oc, SizeOf(Oc), 0);
+        Oc.EvClass := $13;
+        RunObEv(K, Oc);
+      except
+        on E: Exception do
+        begin
+          SysFault := True;
+          GoStop(Format('error in OB%d: %s', [Prog.Obs[K].Number, E.Message]));
+          Exit;
+        end;
       end;
+      if Mode = rmStop then Exit;
     end;
-    if Mode = rmStop then Exit;
-  end;
   Mode := rmRun;
   FNextCycMs := PlcNowMs + Max(1, Prog.CyclicMs);
   HostMinUs := 1E9;
@@ -2501,6 +2591,7 @@ end;
 const
   stLimitK = 0;
   stSelK = 1;
+  stSrtDintK = 4;
   suNeg = 0; suNotBits = 2; suAbs = 3; suRound = 14; suTrunc = 15; suCeil = 16; suFloor = 17; suWrap = 18;
   suBool = 19;
 
@@ -2909,41 +3000,369 @@ begin
   ExecBlock(BI);
 end;
 
-procedure TPlcRuntime.CheckCyclic;
+{ ---------- the OBs of the events ---------- }
+
+function TPlcRuntime.ObIndex(E: TObEvent; Number: Integer): Integer;
+var
+  K: Integer;
+begin
+  Result := -1;
+  if Prog = nil then Exit;
+  for K := 0 to High(Prog.Obs) do
+    if (Prog.Obs[K].Event = E) and ((Number < 0) or (Prog.Obs[K].Number = Number)) then Exit(K);
+end;
+
+{ the next start of a time of day OB after T0 }
+function TodAdvance(Start, Nw: TDateTime; Mode: Integer): TDateTime;
+var
+  P: Double;
+  N: Int64;
+begin
+  case Mode of
+    1: P := 1 / 1440;
+    2: P := 1 / 24;
+    3: P := 1;
+    4: P := 7;
+  else
+    P := 0;
+  end;
+  Result := Start;
+  if P > 0 then
+  begin
+    if Result <= Nw then
+    begin
+      N := Trunc((Nw - Start) / P) + 1;
+      Result := Start + N * P;
+    end;
+  end
+  else if Mode in [5, 6] then
+  begin
+    N := 0;
+    while (Result <= Nw) and (N < 100000) do
+    begin
+      Inc(N);
+      if Mode = 5 then Result := IncMonth(Start, N) else Result := IncMonth(Start, 12 * N);
+    end;
+  end
+  else if Result <= Nw then Result := 0;   // once: gone
+end;
+
+procedure TPlcRuntime.ObStateReset;
+var
+  K: Integer;
+  T: Double;
+  Nw: TDateTime;
+begin
+  FObStProg := Prog;
+  FPend := nil;
+  if Prog = nil then
+  begin
+    FObSt := nil;
+    Exit;
+  end;
+  SetLength(FObSt, Length(Prog.Obs));
+  T := PlcNowMs;
+  Nw := SysUtils.Now;
+  for K := 0 to High(Prog.Obs) do
+    with Prog.Obs[K] do
+    begin
+      FObSt[K].NextMs := T + PhaseMs + CycleMs;
+      FObSt[K].DelayDue := 0;
+      FObSt[K].DelaySign := 0;
+      FObSt[K].DelayMs := 0;
+      FObSt[K].Missed := 0;
+      FObSt[K].Initial := True;
+      FObSt[K].Runs := 0;
+      FObSt[K].LastBit := TrigOk and (TrigOfs < Length(SimIn)) and ((SimIn[TrigOfs] shr TrigBit) and 1 <> 0);
+      FObSt[K].TodNext := 0;
+      if (Event = oeTimeOfDay) and TodOk and TodActive then FObSt[K].TodNext := TodAdvance(TodStart, Nw, TodMode);
+    end;
+  FTodCheckMs := 0;
+end;
+
+{ the start information of the OB into its local data }
+procedure TPlcRuntime.WriteStartInfo(OI, Depth: Integer; const C: TObCall);
+var
+  K, Ofs: Integer;
+  B: TCBlock;
+  V: Int64;
+  Q8: QWord;
+  J: Integer;
+begin
+  B := Prog.Blocks[Prog.Obs[OI].BI];
+  for K := 0 to High(B.StartInfo) do
+  begin
+    Ofs := Depth * LFrame + B.StartInfo[K].Ofs;
+    if (Ofs < 0) or (Ofs + 8 > Length(L)) then Continue;
+    with Prog.Obs[OI] do
+      case B.StartInfo[K].Key of
+        'EV_CLASS': V := C.EvClass;
+        'SCAN_1': V := IfThen(C.Initial, 1, 3);
+        'STRT_INF': if Event = oeCyclic then V := $30 + Number mod 10 else V := $10 + Number mod 16;
+        'STRTUP': V := $81;
+        'FLT_ID', 'SW_FLT', 'FAULT_ID': V := C.FaultId;
+        'PRIORITY': V := Prio;
+        'OB_NUMBR': V := Number;
+        'PREV_CYCLE': V := FPrevCycMs;
+        'MIN_CYCLE': V := FMinCycMs;
+        'MAX_CYCLE': V := FMaxCycMs;
+        'INITIAL_CALL': V := Ord(C.Initial);
+        'CAUGHTUP': V := Ord(C.CaughtUp);
+        'SIGN': V := C.Sign;
+        'DTIME': V := C.DTime;
+        'EVENT_COUNT': V := C.EventCount;
+        'PHASE_OFFSET': V := PhaseMs;
+        'EXC_FREQ': V := CycleMs;
+        'LADDR', 'MDL_ADDR': V := C.Laddr;
+        'ICHANNEL', 'CHANNEL': V := C.Channel;
+        'EVENTTYPE': V := C.EventType;
+        'POINT_ADDR': V := C.PointAddr;
+        'IO_FLAG': V := $54;
+        'EVENT_CLASS': V := C.EvClass;
+        'CSG_OBNR', 'OB_NUM': V := C.CsgOb;
+        'CSG_PRIO', 'OB_PRIORITY': V := C.CsgPrio;
+        'BLOCKNR', 'BLK_NUM': V := C.BlockNr;
+        'BLOCKTYPE', 'BLK_TYPE': V := C.BlockType;
+        'AREA', 'MEM_AREA': V := C.Area;
+        'WIDTH': V := C.Width;
+        'REACTION': V := 2;
+        'ERROR_INFO', 'ERR_EV_NUM', 'RACKS_FLTD', 'IO_STATE': V := 1;
+        'ERR_EV_CLASS': V := $11;
+        'PERIOD_EXE': V := TodMode;
+      else
+        V := 0;
+      end;
+    case B.StartInfo[K].DType of
+      dtBool:
+        if V <> 0 then L[Ofs] := L[Ofs] or (1 shl B.StartInfo[K].Bit)
+        else L[Ofs] := L[Ofs] and not (1 shl B.StartInfo[K].Bit);
+      dtByte, dtSInt, dtUSInt, dtChar: L[Ofs] := V and $FF;
+      dtWord, dtInt, dtUInt:
+        begin
+          L[Ofs] := (V shr 8) and $FF;
+          L[Ofs + 1] := V and $FF;
+        end;
+      dtDWord, dtDInt, dtUDInt, dtTime:
+        for J := 0 to 3 do L[Ofs + J] := (V shr (8 * (3 - J))) and $FF;
+      dtDT:
+        begin
+          // the date and time the OB starts (the PC clock)
+          Q8 := EncodeDT(Round((SysUtils.Now - EncodeDate(1990, 1, 1)) * 86400000));
+          for J := 0 to 7 do L[Ofs + J] := (Q8 shr (8 * (7 - J))) and $FF;
+        end;
+    end;
+  end;
+end;
+
+{ an OB of the cycle or of the startup: at the bottom of the block stack }
+procedure TPlcRuntime.RunObEv(OI: Integer; const C: TObCall);
+begin
+  FDepth := 0;
+  FNestN := 0;
+  FSp := 0;
+  FSSp := 0;
+  FCtx.FC := False;
+  FCtx.ORb := False;
+  FCtx.RLO := False;
+  FCtx.DBReg := 0;
+  FCtx.DIReg := 0;
+  FCtx.DIOfs := 0;
+  WriteStartInfo(OI, 0, C);
+  if OI <= High(FObSt) then Inc(FObSt[OI].Runs);
+  ExecBlock(Prog.Obs[OI].BI);
+end;
+
+{ an OB that interrupts the running block: transparent for it (its state is kept) }
+procedure TPlcRuntime.RunNested(OI: Integer; const C: TObCall);
 var
   Saved: TCtx;
-  SavedNest: Integer;
-  SavedDepth: Integer;
-  Now: Double;
+  SavedNest, SavedDepth, SavedSp, SavedSSp: Integer;
+  SavedSt: array[0..255] of Double;
+  SavedSti: array[0..255] of Int64;
+  SavedReg: array[0..15] of Double;
+  SavedRegI: array[0..15] of Int64;
+  SavedPin, SavedPout: array[0..MaxLadRows - 1] of Boolean;
+  SavedLast: Double;
+  ErrOb: Boolean;
 begin
-  if FInCyclic or (Prog = nil) or (Prog.OBCyc < 0) or (Mode <> rmRun) then Exit;
-  Now := PlcNowMs;
-  if Now < FNextCycMs then Exit;
-  if Now - FNextCycMs > Prog.CyclicMs then
-  begin
-    Inc(CycLate);
-    FNextCycMs := Now;
-  end;
-  FNextCycMs := FNextCycMs + Max(1, Prog.CyclicMs);
-  // the interrupt is transparent for the interrupted block
+  if FDepth >= MaxDepth - 1 then raise EPlcFatal.Create('Block stack overflow: an OB could not interrupt');
   Saved := FCtx;
   SavedNest := FNestN;
   SavedDepth := FDepth;
-  FInCyclic := True;
+  SavedSp := FSp;
+  SavedSSp := FSSp;
+  SavedSt := FSt;
+  SavedSti := FSti;
+  SavedReg := FReg;
+  SavedRegI := FRegI;
+  SavedPin := FPin;
+  SavedPout := FPout;
+  SavedLast := FSclLast;
+  ErrOb := Prog.Obs[OI].Event in [oeProgError, oeIoAccess, oeTimeError];
+  if ErrOb then FInErrOb := True;
   try
     Inc(FDepth);
-    FCurBlock[FDepth] := Prog.OBCyc;
+    FCurBlock[FDepth] := Prog.Obs[OI].BI;
     FCtx.FC := False;
     FCtx.ORb := False;
     FCtx.DBReg := 0;
     FNestN := 0;
-    ExecBlock(Prog.OBCyc);
-    Inc(CycCount);
+    WriteStartInfo(OI, FDepth, C);
+    if OI <= High(FObSt) then Inc(FObSt[OI].Runs);
+    ExecBlock(Prog.Obs[OI].BI);
   finally
-    FInCyclic := False;
+    if ErrOb then FInErrOb := False;
     FDepth := SavedDepth;
     FNestN := SavedNest;
     FCtx := Saved;
+    FSp := SavedSp;
+    FSSp := SavedSSp;
+    FSt := SavedSt;
+    FSti := SavedSti;
+    FReg := SavedReg;
+    FRegI := SavedRegI;
+    FPin := SavedPin;
+    FPout := SavedPout;
+    FSclLast := SavedLast;
+  end;
+end;
+
+{ SRT_DINT: a time delay interrupt OB DTIME ms later (DTime < 0: CAN_DINT); RET_VAL }
+function TPlcRuntime.SrtDint(ObNr, DTime: Integer; Sign: Word): Integer;
+var
+  K: Integer;
+begin
+  K := ObIndex(oeTimeDelay, ObNr);
+  if K < 0 then Exit(-32624);   // 16#8090: no time delay OB of that number
+  if FObStProg <> Prog then ObStateReset;
+  if DTime < 0 then
+  begin
+    if FObSt[K].DelayDue > 0 then
+    begin
+      FObSt[K].DelayDue := 0;
+      Exit(0);
+    end;
+    Exit(-32608);   // 16#80A0: not started
+  end;
+  if (DTime < 1) or (DTime > 60000) then Exit(-32623);   // 16#8091: DTIME out of range
+  FObSt[K].DelayDue := PlcNowMs + DTime;
+  FObSt[K].DelaySign := Sign;
+  FObSt[K].DelayMs := DTime;
+  Result := 0;
+end;
+
+{ the error OB for a programming error: OB122 for an I/O access (PI / PQ), else OB121 }
+function TPlcRuntime.ErrObFor(const Msg: string): Integer;
+begin
+  if (Pos('PI', Msg) > 0) or (Pos('PQ', Msg) > 0) or (Pos('peripheral', Msg) > 0) then
+    Result := ObIndex(oeIoAccess)
+  else
+    Result := ObIndex(oeProgError);
+end;
+
+procedure TPlcRuntime.QueueObEvent(E: TObEvent; EvClass: Byte);
+begin
+  SetLength(FPend, Length(FPend) + 1);
+  FPend[High(FPend)].E := E;
+  FPend[High(FPend)].EvClass := EvClass;
+end;
+
+{ between the networks of the cycle and after each program cycle OB: the interrupts that are due }
+procedure TPlcRuntime.CheckCyclic;
+var
+  K, J: Integer;
+  Tn: Double;
+  Nw: TDateTime;
+  Oc: TObCall;
+  Bit, Due: Boolean;
+  E: TObEvent;
+  Ec: Byte;
+begin
+  if FInCyclic or FInErrOb or (Prog = nil) or (Mode <> rmRun) then Exit;
+  if FObStProg <> Prog then ObStateReset;
+  Tn := PlcNowMs;
+  FInCyclic := True;
+  try
+    // the events of the I/O: OB82, OB83, OB86
+    while Length(FPend) > 0 do
+    begin
+      E := FPend[0].E;
+      Ec := FPend[0].EvClass;
+      for J := 0 to High(FPend) - 1 do FPend[J] := FPend[J + 1];
+      SetLength(FPend, High(FPend));
+      K := ObIndex(E);
+      if K < 0 then Continue;
+      FillChar(Oc, SizeOf(Oc), 0);
+      Oc.EvClass := Ec;
+      Oc.FaultId := IfThen(E = oeRackFailure, $C4, $51);
+      Oc.Laddr := 268;
+      RunNested(K, Oc);
+      if Mode <> rmRun then Exit;
+    end;
+    for K := 0 to High(Prog.Obs) do
+    begin
+      FillChar(Oc, SizeOf(Oc), 0);
+      Oc.EvClass := $11;
+      Due := False;
+      with Prog.Obs[K] do
+        case Event of
+          oeHardware:
+            if TrigOk and (TrigOfs < Length(SimIn)) then
+            begin
+              Bit := (SimIn[TrigOfs] shr TrigBit) and 1 <> 0;
+              if Bit <> FObSt[K].LastBit then
+              begin
+                FObSt[K].LastBit := Bit;
+                Due := (TrigEdge = 2) or ((TrigEdge = 0) and Bit) or ((TrigEdge = 1) and not Bit);
+                if Bit then Oc.EventType := 1 else Oc.EventType := 2;
+                Oc.Laddr := TrigOfs;
+                Oc.Channel := TrigBit;
+                Oc.PointAddr := LongWord(1) shl TrigBit;
+              end;
+            end;
+          oeCyclic:
+            if Tn >= FObSt[K].NextMs then
+            begin
+              if Tn - FObSt[K].NextMs > CycleMs then
+              begin
+                Inc(FObSt[K].Missed);
+                if BI = Prog.OBCyc then Inc(CycLate);
+                FObSt[K].NextMs := Tn;
+              end;
+              FObSt[K].NextMs := FObSt[K].NextMs + CycleMs;
+              Oc.Initial := FObSt[K].Initial;
+              Oc.EventCount := FObSt[K].Missed;
+              FObSt[K].Initial := False;
+              FObSt[K].Missed := 0;
+              Due := True;
+              if BI = Prog.OBCyc then Inc(CycCount);
+            end;
+          oeTimeDelay:
+            if (FObSt[K].DelayDue > 0) and (Tn >= FObSt[K].DelayDue) then
+            begin
+              FObSt[K].DelayDue := 0;
+              Oc.Sign := FObSt[K].DelaySign;
+              Oc.DTime := FObSt[K].DelayMs;
+              Due := True;
+            end;
+          oeTimeOfDay:
+            if (FObSt[K].TodNext > 0) and (Tn - FTodCheckMs >= 50) then
+            begin
+              Nw := SysUtils.Now;
+              if Nw >= FObSt[K].TodNext then
+              begin
+                Oc.CaughtUp := Nw - FObSt[K].TodNext > 2 / 86400;
+                FObSt[K].TodNext := TodAdvance(TodStart, Nw, TodMode);
+                Due := True;
+              end;
+            end;
+        end;
+      if Due then RunNested(K, Oc);
+      if Mode <> rmRun then Exit;
+    end;
+    if Tn - FTodCheckMs >= 50 then FTodCheckMs := Tn;
+  finally
+    FInCyclic := False;
   end;
 end;
 
@@ -2963,6 +3382,7 @@ end;
 
 procedure TPlcRuntime.ExecBlock(BI: Integer);
 var
+  ObC: TObCall;
   B: TCBlock;
   Pc, NOps, Bits, Cnt, K: Integer;
   Op: ^TOp;
@@ -3215,8 +3635,28 @@ begin
     if FOpsCount and 1023 = 0 then
       if PlcNowMs - FCycleStartMs > Model.WatchdogMs then
       begin
-        if FErrWhere = '' then FErrWhere := WhereStr;
-        raise EPlcFatal.Create(Format('Cycle time exceeded (%d ms), OB80 not loaded', [Model.WatchdogMs]));
+        Ix := ObIndex(oeTimeError);
+        if (Ix >= 0) and not FOb80Done and not FInErrOb then
+        begin
+          // OB80: the CPU stays in RUN, the cycle time starts again (once)
+          FOb80Done := True;
+          DiagAdd(dkError, Format('Cycle time exceeded (%d ms): OB80 started%s', [Model.WatchdogMs, WhereStr]));
+          FillChar(ObC, SizeOf(ObC), 0);
+          ObC.EvClass := $35;
+          ObC.FaultId := 1;
+          ObC.CsgOb := Prog.Blocks[FCurBlock[0]].Number;
+          ObC.CsgPrio := 1;
+          RunNested(Ix, ObC);
+          FCycleStartMs := PlcNowMs;
+        end
+        else
+        begin
+          if FErrWhere = '' then FErrWhere := WhereStr;
+          if FOb80Done then
+            raise EPlcFatal.Create(Format('Cycle time exceeded twice (%d ms): STOP', [Model.WatchdogMs]))
+          else
+            raise EPlcFatal.Create(Format('Cycle time exceeded (%d ms), OB80 not loaded', [Model.WatchdogMs]));
+        end;
       end;
     try
       case Op^.Code of
@@ -3987,6 +4427,8 @@ begin
             end
             else if (Op^.Sub = stLimitK) and (Op^.DType in Int64Types) then
               SPushI(SclBin64(18, Op^.DType, SclBin64(19, Op^.DType, Q9, Q7), Q8))
+            else if Op^.Sub = stSrtDintK then
+              SPush(SrtDint(Round(D2), Round(Now), Round(D1) and $FFFF))
             else
               SPush(SclTern(Op^.Sub, Op^.DType, D2, Now, D1));
           end;
@@ -4325,6 +4767,26 @@ begin
           ProgError(Ex.Message);
           ErrorUntilMs := PlcNowMs + 3000;
         end
+        else if not FInErrOb and (ErrObFor(Ex.Message) >= 0) then
+        begin
+          // OB121 / OB122: started, then the program goes on after the instruction
+          Ix := ErrObFor(Ex.Message);
+          ProgError(Format('%s (OB%d)', [Ex.Message, Prog.Obs[Ix].Number]));
+          ErrorUntilMs := PlcNowMs + 3000;
+          FillChar(ObC, SizeOf(ObC), 0);
+          ObC.EvClass := $25;
+          if Pos('writing', Ex.Message) > 0 then ObC.FaultId := $25 else ObC.FaultId := $24;
+          ObC.BlockNr := B.Number;
+          case B.Kind of
+            bkOB: ObC.BlockType := IfThen(IsTia(Model.Family), 1, $88);
+            bkFC: ObC.BlockType := IfThen(IsTia(Model.Family), 2, $8C);
+          else
+            ObC.BlockType := IfThen(IsTia(Model.Family), 3, $8E);
+          end;
+          ObC.CsgOb := Prog.Blocks[FCurBlock[0]].Number;
+          ObC.CsgPrio := 1;
+          RunNested(Ix, ObC);
+        end
         else
         begin
           if FErrWhere = '' then FErrWhere := WhereStr;
@@ -4355,6 +4817,8 @@ end;
 
 procedure TPlcRuntime.RunCycle;
 var
+  K: Integer;
+  Oc: TObCall;
   T0, T1: Double;
   Us: Double;
   C: TTimeCat;
@@ -4367,9 +4831,21 @@ begin
   FCycleStartMs := T0;
   ReadInputs;
   UpdateClock(T0);
+  FOb80Done := False;
+  if FObStProg <> Prog then ObStateReset;
   try
-    RunOB(Prog.OB1);
-    CheckCyclic;
+    // OB1, then the other program cycle OBs by number
+    for K := 0 to High(Prog.Obs) do
+      if Prog.Obs[K].Event = oeProgramCycle then
+      begin
+        FillChar(Oc, SizeOf(Oc), 0);
+        Oc.EvClass := $11;
+        Oc.Initial := FObSt[K].Initial;
+        FObSt[K].Initial := False;
+        RunObEv(K, Oc);
+        CheckCyclic;
+        if Mode <> rmRun then Break;
+      end;
   except
     on E: Exception do
     begin
@@ -4386,6 +4862,10 @@ begin
   end;
   WriteOutputs;
   T1 := PlcNowMs;
+  // OB1 (S7-300/400): the cycle times in ms
+  FPrevCycMs := Round(T1 - T0);
+  if (FMinCycMs = 0) or (FPrevCycMs < FMinCycMs) then FMinCycMs := Max(1, FPrevCycMs);
+  if FPrevCycMs > FMaxCycMs then FMaxCycMs := FPrevCycMs;
   Inc(CycleNo);
   OpsLastCycle := FOpsCount;
   HostUs := (T1 - T0) * 1000;

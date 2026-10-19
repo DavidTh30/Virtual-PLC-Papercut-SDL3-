@@ -902,6 +902,7 @@ var
   Pt, Pp: TPointF;
   Pc: PChar;
   S0, S1, S2, S3: string;
+  Blk: TBlock;
   Ok: Boolean;
 begin
   if (Length(FShots) = 0) and (GetEnvironmentVariable('VPLC_THAI_TEST') <> '') then
@@ -920,6 +921,26 @@ begin
     Add(5, 'chatattach', 'shots/claude_chat.pdf');
     Add(5, 'chatattach', 'README.md');
     Add(10, 'chatshot', 'claude_thai_3_files');
+    Add(5, 'quit');
+    FShotPos := 0;
+    FShotWait := FShots[0].Wait;
+    Exit;
+  end;
+  if (Length(FShots) = 0) and (GetEnvironmentVariable('VPLC_MCP_TEST') <> '') then
+  begin
+    // Claude Code through MCP (test\mcptest.py drives mcpplc_mcp.py meanwhile): IPC on, read only; then the
+    // permission to change the program
+    Add(10, 'sample', '13');
+    Add(10, 'run');
+    Add(5, 'screen', '6');
+    Add(10, 'uiclick2', 'ipcon:0');
+    Add(300, 'shot', 'mcp_1_read_only');
+    Add(5, 'uiclick2', 'mcpwrite:0');
+    Add(600, 'shot', 'mcp_2_changes_allowed');
+    Add(5, 'screen', '1');
+    Add(20, 'shot', 'mcp_3_network_written');
+    Add(5, 'uiclick2', 'mcpwrite:0');
+    Add(5, 'uiclick2', 'ipcon:0');
     Add(5, 'quit');
     FShotPos := 0;
     FShotWait := FShots[0].Wait;
@@ -1125,6 +1146,366 @@ begin
     Add(30, 'ipc', 'iohelpform');
     Add(5, 'ipc', 'iohelppdf');
     Add(5, 'ipc', 'iohelpclose');
+    Add(5, 'quit');
+    FShotPos := 0;
+    FShotWait := FShots[0].Wait;
+    Exit;
+  end;
+  if (Length(FShots) = 0) and (GetEnvironmentVariable('VPLC_VIEWS_TEST') <> '') then
+  begin
+    // the I/O list; symbol / address / both in the watch table and the data blocks
+    DeleteFile(FShotDir + 'views_check.txt');
+    Add(10, 'ipc', 'ex 2');
+    Add(10, 'fkey', '8');
+    Add(30, 'fkey', '5');
+    Add(5, 'screen', '2');
+    Add(10, 'uiclick2', 'ioview:3');
+    Add(30, 'shot', 'views_1_io_list');
+    Add(5, 'vw', 'dump io');
+    Add(5, 'uiclick2', 'iolistfil:2');
+    Add(20, 'shot', 'views_2_io_outputs');
+    Add(5, 'uiclick2', 'iolistrow:5');
+    Add(20, 'vw', 'xref');
+    Add(5, 'xref', 'close');
+    Add(5, 'screen', '3');
+    Add(5, 'vw', 'watch 1');
+    Add(20, 'shot', 'views_3_watch_symbol');
+    Add(5, 'vw', 'dump watch');
+    Add(5, 'vw', 'watch 2');
+    Add(20, 'shot', 'views_4_watch_address');
+    Add(5, 'vw', 'dump watch');
+    Add(5, 'vw', 'watch 0');
+    Add(5, 'screen', '4');
+    Add(5, 'vw', 'db 1');
+    Add(20, 'shot', 'views_5_db_address');
+    Add(5, 'vw', 'db 2');
+    Add(20, 'shot', 'views_6_db_both');
+    Add(5, 'vw', 'db 0');
+    Add(5, 'quit');
+    FShotPos := 0;
+    FShotWait := FShots[0].Wait;
+    Exit;
+  end;
+  if (Length(FShots) = 0) and (GetEnvironmentVariable('VPLC_WATCHOPT_TEST') <> '') then
+  begin
+    // the watch table on an S7-1500: an optimized DB (no absolute addresses), an element of an array of structs
+    DeleteFile(FShotDir + 'watchstruct_check.txt');
+    Add(10, 'ipc', 'ex 33');
+    Add(10, 'grp', 'dbimport test/types_dbs.scl');
+    Add(5, 'ws', 'dbvar Plant Devs Array[0..1] of "Valve_T"');
+    Add(5, 'ws', 'add "Plant".Devs[0]');
+    Add(5, 'ws', 'add "Plant".Inlet');
+    Add(5, 'ws', 'open "Plant".Devs[0]');
+    Add(5, 'ws', 'open "Plant".Inlet');
+    Add(10, 'fkey', '8');
+    Add(30, 'fkey', '5');
+    Add(5, 'screen', '3');
+    Add(40, 'shot', 'watchopt_1_optimized');
+    Add(5, 'ws', 'dump');
+    Add(5, 'uiclick2', 'dbjump:2');
+    Add(20, 'shot', 'watchopt_2_db_button');
+    Add(5, 'uiclick2', 'dbopt:0');
+    Add(20, 'shot', 'watchopt_3_db_standard');
+    Add(10, 'fkey', '8');
+    Add(20, 'screen', '3');
+    Add(30, 'shot', 'watchopt_4_watch_addresses');
+    Add(5, 'ws', 'dump');
+    Add(5, 'quit');
+    FShotPos := 0;
+    FShotWait := FShots[0].Wait;
+    Exit;
+  end;
+  if (Length(FShots) = 0) and (GetEnvironmentVariable('VPLC_WATCHSTRUCT_TEST') <> '') then
+  begin
+    // the watch table: a struct row opens to its members with their absolute addresses, deeper
+    DeleteFile(FShotDir + 'watchstruct_check.txt');
+    Add(10, 'ipc', 'ex 2');
+    Add(10, 'grp', 'dbimport test/types_dbs.scl');
+    Add(5, 'ws', 'add "Plant".Inlet');
+    Add(5, 'ws', 'add "Plant".Recipe');
+    Add(5, 'ws', 'open "Plant".Inlet');
+    Add(5, 'ws', 'open "Plant".Recipe');
+    Add(5, 'ws', 'open "Plant".Recipe.Steps');
+    Add(10, 'fkey', '8');
+    Add(30, 'fkey', '5');
+    Add(5, 'screen', '3');
+    Add(10, 'ws', 'scroll 12');
+    Add(40, 'shot', 'watchstruct_1_members');
+    Add(5, 'ws', 'dump');
+    Add(5, 'quit');
+    FShotPos := 0;
+    FShotWait := FShots[0].Wait;
+    Exit;
+  end;
+  if (Length(FShots) = 0) and (GetEnvironmentVariable('VPLC_IFSTRUCT_TEST') <> '') then
+  begin
+    // the editor's interface: a struct / an array / a timer opens to its members, deeper; a member dragged
+    DeleteFile(FShotDir + 'ifstruct_check.txt');
+    Add(10, 'ipc', 'ex 29');
+    Add(10, 'grp', 'dbimport test/types_dbs.scl');
+    Add(5, 'screen', '1');
+    Add(10, 'uiclick2', 'block:1');
+    Add(5, 'ifs', 'add Static Valve "Valve_T"');
+    Add(5, 'ifs', 'add Static Valves Array[0..2] of "Valve_T"');
+    Add(5, 'ifs', 'add Static Rcp "Recipe_T"');
+    Add(10, 'ifs', 'dump');
+    Add(5, 'ifs', 'scroll 300');
+    Add(10, 'uiclick2', 'ifopen:23');
+    Add(20, 'shot', 'ifstruct_1_valve_open');
+    Add(5, 'ifs', 'open #MotorCtrl.Valves');
+    Add(5, 'ifs', 'open #MotorCtrl.Valves[1]');
+    Add(5, 'ifs', 'open #MotorCtrl.Rcp');
+    Add(5, 'ifs', 'open #MotorCtrl.Rcp.Steps');
+    Add(10, 'fkey', '8');
+    Add(30, 'fkey', '5');
+    Add(5, 'screen', '1');
+    Add(10, 'pick', 'caret 0 0');
+    Add(5, 'ifs', 'scroll 720');
+    Add(30, 'shot', 'ifstruct_2_members');
+    Add(5, 'ifs', 'dump');
+    Add(5, 'ifs', 'drag #Valves[1].Position');
+    Add(20, 'shot', 'ifstruct_3_dragged');
+    Add(5, 'ifs', 'code');
+    Add(5, 'quit');
+    FShotPos := 0;
+    FShotWait := FShots[0].Wait;
+    Exit;
+  end;
+  if (Length(FShots) = 0) and (GetEnvironmentVariable('VPLC_STRUCT_TEST') <> '') then
+  begin
+    // Data blocks: a struct opens to its members, deeper (a struct in a struct, an array in a struct)
+    DeleteFile(FShotDir + 'struct_check.txt');
+    Add(10, 'ipc', 'ex 2');
+    Add(5, 'screen', '4');
+    Add(10, 'grp', 'dbimport test/types_dbs.scl');
+    Add(10, 'uiclick2', 'db:2');
+    Add(10, 'st', 'open Plant.Inlet');
+    Add(5, 'st', 'open Plant.Recipe');
+    Add(5, 'st', 'open Plant.Recipe.Steps');
+    Add(10, 'fkey', '8');
+    Add(30, 'fkey', '5');
+    Add(40, 'shot', 'struct_1_members');
+    Add(5, 'st', 'dump');
+    Add(5, 'quit');
+    FShotPos := 0;
+    FShotWait := FShots[0].Wait;
+    Exit;
+  end;
+  if (Length(FShots) = 0) and (GetEnvironmentVariable('VPLC_WATCHDRAG_TEST') <> '') then
+  begin
+    // the watch table from the mouse: a tag before row 1, a whole DB at the end
+    DeleteFile(FShotDir + 'watchdrag_check.txt');
+    Add(10, 'ipc', 'ex 33');
+    Add(10, 'fkey', '8');
+    Add(20, 'fkey', '5');
+    Add(5, 'screen', '3');
+    Add(10, 'uiclick2', 'watchright:1');
+    Add(20, 'shot', 'watchdrag_1_panel');
+    Add(5, 'wd', 'dump');
+    Add(5, 'wd', 'drag 2 0');
+    Add(10, 'wd', 'dump');
+    Add(5, 'uiclick2', 'picksrc:1');
+    Add(10, 'wd', 'drag 0 99');
+    Add(30, 'shot', 'watchdrag_2_db_added');
+    Add(5, 'wd', 'dump');
+    Add(5, 'quit');
+    FShotPos := 0;
+    FShotWait := FShots[0].Wait;
+    Exit;
+  end;
+  if (Length(FShots) = 0) and (GetEnvironmentVariable('VPLC_XREFCLOSE_TEST') <> '') then
+  begin
+    // the cross reference closes: its button, Esc (also in its field), a click beside it
+    DeleteFile(FShotDir + 'xref_check.txt');
+    Add(10, 'ipc', 'ex 2');
+    Add(5, 'screen', '1');
+    Add(10, 'uiclick2', 'block:0');
+    Add(10, 'ide', 'caret 0 2 Motor');
+    Add(10, 'fkey', '11');
+    Add(20, 'shot', 'xrefclose_1_open');
+    Add(5, 'uiclick2', 'xrefclose:0');
+    Add(10, 'xref', 'where');
+    Add(5, 'fkey', '11');
+    Add(10, 'uiclick2', 'xreffield:0');
+    Add(5, 'xref', 'esc');
+    Add(10, 'xref', 'where');
+    Add(5, 'fkey', '11');
+    Add(10, 'xref', 'outside');
+    Add(10, 'xref', 'where');
+    Add(5, 'fkey', '11');
+    Add(10, 'xref', 'inside');
+    Add(10, 'xref', 'where');
+    Add(5, 'quit');
+    FShotPos := 0;
+    FShotWait := FShots[0].Wait;
+    Exit;
+  end;
+  if (Length(FShots) = 0) and (GetEnvironmentVariable('VPLC_XREF_TEST') <> '') then
+  begin
+    // the cross reference: F11 at the caret, the filters, a jump; from I/O, tags, a DB variable, the interface
+    DeleteFile(FShotDir + 'xref_check.txt');
+    Add(10, 'ipc', 'ex 2');
+    Add(5, 'screen', '1');
+    Add(10, 'uiclick2', 'block:0');
+    Add(10, 'ide', 'caret 0 2 Motor');
+    Add(10, 'fkey', '11');
+    Add(30, 'shot', 'xref_1_editor_f11');
+    Add(5, 'xref', 'dump');
+    Add(5, 'uiclick2', 'xreffilter:2');
+    Add(20, 'shot', 'xref_2_destinations');
+    Add(5, 'xref', 'jump write');
+    Add(30, 'shot', 'xref_3_jumped');
+    Add(5, 'xref', 'where');
+    Add(5, 'screen', '2');
+    Add(10, 'uirclick', 'ioout:0');
+    Add(10, 'uiclick2', 'ctx:0');
+    Add(20, 'shot', 'xref_4_from_io');
+    Add(5, 'xref', 'dump');
+    Add(5, 'xref', 'close');
+    Add(5, 'screen', '5');
+    Add(10, 'uirclick', 'tagsel:11');
+    Add(10, 'uiclick2', 'ctx:0');
+    Add(20, 'shot', 'xref_5_from_tags');
+    Add(5, 'xref', 'dump');
+    Add(5, 'xref', 'close');
+    Add(5, 'screen', '4');
+    Add(10, 'uirclick', 'varsel:0');
+    Add(10, 'uiclick2', 'ctx:0');
+    Add(20, 'shot', 'xref_6_from_db');
+    Add(5, 'xref', 'dump');
+    Add(5, 'xref', 'close');
+    Add(5, 'screen', '1');
+    Add(10, 'uiclick2', 'block:5');
+    Add(20, 'uirclick', 'ifrow:0');
+    Add(10, 'uiclick2', 'ctx:0');
+    Add(20, 'shot', 'xref_7_from_interface');
+    Add(5, 'xref', 'dump');
+    Add(5, 'quit');
+    FShotPos := 0;
+    FShotWait := FShots[0].Wait;
+    Exit;
+  end;
+  if (Length(FShots) = 0) and (GetEnvironmentVariable('VPLC_ARRAY_TEST') <> '') then
+  begin
+    // Data blocks: Array of Bool / Word from the type list, an array opened, start values of elements
+    DeleteFile(FShotDir + 'array_check.txt');
+    Add(10, 'ipc', 'ex 33');
+    Add(5, 'screen', '4');
+    Add(10, 'arr', 'add Flags');
+    Add(10, 'arr', 'add Words');
+    Add(5, 'arr', 'scroll 10');
+    Add(10, 'uiclick2', 'vartype:22');
+    Add(10, 'arr', 'pick Array[..]');
+    Add(20, 'shot', 'array_1_element_types');
+    Add(5, 'arr', 'pick Array[0..9] of Bool');
+    Add(10, 'uiclick2', 'vartype:23');
+    Add(10, 'arr', 'pick Array[..]');
+    Add(10, 'arr', 'pick Array[0..9] of Word');
+    Add(10, 'arr', 'open 22');
+    Add(5, 'arr', 'open 23');
+    Add(10, 'arr', 'start 22 3 TRUE');
+    Add(5, 'arr', 'start 22 7 TRUE');
+    Add(5, 'arr', 'start 23 5 16#00FF');
+    Add(5, 'arr', 'scroll 20');
+    Add(20, 'shot', 'array_2_elements');
+    Add(5, 'arr', 'dump');
+    Add(10, 'fkey', '8');
+    Add(30, 'fkey', '5');
+    Add(40, 'shot', 'array_3_live');
+    Add(5, 'arr', 'live');
+    Add(5, 'quit');
+    FShotPos := 0;
+    FShotWait := FShots[0].Wait;
+    Exit;
+  end;
+  if (Length(FShots) = 0) and (GetEnvironmentVariable('VPLC_PICK_TEST') <> '') then
+  begin
+    // the editor's variables: PLC tags, data blocks; dragged into SCL, onto a LAD element, a double click
+    DeleteFile(FShotDir + 'pick_check.txt');
+    Add(10, 'ipc', 'ex 33');
+    Add(10, 'fkey', '8');
+    Add(20, 'fkey', '5');
+    Add(5, 'screen', '1');
+    Add(10, 'uiclick2', 'block:0');
+    Add(10, 'uiclick2', 'righttab:1');
+    Add(30, 'shot', 'pick_1_tags');
+    Add(5, 'pick', 'dump tags');
+    Add(5, 'uiclick2', 'picksrc:1');
+    Add(10, 'uiclick2', 'pickhead:0');
+    Add(30, 'shot', 'pick_2_db_open');
+    Add(5, 'pick', 'dump db');
+    // "Box".Sel onto the contact of network 2 (row 1, column 1)
+    Add(5, 'pick', 'dragcell 1 1 0 0');
+    Add(10, 'pick', 'dump code');
+    // the tag "Go" into the SCL of network 1, at the end of its line
+    Add(5, 'uiclick2', 'picksrc:0');
+    Add(10, 'pick', 'caret 0 0');
+    Add(10, 'pick', 'drag 0');
+    Add(10, 'pick', 'dump code');
+    Add(10, 'pick', 'caret 0 0');
+    Add(10, 'pick', 'dbl 1');
+    Add(10, 'pick', 'dump code');
+    Add(5, 'pick', 'filter lamp');
+    Add(20, 'shot', 'pick_3_filter');
+    Add(5, 'pick', 'dump tags');
+    Add(5, 'quit');
+    FShotPos := 0;
+    FShotWait := FShots[0].Wait;
+    Exit;
+  end;
+  if (Length(FShots) = 0) and (GetEnvironmentVariable('VPLC_OBS_TEST') <> '') then
+  begin
+    // + OB: the OBs of the family, an OB's interface and settings, its runs; the SCL parameter help
+    DeleteFile(FShotDir + 'obs_check.txt');
+    Add(10, 'ipc', 'ex 33');
+    Add(5, 'screen', '1');
+    Add(10, 'uiclick2', 'obdlg:0');
+    Add(20, 'shot', 'obs_1_dialog');
+    Add(5, 'uiclick2', 'obev:5');
+    Add(20, 'shot', 'obs_2_dialog_hardware');
+    Add(5, 'uiclick2', 'obok:0');
+    Add(30, 'shot', 'obs_3_ob40');
+    Add(10, 'uiclick2', 'obdlg:0');
+    Add(5, 'uiclick2', 'obev:4');
+    Add(5, 'uiclick2', 'obok:0');
+    Add(10, 'uiclick2', 'obdlg:0');
+    Add(5, 'uiclick2', 'obev:4');
+    Add(5, 'obs', 'num 123');
+    Add(20, 'shot', 'obs_4_own_number');
+    Add(5, 'uiclick2', 'obok:0');
+    Add(5, 'obs', 'dump blocks');
+    Add(10, 'fkey', '8');
+    Add(30, 'fkey', '5');
+    Add(60, 'shot', 'obs_5_cyclic_runs');
+    Add(5, 'obs', 'dump runs');
+    // the parameter help of SCL
+    Add(5, 'obs', 'setup');
+    Add(10, 'obs', 'type "Motor_DB"(');
+    Add(20, 'shot', 'obs_6_ghost');
+    Add(5, 'obs', 'dump assist');
+    Add(5, 'obs', 'key tab');
+    Add(10, 'obs', 'type TRUE');
+    Add(5, 'obs', 'key tab');
+    Add(10, 'obs', 'type #Set');
+    Add(20, 'shot', 'obs_7_value_ghost');
+    Add(5, 'obs', 'dump assist');
+    Add(5, 'obs', 'key tab');
+    Add(5, 'obs', 'key tab');
+    Add(10, 'obs', 'type "La');
+    Add(5, 'obs', 'key tab');
+    Add(5, 'obs', 'dump code');
+    Add(5, 'obs', 'key end');
+    Add(5, 'obs', 'key enter');
+    Add(10, 'obs', 'type #SetSpeed := LIMIT(MN := 0, IN := ');
+    Add(20, 'shot', 'obs_8_signature');
+    Add(5, 'obs', 'dump assist');
+    // S7-300: the start information in the Temp
+    Add(10, 'ipc', 'ex 2');
+    Add(5, 'screen', '1');
+    Add(10, 'uiclick2', 'block:0');
+    Add(30, 'shot', 'obs_9_classic_ob1');
+    Add(5, 'screen', '2');
+    Add(20, 'shot', 'obs_10_fault_buttons');
     Add(5, 'quit');
     FShotPos := 0;
     FShotWait := FShots[0].Wait;
@@ -2266,7 +2647,7 @@ begin
         'refresh': UI.RefreshProjectFiles;
         'folder 0': UI.FileFolder := 0;
         'folder 1': UI.FileFolder := 1;
-        'ex 6', 'ex 15', 'ex 30', 'ex 31', 'ex 32', 'ex 33', 'ex 19', 'ex 20', 'ex 22', 'ex 23', 'ex 25': UI.LoadExampleNow(StrToInt(Copy(St.Arg, 4, 2)));
+        'ex 2', 'ex 6', 'ex 15', 'ex 29', 'ex 30', 'ex 31', 'ex 32', 'ex 33', 'ex 19', 'ex 20', 'ex 22', 'ex 23', 'ex 25': UI.LoadExampleNow(StrToInt(Copy(St.Arg, 4, 2)));
         'in on': UI.Rt.SetSimBit(0, 0, True);
       end;
       SaveToFile(FShotDir + 'ipc_check.txt');
@@ -2969,6 +3350,323 @@ begin
       UI.MouseUp(Pt.X, Pt.Y);
     end;
   end;
+  if St.Cmd = 'vw' then
+    with TStringList.Create do
+    try
+      if FileExists(FShotDir + 'views_check.txt') then LoadFromFile(FShotDir + 'views_check.txt');
+      if St.Arg = 'dump io' then
+      begin
+        V := 0;
+        while UI.IoListText(V) <> '' do
+        begin
+          Add('io: ' + UI.IoListText(V));
+          Inc(V);
+        end;
+      end
+      else if St.Arg = 'xref' then Add(Format('a row of the list: cross reference of %s, open %s, %d uses',
+        [UI.XrefTarget, BoolToStr(UI.XrefOn, True), UI.XrefCount]))
+      else if Copy(St.Arg, 1, 6) = 'watch ' then UI.WatchMode := StrToInt(Copy(St.Arg, 7, 2))
+      else if Copy(St.Arg, 1, 3) = 'db ' then UI.DbMode := StrToInt(Copy(St.Arg, 4, 2))
+      else if St.Arg = 'dump watch' then
+      begin
+        S1 := '';
+        for V := 0 to Min(High(UI.Project.Watch), 6) do S1 := S1 + UI.WatchShownPublic(V) + ';  ';
+        Add(Format('watch view %d: %s', [UI.WatchMode, S1]));
+      end;
+      SaveToFile(FShotDir + 'views_check.txt');
+    finally
+      Free;
+    end;
+  if St.Cmd = 'ws' then
+    with TStringList.Create do
+    try
+      if FileExists(FShotDir + 'watchstruct_check.txt') then LoadFromFile(FShotDir + 'watchstruct_check.txt');
+      if Copy(St.Arg, 1, 4) = 'add ' then UI.Project.AddWatch(Copy(St.Arg, 5, MaxInt), dfDec)
+      else if Copy(St.Arg, 1, 6) = 'dbvar ' then
+      begin
+        S1 := Copy(St.Arg, 7, MaxInt);   // DB name type
+        S2 := Copy(S1, Pos(' ', S1) + 1, MaxInt);
+        UI.Project.FindDBByName(Copy(S1, 1, Pos(' ', S1) - 1)).AddVar(Copy(S2, 1, Pos(' ', S2) - 1),
+          Copy(S2, Pos(' ', S2) + 1, MaxInt), '', 'an array of structs');
+      end
+      else if Copy(St.Arg, 1, 5) = 'open ' then UI.TestWatchOpen(Copy(St.Arg, 6, MaxInt))
+      else if Copy(St.Arg, 1, 7) = 'scroll ' then UI.SetVsPosPublic(6, StrToInt(Copy(St.Arg, 8, 9)))
+      else
+      begin
+        V := 0;
+        while UI.WatchRowText(V) <> '' do
+        begin
+          Add(UI.WatchRowText(V));
+          Inc(V);
+        end;
+      end;
+      SaveToFile(FShotDir + 'watchstruct_check.txt');
+    finally
+      Free;
+    end;
+  if St.Cmd = 'ifs' then
+    with TStringList.Create do
+    try
+      if FileExists(FShotDir + 'ifstruct_check.txt') then LoadFromFile(FShotDir + 'ifstruct_check.txt');
+      S0 := ExtractWord(1, St.Arg, [' ']);
+      if S0 = 'add' then
+        UI.TestIfaceVar(ExtractWord(2, St.Arg, [' ']), ExtractWord(3, St.Arg, [' ']),
+          Trim(Copy(St.Arg, Length('add ' + ExtractWord(2, St.Arg, [' ']) + ' ' + ExtractWord(3, St.Arg, [' '])) + 2, MaxInt)))
+      else if S0 = 'open' then UI.TestOpenKey(Copy(St.Arg, 6, MaxInt))
+      else if S0 = 'scroll' then UI.TestProgScroll(StrToInt(ExtractWord(2, St.Arg, [' '])))
+      else if S0 = 'drag' then
+      begin
+        // the row of the member: its place, pressed and dragged to the caret
+        V := 0;
+        while (UI.IfRowText(V) <> '') and (Pos('drag: ' + Copy(St.Arg, 6, MaxInt), UI.IfRowText(V) + #0) = 0) do Inc(V);
+        Add(Format('drag row %d: %s', [V, Trim(UI.IfRowText(V))]));
+        Pt := UI.IfacePoint(V);
+        Pp := UI.DesignToPixel(Pt.X, Pt.Y);
+        UI.MouseClicks := 1;
+        UI.MouseMods := [];
+        UI.MouseMove(Pp.X, Pp.Y);
+        UI.MouseDown(Pp.X, Pp.Y);
+        Pt := UI.CaretPoint;
+        Pp := UI.DesignToPixel(Pt.X + 40, Pt.Y + 30);
+        UI.MouseMove(Pp.X, Pp.Y);
+        Pp := UI.DesignToPixel(Pt.X + 2, Pt.Y + 8);
+        UI.MouseMove(Pp.X, Pp.Y);
+        UI.MouseUp(Pp.X, Pp.Y);
+      end
+      else if S0 = 'code' then
+        Add('net 1 line 1: ' + UI.CurBlockPublic.Net(0).Stl[0])
+      else
+      begin
+        Add('--- ' + UI.CurBlockPublic.Name);
+        V := 0;
+        while UI.IfRowText(V) <> '' do
+        begin
+          Add(UI.IfRowText(V));
+          Inc(V);
+        end;
+      end;
+      SaveToFile(FShotDir + 'ifstruct_check.txt');
+    finally
+      Free;
+    end;
+  if St.Cmd = 'st' then
+    with TStringList.Create do
+    try
+      if FileExists(FShotDir + 'struct_check.txt') then LoadFromFile(FShotDir + 'struct_check.txt');
+      if Copy(St.Arg, 1, 5) = 'open ' then UI.TestOpenKey(Copy(St.Arg, 6, MaxInt))
+      else
+      begin
+        V := 0;
+        while UI.DbRowText(V) <> '' do
+        begin
+          Add(UI.DbRowText(V));
+          Inc(V);
+        end;
+      end;
+      SaveToFile(FShotDir + 'struct_check.txt');
+    finally
+      Free;
+    end;
+  if St.Cmd = 'wd' then
+    with TStringList.Create do
+    try
+      if FileExists(FShotDir + 'watchdrag_check.txt') then LoadFromFile(FShotDir + 'watchdrag_check.txt');
+      if Copy(St.Arg, 1, 5) = 'drag ' then
+      begin
+        Add('drag: ' + StringReplace(UI.PickIns(StrToInt(ExtractWord(2, St.Arg, [' ']))), #10, ' ', [rfReplaceAll]));
+        UI.TestWatchDrag(StrToInt(ExtractWord(2, St.Arg, [' '])), StrToInt(ExtractWord(3, St.Arg, [' '])));
+      end
+      else
+      begin
+        S1 := '';
+        for V := 0 to Min(High(UI.Project.Watch), 9) do S1 := S1 + UI.Project.Watch[V].Address + ' ';
+        Add(Format('watch: %d rows: %s', [Length(UI.Project.Watch), S1]));
+      end;
+      SaveToFile(FShotDir + 'watchdrag_check.txt');
+    finally
+      Free;
+    end;
+  if St.Cmd = 'xref' then
+    with TStringList.Create do
+    try
+      if FileExists(FShotDir + 'xref_check.txt') then LoadFromFile(FShotDir + 'xref_check.txt');
+      if St.Arg = 'dump' then
+      begin
+        Add(Format('cross reference of %s: open %s, %d uses', [UI.XrefTarget, BoolToStr(UI.XrefOn, True), UI.XrefCount]));
+        for V := 0 to Min(UI.XrefCount, 12) - 1 do Add('  ' + UI.XrefLine(V));
+      end
+      else if St.Arg = 'jump write' then
+      begin
+        V := UI.XrefFirst(1);
+        Add('jump to: ' + UI.XrefLine(V));
+        Pt := UI.HitPoint('xrefrow', V);
+        UI.MouseClicks := 1;
+        UI.MouseMove(Pt.X, Pt.Y);
+        UI.MouseDown(Pt.X, Pt.Y);
+        UI.MouseUp(Pt.X, Pt.Y);
+      end
+      else if St.Arg = 'where' then
+        Add(Format('now: screen %d, block %d, network %d, caret %.0f,%.0f, open %s', [Ord(UI.Screen), UI.BlockSel,
+          UI.NetSel, UI.CaretPoint.X, UI.CaretPoint.Y, BoolToStr(UI.XrefOn, True)]))
+      else if St.Arg = 'close' then UI.KeyDown(ukEsc, #0, [])
+      else if St.Arg = 'esc' then UI.KeyDown(ukEsc, #0, [])
+      else if (St.Arg = 'outside') or (St.Arg = 'inside') then
+      begin
+        // a click beside the dialog (it closes) / on its empty part (it stays)
+        if St.Arg = 'outside' then Pp := UI.DesignToPixel(60, 860) else Pp := UI.DesignToPixel(700, 600);
+        UI.MouseClicks := 1;
+        UI.MouseMove(Pp.X, Pp.Y);
+        UI.MouseDown(Pp.X, Pp.Y);
+        UI.MouseUp(Pp.X, Pp.Y);
+        Add('a click ' + St.Arg);
+      end;
+      SaveToFile(FShotDir + 'xref_check.txt');
+    finally
+      Free;
+    end;
+  if St.Cmd = 'arr' then
+    with TStringList.Create do
+    try
+      // the arrays of a DB: a variable added, a menu item clicked, an array opened, the start of an element
+      if FileExists(FShotDir + 'array_check.txt') then LoadFromFile(FShotDir + 'array_check.txt');
+      S0 := ExtractWord(1, St.Arg, [' ']);
+      if S0 = 'add' then UI.Project.DB(0).AddVar(ExtractWord(2, St.Arg, [' ']), 'Int', '', 'an array to be')
+      else if S0 = 'pick' then
+      begin
+        V := UI.CtxIndex(Copy(St.Arg, 6, MaxInt));
+        Add(Format('menu item "%s": %d', [Copy(St.Arg, 6, MaxInt), V]));
+        if V >= 0 then
+        begin
+          Pt := UI.HitPoint('ctx', V);
+          UI.MouseClicks := 1;
+          UI.MouseMove(Pt.X, Pt.Y);
+          UI.MouseDown(Pt.X, Pt.Y);
+          UI.MouseUp(Pt.X, Pt.Y);
+        end;
+      end
+      else if S0 = 'open' then UI.TestArrOpen(StrToInt(ExtractWord(2, St.Arg, [' '])))
+      else if S0 = 'start' then
+        UI.TestElemStart(StrToInt(ExtractWord(2, St.Arg, [' '])), StrToInt(ExtractWord(3, St.Arg, [' '])),
+          ExtractWord(4, St.Arg, [' ']))
+      else if S0 = 'scroll' then UI.SetVsPosPublic(5, StrToInt(ExtractWord(2, St.Arg, [' '])))
+      else if S0 = 'dump' then
+        for V := 22 to 23 do
+          Add(Format('%s : %s := %s', [UI.Project.DB(0).Vars[V].Name, UI.Project.DB(0).Vars[V].TypeText,
+            UI.Project.DB(0).Vars[V].Start]))
+      else if S0 = 'live' then
+        Add(Format('online: Flags[3] %s, Flags[4] %s, Flags[7] %s, Words[5] %s', [UI.LiveOfPublic('"Box".Flags[3]'),
+          UI.LiveOfPublic('"Box".Flags[4]'), UI.LiveOfPublic('"Box".Flags[7]'), UI.LiveOfPublic('"Box".Words[5]')]));
+      SaveToFile(FShotDir + 'array_check.txt');
+    finally
+      Free;
+    end;
+  if St.Cmd = 'pick' then
+    with TStringList.Create do
+    try
+      // the variables of the editor: drag a row (into the text / onto a cell), a double click, the filter
+      if FileExists(FShotDir + 'pick_check.txt') then LoadFromFile(FShotDir + 'pick_check.txt');
+      S0 := ExtractWord(1, St.Arg, [' ']);
+      if S0 = 'caret' then
+      begin
+        V := StrToInt(ExtractWord(2, St.Arg, [' ']));
+        P := StrToInt(ExtractWord(3, St.Arg, [' ']));
+        UI.FocusStl(V, P, Length(UI.CurBlockPublic.Net(V).Stl[P]));
+      end
+      else if (S0 = 'drag') or (S0 = 'dragcell') then
+      begin
+        V := StrToInt(ExtractWord(2, St.Arg, [' ']));
+        Add('drag: ' + UI.PickIns(V));
+        Pt := UI.PickPoint(V);
+        Pp := UI.DesignToPixel(Pt.X, Pt.Y);
+        UI.MouseClicks := 1;
+        UI.MouseMods := [];
+        UI.MouseMove(Pp.X, Pp.Y);
+        UI.MouseDown(Pp.X, Pp.Y);
+        if S0 = 'drag' then Pt := UI.CaretPoint
+        else Pt := UI.CellPoint(StrToInt(ExtractWord(3, St.Arg, [' '])), StrToInt(ExtractWord(4, St.Arg, [' '])),
+          StrToInt(ExtractWord(5, St.Arg, [' '])));
+        Pp := UI.DesignToPixel(Pt.X - 60, Pt.Y + 4);
+        UI.MouseMove(Pp.X, Pp.Y);
+        if S0 = 'drag' then Pp := UI.DesignToPixel(Pt.X + 4, Pt.Y + 8) else Pp := UI.DesignToPixel(Pt.X, Pt.Y);
+        UI.MouseMove(Pp.X, Pp.Y);
+        UI.MouseUp(Pp.X, Pp.Y);
+      end
+      else if S0 = 'dbl' then
+      begin
+        V := StrToInt(ExtractWord(2, St.Arg, [' ']));
+        Add('double click: ' + UI.PickIns(V));
+        Pt := UI.PickPoint(V);
+        Pp := UI.DesignToPixel(Pt.X, Pt.Y);
+        UI.MouseMove(Pp.X, Pp.Y);
+        UI.MouseClicks := 2;
+        UI.MouseDown(Pp.X, Pp.Y);
+        UI.MouseUp(Pp.X, Pp.Y);
+        UI.MouseClicks := 1;
+      end
+      else if S0 = 'filter' then UI.TestPickFilter(Copy(St.Arg, 8, MaxInt))
+      else if (S0 = 'dump') and (ExtractWord(2, St.Arg, [' ']) = 'code') then
+      begin
+        Blk := UI.Project.FindBlock(bkOB, 1);
+        Add('network 1: ' + Trim(Blk.Net(0).Stl.Text));
+        Add('network 2, the contact: ' + Blk.Net(1).Cell(0, 0).Opnd);
+      end
+      else if S0 = 'dump' then
+      begin
+        S1 := '';
+        for V := 0 to Min(UI.PickCount, 8) - 1 do S1 := S1 + UI.PickIns(V) + ' ';
+        Add(Format('%s: %d rows: %s', [St.Arg, UI.PickCount, S1]));
+      end;
+      SaveToFile(FShotDir + 'pick_check.txt');
+    finally
+      Free;
+    end;
+  if St.Cmd = 'obs' then
+    with TStringList.Create do
+    try
+      // the OB test: the dialog, the SCL editor (typing, keys), what the help shows, into obs_check.txt
+      if FileExists(FShotDir + 'obs_check.txt') then LoadFromFile(FShotDir + 'obs_check.txt');
+      if Copy(St.Arg, 1, 4) = 'num ' then UI.TestObDlgNum(StrToInt(Copy(St.Arg, 5, 9)))
+      else if Copy(St.Arg, 1, 5) = 'type ' then UI.TextInput(Copy(St.Arg, 6, MaxInt))
+      else if St.Arg = 'key tab' then UI.KeyDown(ukTab, #0, [])
+      else if St.Arg = 'key end' then UI.KeyDown(ukEnd, #0, [umCtrl])
+      else if St.Arg = 'key enter' then UI.KeyDown(ukEnter, #0, [])
+      else if St.Arg = 'setup' then
+      begin
+        // an FB "Motor" with its instance DB, a Temp of OB1, an empty SCL network to type into
+        Blk := UI.Project.AddBlock(bkFB, 9, 'Motor');
+        Blk.Iface.AddSecVar(vsInput, 'Run', 'Bool', 'FALSE', 'start the motor');
+        Blk.Iface.AddSecVar(vsInput, 'Speed', 'Int', '0', 'the speed in rpm');
+        Blk.Iface.AddSecVar(vsOutput, 'Running', 'Bool', 'FALSE', 'the motor runs');
+        Blk.AddNet(nkSCL);
+        UI.Project.AddDB(9, 'Motor_DB').InstanceOf := 9;
+        Blk := UI.Project.FindBlock(bkOB, 1);
+        Blk.Iface.AddSecVar(vsTemp, 'SetSpeed', 'Int', '', 'the speed to run');
+        Blk.AddNet(nkSCL);
+        UI.ShowBlock(bkOB, 1);
+        UI.FocusStl(Blk.NetCount - 1, 0, 0);
+      end
+      else if St.Arg = 'dump blocks' then
+      begin
+        S1 := '';
+        for V := 0 to UI.Project.BlockCount - 1 do
+          if UI.Project.Block(V).Kind = bkOB then S1 := S1 + Format('OB%d "%s" ', [UI.Project.Block(V).Number, UI.Project.Block(V).Name]);
+        Add('OBs: ' + S1);
+      end
+      else if St.Arg = 'dump runs' then
+        Add(Format('runs: OB1 %d, OB30 %d, OB123 %d; mode %d', [UI.Rt.ObRuns(1), UI.Rt.ObRuns(30), UI.Rt.ObRuns(123),
+          Ord(UI.Rt.Mode)]))
+      else if St.Arg = 'dump assist' then
+        Add(Format('ghost "%s" | inserts "%s" | help %s | fits %s', [UI.GhostText,
+          StringReplace(UI.GhostIns, LineEnding, ' | ', [rfReplaceAll]), UI.SigText, UI.SigFits]))
+      else if St.Arg = 'dump code' then
+      begin
+        Blk := UI.Project.FindBlock(bkOB, 1);
+        Add('code: ' + StringReplace(Blk.Net(Blk.NetCount - 1).Stl.Text, LineEnding, ' | ', [rfReplaceAll]));
+      end;
+      SaveToFile(FShotDir + 'obs_check.txt');
+    finally
+      Free;
+    end;
   if St.Cmd = 'grp' then
     with TStringList.Create do
     try
@@ -3500,6 +4198,7 @@ begin
       '5': UI.KeyDown(ukF5, #0, []);
       '8': UI.KeyDown(ukF8, #0, []);
       '9': UI.KeyDown(ukF9, #0, []);
+      '11': UI.KeyDown(ukF11, #0, []);
     end;
   if St.Cmd = 'selftest' then
   begin
