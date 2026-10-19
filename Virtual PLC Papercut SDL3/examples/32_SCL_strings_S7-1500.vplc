@@ -1,0 +1,372 @@
+{
+  "format" : "VirtualPLC",
+  "version" : 1,
+  "name" : "SCL strings: String, WString, Char (S7-1500)",
+  "author" : "Virtual PLC examples",
+  "comment" : "SCL strings as in the SCL Compiler: String[n] and WString[n] with LEN, CONCAT, LEFT, RIGHT, MID, FIND, comparisons, Char, an array of strings, an FC with a String Return value and an FB with a String Static. Modify \"Text\".Name in the watch table; I0.0 picks the next word of the list.",
+  "cpu" : "CPU 1516-3 PN/DP",
+  "family" : "S7-1500",
+  "cyclicMs" : 100,
+  "clockByte" : 0,
+  "blocks" : [
+    {
+      "kind" : "OB",
+      "number" : 1,
+      "name" : "Main",
+      "comment" : "Main program cycle",
+      "networks" : [
+        {
+          "title" : "String functions",
+          "comment" : "LEN, FIND, LEFT, RIGHT, MID, compare, Char",
+          "lang" : "SCL",
+          "scl" : [
+            "\"Text\".Greeting := \"Hello\"(Who := \"Text\".Name);",
+            "\"Text\".Len := LEN(\"Text\".Greeting);",
+            "\"Text\".Pos := FIND(IN1 := \"Text\".Greeting, IN2 := \"Text\".Name);",
+            "\"Text\".First3 := LEFT(IN := \"Text\".Name, L := 3);",
+            "\"Text\".Last3 := RIGHT(IN := \"Text\".Name, L := 3);",
+            "\"Text\".Middle := MID(IN := \"Text\".Name, L := 3, P := 2);",
+            "\"Text\".IsPlc := \"Text\".Name = 'PLC';",
+            "\"Text\".WideLen := LEN(\"Text\".Wide);"
+          ]
+        },
+        {
+          "title" : "A list of words",
+          "comment" : "I0.0 shows the next word of the array",
+          "lang" : "SCL",
+          "scl" : [
+            "IF \"Next\" AND NOT \"Text\".Old THEN",
+            "    \"Text\".Index := (\"Text\".Index + 1) MOD 4;",
+            "END_IF;",
+            "\"Text\".Old := \"Next\";",
+            "\"Text\".Word := \"Text\".Words[\"Text\".Index];"
+          ]
+        }
+      ]
+    },
+    {
+      "kind" : "FC",
+      "number" : 1,
+      "name" : "Hello",
+      "comment" : "a greeting: a String Input and a String Return value",
+      "interface" : [
+        {
+          "section" : "Input",
+          "name" : "Who",
+          "type" : "String[20]",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "Return",
+          "name" : "Ret_Val",
+          "type" : "String[40]",
+          "start" : "",
+          "comment" : ""
+        }
+      ],
+      "networks" : [
+        {
+          "title" : "Greeting",
+          "comment" : "CONCAT of three strings",
+          "lang" : "SCL",
+          "scl" : [
+            "#Hello := CONCAT(IN1 := CONCAT(IN1 := 'Hello ', IN2 := #Who), IN2 := '!');"
+          ]
+        }
+      ]
+    }
+  ],
+  "dbs" : [
+    {
+      "number" : 1,
+      "name" : "Text",
+      "comment" : "",
+      "optimized" : false,
+      "vars" : [
+        {
+          "name" : "Name",
+          "type" : "String[20]",
+          "start" : "'Siemens'",
+          "comment" : "modify me"
+        },
+        {
+          "name" : "Greeting",
+          "type" : "String[40]",
+          "start" : "",
+          "comment" : "\"Hello\"(Name)"
+        },
+        {
+          "name" : "Len",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "LEN(Greeting)"
+        },
+        {
+          "name" : "Pos",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "FIND(Greeting, Name)"
+        },
+        {
+          "name" : "First3",
+          "type" : "String[3]",
+          "start" : "",
+          "comment" : "LEFT(Name, 3)"
+        },
+        {
+          "name" : "Last3",
+          "type" : "String[3]",
+          "start" : "",
+          "comment" : "RIGHT(Name, 3)"
+        },
+        {
+          "name" : "Middle",
+          "type" : "String[10]",
+          "start" : "",
+          "comment" : "MID(Name, 3, 2)"
+        },
+        {
+          "name" : "IsPlc",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "Name = 'PLC'"
+        },
+        {
+          "name" : "Initial",
+          "type" : "Char",
+          "start" : "'?'",
+          "comment" : "the first letter"
+        },
+        {
+          "name" : "Words",
+          "type" : "Array[0..3] of String[8]",
+          "start" : "['red', 'green', 'blue', 'yellow']",
+          "comment" : "a list"
+        },
+        {
+          "name" : "Index",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "the word shown"
+        },
+        {
+          "name" : "Word",
+          "type" : "String[8]",
+          "start" : "",
+          "comment" : "Words[Index]"
+        },
+        {
+          "name" : "Wide",
+          "type" : "WString[20]",
+          "start" : "WSTRING#'Gr$00FC$00DFe'",
+          "comment" : "a WString"
+        },
+        {
+          "name" : "WideLen",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "LEN(Wide)"
+        },
+        {
+          "name" : "Old",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "the edge memory of Next"
+        }
+      ]
+    }
+  ],
+  "tags" : [
+    {
+      "name" : "Clock_2Hz",
+      "type" : "Bool",
+      "address" : "%M0.3",
+      "comment" : "clock memory 2 Hz"
+    },
+    {
+      "name" : "Clock_1Hz",
+      "type" : "Bool",
+      "address" : "%M0.5",
+      "comment" : "clock memory 1 Hz"
+    },
+    {
+      "name" : "Next",
+      "type" : "Bool",
+      "address" : "%I0.0",
+      "comment" : "push button: the next word"
+    }
+  ],
+  "watch" : [
+    {
+      "address" : "\"Text\".Name",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Text\".Greeting",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Text\".Len",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Text\".Word",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Text\".Wide",
+      "format" : "DEC",
+      "modify" : ""
+    }
+  ],
+  "diTypes" : [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "aiChannels" : [
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    }
+  ],
+  "comm" : {
+    "s7" : true,
+    "s7Port" : 102,
+    "modbus" : true,
+    "modbusPort" : 502,
+    "modbusUnit" : 1,
+    "holding" : "M",
+    "putGet" : true,
+    "allInterfaces" : false,
+    "ip" : "127.0.0.1",
+    "mask" : "255.255.255.0",
+    "ipc" : false
+  }
+}

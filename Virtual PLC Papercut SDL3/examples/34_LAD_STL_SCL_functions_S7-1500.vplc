@@ -1,0 +1,875 @@
+{
+  "format" : "VirtualPLC",
+  "version" : 1,
+  "name" : "LAD and STL: the SCL functions as boxes and CALLs (S7-1500)",
+  "author" : "Virtual PLC examples",
+  "comment" : "The functions of SCL in LAD boxes (SEL, MUX, LIMIT, MIN, MAX, SQRT, EXPT, SHL, AND, CONCAT, LEN, MID, R_TRIG with INC, a TON_LTIME and a CTU_DINT instance) and in STL as CALL SEL / CALL CONCAT / CALL of a TON_TIME instance with parameter lines. I0.0 counts edges and runs the timers; modify \"Box\".Sel.",
+  "cpu" : "CPU 1516-3 PN/DP",
+  "family" : "S7-1500",
+  "cyclicMs" : 100,
+  "clockByte" : 0,
+  "blocks" : [
+    {
+      "kind" : "OB",
+      "number" : 1,
+      "name" : "Main",
+      "comment" : "Main program cycle",
+      "networks" : [
+        {
+          "title" : "Enable",
+          "comment" : "the boxes below run while Enable is 1",
+          "lang" : "SCL",
+          "scl" : [
+            "\"Enable\" := TRUE;"
+          ]
+        },
+        {
+          "title" : "SEL and MUX",
+          "comment" : "EN is the rung, ENO = EN",
+          "lang" : "LAD",
+          "rows" : 2,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "no",
+              "op" : "\"Enable\""
+            },
+            {
+              "r" : 0,
+              "c" : 1,
+              "e" : "sel",
+              "p" : [
+                "\"Box\".Sel",
+                "10",
+                "20",
+                "\"Box\".Picked"
+              ]
+            },
+            {
+              "r" : 0,
+              "c" : 2,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 3,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 4,
+              "e" : "mux",
+              "p" : [
+                "\"Box\".K",
+                "100",
+                "200",
+                "300",
+                "\"Box\".FromMux"
+              ]
+            },
+            {
+              "r" : 0,
+              "c" : 5,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 6,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 7,
+              "e" : "wire"
+            }
+          ]
+        },
+        {
+          "title" : "LIMIT and MIN",
+          "comment" : "",
+          "lang" : "LAD",
+          "rows" : 1,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "no",
+              "op" : "\"Enable\""
+            },
+            {
+              "r" : 0,
+              "c" : 1,
+              "e" : "limit",
+              "p" : [
+                "0",
+                "150",
+                "100",
+                "\"Box\".Limited"
+              ]
+            },
+            {
+              "r" : 0,
+              "c" : 2,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 3,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 4,
+              "e" : "min",
+              "p" : [
+                "9",
+                "4",
+                "6",
+                "",
+                "\"Box\".Smallest"
+              ]
+            },
+            {
+              "r" : 0,
+              "c" : 5,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 6,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 7,
+              "e" : "wire"
+            }
+          ]
+        },
+        {
+          "title" : "SQRT and EXPT",
+          "comment" : "Real functions",
+          "lang" : "LAD",
+          "rows" : 1,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "no",
+              "op" : "\"Enable\""
+            },
+            {
+              "r" : 0,
+              "c" : 1,
+              "e" : "sqrt",
+              "p" : [
+                "2.0",
+                "\"Box\".Root"
+              ]
+            },
+            {
+              "r" : 0,
+              "c" : 2,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 3,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 4,
+              "e" : "expt",
+              "p" : [
+                "1.5",
+                "3.0",
+                "\"Box\".Cube"
+              ]
+            },
+            {
+              "r" : 0,
+              "c" : 5,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 6,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 7,
+              "e" : "wire"
+            }
+          ]
+        },
+        {
+          "title" : "SHL and AND",
+          "comment" : "bit strings",
+          "lang" : "LAD",
+          "rows" : 1,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "no",
+              "op" : "\"Enable\""
+            },
+            {
+              "r" : 0,
+              "c" : 1,
+              "e" : "shl",
+              "p" : [
+                "W#16#0001",
+                "4",
+                "\"Box\".Shifted"
+              ]
+            },
+            {
+              "r" : 0,
+              "c" : 2,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 3,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 4,
+              "e" : "andw",
+              "p" : [
+                "W#16#F0F0",
+                "W#16#FF00",
+                "\"Box\".Masked"
+              ]
+            },
+            {
+              "r" : 0,
+              "c" : 5,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 6,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 7,
+              "e" : "wire"
+            }
+          ]
+        },
+        {
+          "title" : "Strings",
+          "comment" : "CONCAT, LEN, MID in a row",
+          "lang" : "LAD",
+          "rows" : 1,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "no",
+              "op" : "\"Enable\""
+            },
+            {
+              "r" : 0,
+              "c" : 1,
+              "e" : "concat",
+              "p" : [
+                "'PLC '",
+                "'box'",
+                "\"Box\".Text"
+              ]
+            },
+            {
+              "r" : 0,
+              "c" : 2,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 3,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 4,
+              "e" : "len",
+              "p" : [
+                "\"Box\".Text",
+                "\"Box\".TextLen"
+              ]
+            },
+            {
+              "r" : 0,
+              "c" : 5,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 6,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 7,
+              "e" : "mid",
+              "p" : [
+                "\"Box\".Text",
+                "3",
+                "5",
+                "\"Box\".Part"
+              ]
+            }
+          ]
+        },
+        {
+          "title" : "R_TRIG and INC",
+          "comment" : "counts the rising edges of Go",
+          "lang" : "LAD",
+          "rows" : 1,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "no",
+              "op" : "\"Go\""
+            },
+            {
+              "r" : 0,
+              "c" : 1,
+              "e" : "rtrig",
+              "op" : "\"Box\".Edge"
+            },
+            {
+              "r" : 0,
+              "c" : 2,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 3,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 4,
+              "e" : "inc",
+              "p" : [
+                "\"Box\".Edges"
+              ]
+            },
+            {
+              "r" : 0,
+              "c" : 5,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 6,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 7,
+              "e" : "wire"
+            }
+          ]
+        },
+        {
+          "title" : "TON_LTIME and CTU_DINT",
+          "comment" : "a TON box and a CTU box with the instances of TIA",
+          "lang" : "LAD",
+          "rows" : 1,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "no",
+              "op" : "\"Go\""
+            },
+            {
+              "r" : 0,
+              "c" : 1,
+              "e" : "ton",
+              "op" : "\"Box\".Long",
+              "p" : [
+                "LT#3S",
+                "\"Box\".LongEt"
+              ]
+            },
+            {
+              "r" : 0,
+              "c" : 2,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 3,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 4,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 5,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 6,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 7,
+              "e" : "coil",
+              "op" : "\"Lamp\""
+            }
+          ]
+        },
+        {
+          "title" : "CTU_DINT",
+          "comment" : "",
+          "lang" : "LAD",
+          "rows" : 1,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "no",
+              "op" : "\"Go\""
+            },
+            {
+              "r" : 0,
+              "c" : 1,
+              "e" : "ctu",
+              "op" : "\"Box\".Count",
+              "p" : [
+                "100000",
+                "FALSE",
+                "\"Box\".CountCv"
+              ]
+            },
+            {
+              "r" : 0,
+              "c" : 2,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 3,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 4,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 5,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 6,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 7,
+              "e" : "wire"
+            }
+          ]
+        },
+        {
+          "title" : "STL: CALL of the SCL functions",
+          "comment" : "one parameter per line, RET_VAL is the result",
+          "lang" : "STL",
+          "stl" : [
+            "CALL SEL",
+            "  value_type := Int",
+            "  G := \"Box\".Sel",
+            "  IN0 := 1",
+            "  IN1 := 2",
+            "  RET_VAL := \"Box\".StlSel",
+            "CALL CONCAT",
+            "  IN1 := 'from '",
+            "  IN2 := 'STL'",
+            "  RET_VAL := \"Box\".StlText",
+            "CALL \"Box\".StlTimer",
+            "  IN := \"Go\"",
+            "  PT := T#2S",
+            "  Q := \"Lamp_STL\""
+          ]
+        }
+      ]
+    }
+  ],
+  "dbs" : [
+    {
+      "number" : 1,
+      "name" : "Box",
+      "comment" : "",
+      "optimized" : false,
+      "vars" : [
+        {
+          "name" : "Sel",
+          "type" : "Bool",
+          "start" : "TRUE",
+          "comment" : "SEL: G"
+        },
+        {
+          "name" : "Picked",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "SEL(G, 10, 20)"
+        },
+        {
+          "name" : "K",
+          "type" : "Int",
+          "start" : "2",
+          "comment" : "MUX: K"
+        },
+        {
+          "name" : "FromMux",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "MUX(K, 100, 200, 300)"
+        },
+        {
+          "name" : "Limited",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "LIMIT(0, 150, 100)"
+        },
+        {
+          "name" : "Smallest",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "MIN(9, 4, 6)"
+        },
+        {
+          "name" : "Root",
+          "type" : "Real",
+          "start" : "0.0",
+          "comment" : "SQRT(2.0)"
+        },
+        {
+          "name" : "Cube",
+          "type" : "Real",
+          "start" : "0.0",
+          "comment" : "EXPT(1.5, 3.0)"
+        },
+        {
+          "name" : "Shifted",
+          "type" : "Word",
+          "start" : "W#16#0",
+          "comment" : "SHL(16#0001, 4)"
+        },
+        {
+          "name" : "Masked",
+          "type" : "Word",
+          "start" : "W#16#0",
+          "comment" : "AND(16#F0F0, 16#FF00)"
+        },
+        {
+          "name" : "Text",
+          "type" : "String[20]",
+          "start" : "",
+          "comment" : "CONCAT('PLC ', 'box')"
+        },
+        {
+          "name" : "TextLen",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "LEN(Text)"
+        },
+        {
+          "name" : "Part",
+          "type" : "String[10]",
+          "start" : "",
+          "comment" : "MID(Text, 3, 5)"
+        },
+        {
+          "name" : "Edge",
+          "type" : "R_TRIG",
+          "start" : "",
+          "comment" : "the rising edges of Go"
+        },
+        {
+          "name" : "Edges",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "INC on each edge"
+        },
+        {
+          "name" : "Long",
+          "type" : "TON_LTIME",
+          "start" : "",
+          "comment" : "an LTime timer box"
+        },
+        {
+          "name" : "LongEt",
+          "type" : "LTime",
+          "start" : "",
+          "comment" : "its ET"
+        },
+        {
+          "name" : "Count",
+          "type" : "CTU_DINT",
+          "start" : "",
+          "comment" : "a DInt counter box"
+        },
+        {
+          "name" : "CountCv",
+          "type" : "DInt",
+          "start" : "0",
+          "comment" : "its CV"
+        },
+        {
+          "name" : "StlSel",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "STL: CALL SEL"
+        },
+        {
+          "name" : "StlText",
+          "type" : "String[20]",
+          "start" : "",
+          "comment" : "STL: CALL CONCAT"
+        },
+        {
+          "name" : "StlTimer",
+          "type" : "TON_TIME",
+          "start" : "",
+          "comment" : "STL: CALL \"Box\".StlTimer"
+        }
+      ]
+    }
+  ],
+  "tags" : [
+    {
+      "name" : "Clock_2Hz",
+      "type" : "Bool",
+      "address" : "%M0.3",
+      "comment" : "clock memory 2 Hz"
+    },
+    {
+      "name" : "Clock_1Hz",
+      "type" : "Bool",
+      "address" : "%M0.5",
+      "comment" : "clock memory 1 Hz"
+    },
+    {
+      "name" : "Go",
+      "type" : "Bool",
+      "address" : "%I0.0",
+      "comment" : "push button: edges, timers, counter"
+    },
+    {
+      "name" : "Enable",
+      "type" : "Bool",
+      "address" : "%M10.0",
+      "comment" : "the boxes run (set by network 1)"
+    },
+    {
+      "name" : "Lamp",
+      "type" : "Bool",
+      "address" : "%Q0.0",
+      "comment" : "TON_LTIME: Q"
+    },
+    {
+      "name" : "Lamp_STL",
+      "type" : "Bool",
+      "address" : "%Q0.1",
+      "comment" : "TON_TIME in STL: Q"
+    }
+  ],
+  "watch" : [
+    {
+      "address" : "\"Box\".Picked",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Box\".FromMux",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Box\".Text",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Box\".Edges",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Box\".LongEt",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Box\".StlText",
+      "format" : "DEC",
+      "modify" : ""
+    }
+  ],
+  "diTypes" : [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "aiChannels" : [
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    }
+  ],
+  "comm" : {
+    "s7" : true,
+    "s7Port" : 102,
+    "modbus" : true,
+    "modbusPort" : 502,
+    "modbusUnit" : 1,
+    "holding" : "M",
+    "putGet" : true,
+    "allInterfaces" : false,
+    "ip" : "127.0.0.1",
+    "mask" : "255.255.255.0",
+    "ipc" : false
+  }
+}

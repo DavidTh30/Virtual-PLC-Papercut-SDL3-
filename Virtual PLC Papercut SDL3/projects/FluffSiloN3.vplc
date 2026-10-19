@@ -1,0 +1,2411 @@
+{
+  "format" : "VirtualPLC",
+  "version" : 1,
+  "name" : "FluffSiloN3",
+  "author" : "",
+  "comment" : "",
+  "cpu" : "CPU 1214C DC/DC/DC",
+  "family" : "S7-1200",
+  "cyclicMs" : 100,
+  "clockByte" : -1,
+  "blocks" : [
+    {
+      "kind" : "OB",
+      "number" : 1,
+      "name" : "Main",
+      "comment" : "=============================================================================\r\nFluff Silo System - S7-1200\r\nOB1 \"Main\" : cyclic program\r\n=============================================================================",
+      "interface" : [
+      ],
+      "networks" : [
+        {
+          "title" : "",
+          "comment" : "",
+          "lang" : "SCL",
+          "scl" : [
+            "\"iDB_FluffSilo\"();"
+          ]
+        }
+      ]
+    },
+    {
+      "kind" : "OB",
+      "number" : 100,
+      "name" : "Startup",
+      "comment" : "=============================================================================\r\nFluff Silo System - S7-1200\r\nOB100 \"Startup\" : runs once on STOP -> RUN\r\n- HMI commands written before the restart are discarded\r\n- parameters are loaded with defaults when the retentive data was lost\r\nor was never set (first download)\r\n=============================================================================",
+      "interface" : [
+        {
+          "section" : "Temp",
+          "name" : "i",
+          "type" : "Int",
+          "start" : "",
+          "comment" : ""
+        }
+      ],
+      "networks" : [
+        {
+          "title" : "",
+          "comment" : "",
+          "lang" : "SCL",
+          "scl" : [
+            "\"DB_HMI\".Cmd.AutoStart := FALSE;",
+            "\"DB_HMI\".Cmd.AutoStop := FALSE;",
+            "\"DB_HMI\".Cmd.EStop := FALSE;",
+            "\"DB_HMI\".Cmd.ResetEStop := FALSE;",
+            "\"DB_HMI\".Cmd.ExtRequest := FALSE;",
+            "FOR #i := 0 TO 39 DO",
+            "    \"DB_HMI\".DevCmd[#i] := FALSE;",
+            "END_FOR;",
+            "",
+            "IF #LostRetentive OR ((\"DB_HMI\".Pattern.StepCount = 0) AND (\"DB_HMI\".Delay[0] = 0)) THEN",
+            "    \"FC_LoadDefaults\"();",
+            "END_IF;",
+            "\"FC_ValidateParams\"();"
+          ]
+        }
+      ]
+    },
+    {
+      "kind" : "FC",
+      "number" : 1,
+      "name" : "FC_TenthsToTime",
+      "comment" : "=============================================================================\r\nFluff Silo System - S7-1200\r\nFC \"FC_TenthsToTime\" : HMI value in 0.1 s (Int) -> TIME\r\n70 -> T#7S, negative values -> T#0S\r\n=============================================================================",
+      "interface" : [
+        {
+          "section" : "Input",
+          "name" : "Tenths",
+          "type" : "Int",
+          "start" : "",
+          "comment" : "time in 0.1 s"
+        },
+        {
+          "section" : "Return",
+          "name" : "Ret_Val",
+          "type" : "Time",
+          "start" : "",
+          "comment" : "the function value"
+        }
+      ],
+      "networks" : [
+        {
+          "title" : "",
+          "comment" : "",
+          "lang" : "SCL",
+          "scl" : [
+            "#FC_TenthsToTime := DINT_TO_TIME(INT_TO_DINT(MAX(IN1 := #Tenths, IN2 := 0)) * 100);"
+          ]
+        }
+      ]
+    },
+    {
+      "kind" : "FC",
+      "number" : 2,
+      "name" : "FC_ScaleAnalog",
+      "comment" : "=============================================================================\r\nFluff Silo System - S7-1200\r\nFC \"FC_ScaleAnalog\" : analog input (0..27648) -> engineering value\r\ne.g. silo level sensor 0..10 V on IW64 -> 0..100 %\r\nOut-of-range raw values are clamped; Fault = overflow / underflow\r\n(S7-1200 onboard AI: 32767 = overflow, wire break on 4..20 mA modules: -32768)\r\n=============================================================================",
+      "interface" : [
+        {
+          "section" : "Input",
+          "name" : "Raw",
+          "type" : "Int",
+          "start" : "",
+          "comment" : "raw value from the input word"
+        },
+        {
+          "section" : "Input",
+          "name" : "EngLow",
+          "type" : "Real",
+          "start" : "",
+          "comment" : "engineering value at 0"
+        },
+        {
+          "section" : "Input",
+          "name" : "EngHigh",
+          "type" : "Real",
+          "start" : "",
+          "comment" : "engineering value at 27648"
+        },
+        {
+          "section" : "Output",
+          "name" : "Fault",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "raw value outside the measuring range"
+        },
+        {
+          "section" : "Temp",
+          "name" : "norm",
+          "type" : "Real",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "Return",
+          "name" : "Ret_Val",
+          "type" : "Real",
+          "start" : "",
+          "comment" : "the function value"
+        }
+      ],
+      "networks" : [
+        {
+          "title" : "",
+          "comment" : "",
+          "lang" : "SCL",
+          "scl" : [
+            "#Fault := (#Raw > 32511) OR (#Raw < -4864);",
+            "#norm := NORM_X(MIN := 0, VALUE := #Raw, MAX := 27648);",
+            "#norm := LIMIT(MN := 0.0, IN := #norm, MX := 1.0);",
+            "#FC_ScaleAnalog := SCALE_X(MIN := #EngLow, VALUE := #norm, MAX := #EngHigh);"
+          ]
+        }
+      ]
+    },
+    {
+      "kind" : "FC",
+      "number" : 3,
+      "name" : "FC_ValidateParams",
+      "comment" : "=============================================================================\r\nFluff Silo System - S7-1200\r\nFC \"FC_ValidateParams\" : clamp parameters written by the HMI into DB_HMI\r\ndelays        0 .. 6000  (0 .. 600.0 s)\r\nstep count    0 .. 10\r\nstep mask     0 .. 7     (bit0 = Paddle01, bit1 = Paddle02, bit2 = Paddle03)\r\nstep time     5 .. 6000  (0.5 .. 600.0 s)\r\n=============================================================================",
+      "interface" : [
+        {
+          "section" : "Temp",
+          "name" : "i",
+          "type" : "Int",
+          "start" : "",
+          "comment" : ""
+        }
+      ],
+      "networks" : [
+        {
+          "title" : "",
+          "comment" : "",
+          "lang" : "SCL",
+          "scl" : [
+            "FOR #i := 0 TO 5 DO",
+            "    \"DB_HMI\".Delay[#i] := LIMIT(MN := 0, IN := \"DB_HMI\".Delay[#i], MX := 6000);",
+            "END_FOR;",
+            "",
+            "\"DB_HMI\".Pattern.StepCount := LIMIT(MN := 0, IN := \"DB_HMI\".Pattern.StepCount, MX := 10);",
+            "",
+            "FOR #i := 0 TO 9 DO",
+            "    \"DB_HMI\".Pattern.Mask[#i] := LIMIT(MN := 0, IN := \"DB_HMI\".Pattern.Mask[#i], MX := 7);",
+            "    \"DB_HMI\".Pattern.StepTime[#i] := LIMIT(MN := 5, IN := \"DB_HMI\".Pattern.StepTime[#i], MX := 6000);",
+            "END_FOR;"
+          ]
+        }
+      ]
+    },
+    {
+      "kind" : "FC",
+      "number" : 4,
+      "name" : "FC_LoadDefaults",
+      "comment" : "=============================================================================\r\nFluff Silo System - S7-1200\r\nFC \"FC_LoadDefaults\" : write the factory parameters into DB_HMI\r\nDelays from Concept.txt: 7 s / 3 s / 3 s / 3 s / 5 s / 5 s\r\nPaddle Patterns: P1 8 s, pause 2 s, P2 8 s, pause 2 s, P3 8 s, pause 2 s\r\nCalled from OB100 when the retentive data was lost or never set.\r\n=============================================================================",
+      "interface" : [
+        {
+          "section" : "Temp",
+          "name" : "i",
+          "type" : "Int",
+          "start" : "",
+          "comment" : ""
+        }
+      ],
+      "networks" : [
+        {
+          "title" : "",
+          "comment" : "",
+          "lang" : "SCL",
+          "scl" : [
+            "\"DB_HMI\".Delay[0] := 70;   // Blower -> Screw start        7.0 s",
+            "\"DB_HMI\".Delay[1] := 30;   // External Request hold         3.0 s",
+            "\"DB_HMI\".Delay[2] := 30;   // Screw -> Paddle Patterns      3.0 s",
+            "\"DB_HMI\".Delay[3] := 30;   // Request lost -> Screw stop    3.0 s",
+            "\"DB_HMI\".Delay[4] := 50;   // Screw stopped -> Blower stop  5.0 s",
+            "\"DB_HMI\".Delay[5] := 50;   // Auto Stop -> Blower stop      5.0 s",
+            "",
+            "FOR #i := 0 TO 9 DO",
+            "    \"DB_HMI\".Pattern.Mask[#i] := 0;",
+            "    \"DB_HMI\".Pattern.StepTime[#i] := 50;",
+            "END_FOR;",
+            "\"DB_HMI\".Pattern.StepCount := 6;",
+            "\"DB_HMI\".Pattern.Mask[0] := 1;   // Paddle01",
+            "\"DB_HMI\".Pattern.StepTime[0] := 80;",
+            "\"DB_HMI\".Pattern.StepTime[1] := 20;  // pause",
+            "\"DB_HMI\".Pattern.Mask[2] := 2;   // Paddle02",
+            "\"DB_HMI\".Pattern.StepTime[2] := 80;",
+            "\"DB_HMI\".Pattern.StepTime[3] := 20;  // pause",
+            "\"DB_HMI\".Pattern.Mask[4] := 4;   // Paddle03",
+            "\"DB_HMI\".Pattern.StepTime[4] := 80;",
+            "\"DB_HMI\".Pattern.StepTime[5] := 20;  // pause"
+          ]
+        }
+      ]
+    },
+    {
+      "kind" : "FC",
+      "number" : 5,
+      "name" : "FC_StepBlocked",
+      "comment" : "=============================================================================\r\nFluff Silo System - S7-1200\r\nFC \"FC_StepBlocked\" : Paddle Patterns helper\r\nA step is blocked when it needs paddles and none of them can run\r\n(fault / E-Stop / disabled / manual stop). A pause step (mask 0) is never blocked.\r\nInterlock does not block a step (same as the simulator).\r\n=============================================================================",
+      "interface" : [
+        {
+          "section" : "Input",
+          "name" : "Mask",
+          "type" : "Int",
+          "start" : "",
+          "comment" : "bit0 = Paddle01, bit1 = Paddle02, bit2 = Paddle03"
+        },
+        {
+          "section" : "Input",
+          "name" : "Available",
+          "type" : "Array[0..2] of Bool",
+          "start" : "",
+          "comment" : "paddle can run"
+        },
+        {
+          "section" : "Temp",
+          "name" : "w",
+          "type" : "Word",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "Return",
+          "name" : "Ret_Val",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "the function value"
+        }
+      ],
+      "networks" : [
+        {
+          "title" : "",
+          "comment" : "",
+          "lang" : "SCL",
+          "scl" : [
+            "#w := INT_TO_WORD(#Mask);",
+            "IF (#w AND W#16#0007) = W#16#0000 THEN",
+            "    #FC_StepBlocked := FALSE;   // pause step",
+            "    RETURN;",
+            "END_IF;",
+            "",
+            "#FC_StepBlocked := NOT ((#w.%X0 AND #Available[0])",
+            "                     OR (#w.%X1 AND #Available[1])",
+            "                     OR (#w.%X2 AND #Available[2]));"
+          ]
+        }
+      ]
+    },
+    {
+      "kind" : "FB",
+      "number" : 1,
+      "name" : "FB_Motor",
+      "comment" : "=============================================================================\r\nFluff Silo System - S7-1200\r\nFB \"FB_Motor\" : one device (Blower01, Screw01, Paddle01..03)\r\n9 properties with priority levels (Concept.txt) - higher level wins:\r\nL6 Fault, E-Stop  >  L5 Disable  >  L4 Manual Stop  >  L3 Manual Start\r\n>  L2 Auto Stop, Interlock  >  L1 Auto Start\r\nFault sources (latched, reset with CmdResetFault when the cause is gone):\r\n1 = overload / drive not ready (OverloadOK = FALSE)\r\n2 = no running feedback within FbTimeout after the run command (or feedback lost)\r\n3 = running feedback without run command for FbTimeout (welded contactor)\r\nSafeInterlock = FALSE : Manual Start (L3) overrides Interlock (L2) exactly as in Concept.txt\r\nSafeInterlock = TRUE  : Interlock also blocks Manual Start (recommended for a real plant,\r\ne.g. Screw01 cannot run into a stopped Blower01)\r\n=============================================================================",
+      "interface" : [
+        {
+          "section" : "Input",
+          "name" : "AutoStart",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "L1 run request from the sequencer / Paddle Patterns"
+        },
+        {
+          "section" : "Input",
+          "name" : "AutoStop",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "L2"
+        },
+        {
+          "section" : "Input",
+          "name" : "Interlock",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "L2 upstream device not running"
+        },
+        {
+          "section" : "Input",
+          "name" : "EStop",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "L6 E-Stop active"
+        },
+        {
+          "section" : "Input",
+          "name" : "CmdManStart",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "L3 HMI Manual Start (pulse)"
+        },
+        {
+          "section" : "Input",
+          "name" : "CmdManStop",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "L4 HMI Manual Stop (pulse)"
+        },
+        {
+          "section" : "Input",
+          "name" : "CmdReturnAuto",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "HMI release Manual Start / Manual Stop (pulse)"
+        },
+        {
+          "section" : "Input",
+          "name" : "CmdEnable",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "L5 HMI Enable (pulse)"
+        },
+        {
+          "section" : "Input",
+          "name" : "CmdDisable",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "L5 HMI Disable (pulse)"
+        },
+        {
+          "section" : "Input",
+          "name" : "CmdResetFault",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "HMI Reset Fault / panel reset (pulse)"
+        },
+        {
+          "section" : "Input",
+          "name" : "Feedback",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "running feedback (contactor auxiliary / drive running)"
+        },
+        {
+          "section" : "Input",
+          "name" : "OverloadOK",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "thermal overload relay NC / drive ready: TRUE = healthy"
+        },
+        {
+          "section" : "Input",
+          "name" : "FbTimeout",
+          "type" : "Time",
+          "start" : "T#3S",
+          "comment" : "feedback supervision time"
+        },
+        {
+          "section" : "Input",
+          "name" : "SafeInterlock",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "TRUE = Interlock also blocks Manual Start"
+        },
+        {
+          "section" : "Output",
+          "name" : "Run",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "run command -> contactor / drive"
+        },
+        {
+          "section" : "Output",
+          "name" : "Available",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "may run (no Fault, E-Stop, Disable, Manual Stop)"
+        },
+        {
+          "section" : "Output",
+          "name" : "Status",
+          "type" : "\"typeDevStatus\"",
+          "start" : "",
+          "comment" : "10 property bits for the HMI"
+        },
+        {
+          "section" : "Output",
+          "name" : "CtrlLevel",
+          "type" : "Int",
+          "start" : "",
+          "comment" : "level that decides the output (0..6)"
+        },
+        {
+          "section" : "Output",
+          "name" : "FaultCode",
+          "type" : "Int",
+          "start" : "",
+          "comment" : "0 = none, 1 = overload, 2 = no feedback, 3 = feedback without command"
+        },
+        {
+          "section" : "Output",
+          "name" : "StartCount",
+          "type" : "DInt",
+          "start" : "",
+          "comment" : "number of starts (feedback rising edges)"
+        },
+        {
+          "section" : "Static",
+          "name" : "ManStart",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "Manual Start latched"
+        },
+        {
+          "section" : "Static",
+          "name" : "ManStop",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "Manual Stop latched"
+        },
+        {
+          "section" : "Static",
+          "name" : "Disabled",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "Disable latched"
+        },
+        {
+          "section" : "Static",
+          "name" : "Faulted",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "Fault latched"
+        },
+        {
+          "section" : "Static",
+          "name" : "tmNoFb",
+          "type" : "TON_TIME",
+          "start" : "",
+          "comment" : "run command without feedback"
+        },
+        {
+          "section" : "Static",
+          "name" : "tmFbNoCmd",
+          "type" : "TON_TIME",
+          "start" : "",
+          "comment" : "feedback without run command"
+        },
+        {
+          "section" : "Static",
+          "name" : "rtFb",
+          "type" : "R_TRIG",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "Temp",
+          "name" : "doRun",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "Temp",
+          "name" : "lvl",
+          "type" : "Int",
+          "start" : "",
+          "comment" : ""
+        }
+      ],
+      "networks" : [
+        {
+          "title" : "Operator commands (latched)",
+          "comment" : "",
+          "lang" : "SCL",
+          "scl" : [
+            "IF #CmdManStart THEN",
+            "    #ManStart := TRUE;",
+            "    #ManStop := FALSE;",
+            "END_IF;",
+            "IF #CmdManStop THEN",
+            "    #ManStop := TRUE;",
+            "    #ManStart := FALSE;",
+            "END_IF;",
+            "IF #CmdReturnAuto THEN",
+            "    #ManStart := FALSE;",
+            "    #ManStop := FALSE;",
+            "END_IF;",
+            "IF #CmdDisable THEN",
+            "    #Disabled := TRUE;",
+            "END_IF;",
+            "IF #CmdEnable THEN",
+            "    #Disabled := FALSE;",
+            "END_IF;"
+          ]
+        },
+        {
+          "title" : "Fault supervision",
+          "comment" : "",
+          "lang" : "SCL",
+          "scl" : [
+            "IF NOT #OverloadOK AND NOT #Faulted THEN",
+            "    #Faulted := TRUE;",
+            "    #FaultCode := 1;",
+            "END_IF;",
+            "",
+            "// #Run is the command of the previous scan",
+            "#tmNoFb(IN := #Run AND NOT #Feedback, PT := #FbTimeout);",
+            "IF #tmNoFb.Q AND NOT #Faulted THEN",
+            "    #Faulted := TRUE;",
+            "    #FaultCode := 2;",
+            "END_IF;",
+            "",
+            "#tmFbNoCmd(IN := #Feedback AND NOT #Run, PT := #FbTimeout);",
+            "IF #tmFbNoCmd.Q AND NOT #Faulted THEN",
+            "    #Faulted := TRUE;",
+            "    #FaultCode := 3;",
+            "END_IF;",
+            "",
+            "IF #CmdResetFault AND #OverloadOK AND NOT #tmFbNoCmd.Q THEN",
+            "    #Faulted := FALSE;",
+            "    #FaultCode := 0;",
+            "END_IF;"
+          ]
+        },
+        {
+          "title" : "Priority levels (highest level wins)",
+          "comment" : "",
+          "lang" : "SCL",
+          "scl" : [
+            "IF #Faulted THEN",
+            "    #doRun := FALSE;",
+            "    #lvl := 6;",
+            "ELSIF #EStop THEN",
+            "    #doRun := FALSE;",
+            "    #lvl := 6;",
+            "ELSIF #Disabled THEN",
+            "    #doRun := FALSE;",
+            "    #lvl := 5;",
+            "ELSIF #ManStop THEN",
+            "    #doRun := FALSE;",
+            "    #lvl := 4;",
+            "ELSIF #SafeInterlock AND #Interlock THEN",
+            "    #doRun := FALSE;",
+            "    #lvl := 2;",
+            "ELSIF #ManStart THEN",
+            "    #doRun := TRUE;",
+            "    #lvl := 3;",
+            "ELSIF #AutoStop OR #Interlock THEN",
+            "    #doRun := FALSE;",
+            "    #lvl := 2;",
+            "ELSIF #AutoStart THEN",
+            "    #doRun := TRUE;",
+            "    #lvl := 1;",
+            "ELSE",
+            "    #doRun := FALSE;",
+            "    #lvl := 0;",
+            "END_IF;",
+            "",
+            "#Run := #doRun;",
+            "#CtrlLevel := #lvl;",
+            "#Available := NOT (#Faulted OR #EStop OR #Disabled OR #ManStop);"
+          ]
+        },
+        {
+          "title" : "Statistics and HMI status",
+          "comment" : "",
+          "lang" : "SCL",
+          "scl" : [
+            "#rtFb(CLK := #Feedback);",
+            "IF #rtFb.Q THEN",
+            "    #StartCount := #StartCount + 1;",
+            "END_IF;",
+            "",
+            "#Status.AutoStart := #AutoStart;",
+            "#Status.AutoStop := #AutoStop;",
+            "#Status.Interlock := #Interlock;",
+            "#Status.ManualStart := #ManStart;",
+            "#Status.ManualStop := #ManStop;",
+            "#Status.Enable := NOT #Disabled;",
+            "#Status.Disable := #Disabled;",
+            "#Status.Fault := #Faulted;",
+            "#Status.EStop := #EStop;",
+            "#Status.Running := #Feedback;"
+          ]
+        }
+      ]
+    },
+    {
+      "kind" : "FB",
+      "number" : 2,
+      "name" : "FB_Sequencer",
+      "comment" : "=============================================================================\r\nFluff Silo System - S7-1200\r\nFB \"FB_Sequencer\" : Auto Start / Auto Stop sequence (Concept.txt, SystemAnalysis.md ch. 6)\r\nAuto Start:\r\nBlower01 runs. When Blower01 has run TBlowerToScrew (7 s) AND External Request\r\nis held > TReqHold (3 s) -> Screw01 runs. Screw01 has run TScrewToPaddle (3 s)\r\n-> Paddle Patterns start.\r\nRequest lost -> Paddle Patterns stop now, Screw01 stops after TReqOffScrewStop (3 s).\r\nBlower01 stopped -> Screw01 and Paddle Patterns stop now.\r\nScrew01 stopped (fault, disable, manual stop ...) -> Paddle Patterns stop now,\r\nAuto mode ends, Blower01 stops after TScrewTripBlower (5 s).\r\nAuto Stop:\r\nPaddle Patterns and Screw01 stop now, Blower01 stops after TAutoStopBlower (5 s).\r\nExternal Request in Auto Stop: no action.\r\nE-Stop: everything stops at once, Auto Start is refused while E-Stop is latched.\r\nRestartAfterBlowerTrip = TRUE  : like the simulator - Blower01 restarts by itself when\r\nits fault is reset while Auto mode is still on\r\nRestartAfterBlowerTrip = FALSE : a Blower01 trip also ends Auto mode (operator must\r\npress Auto Start again; same policy as a Screw01 trip)\r\n=============================================================================",
+      "interface" : [
+        {
+          "section" : "Input",
+          "name" : "CmdAutoStart",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "Auto Start (edge evaluated)"
+        },
+        {
+          "section" : "Input",
+          "name" : "CmdAutoStop",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "Auto Stop (level)"
+        },
+        {
+          "section" : "Input",
+          "name" : "EStopActive",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "E-Stop latched"
+        },
+        {
+          "section" : "Input",
+          "name" : "ExtRequest",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "External Request"
+        },
+        {
+          "section" : "Input",
+          "name" : "BlowerRunning",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "Blower01 running feedback"
+        },
+        {
+          "section" : "Input",
+          "name" : "ScrewRunning",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "Screw01 running feedback"
+        },
+        {
+          "section" : "Input",
+          "name" : "TBlowerToScrew",
+          "type" : "Time",
+          "start" : "T#7S",
+          "comment" : ""
+        },
+        {
+          "section" : "Input",
+          "name" : "TReqHold",
+          "type" : "Time",
+          "start" : "T#3S",
+          "comment" : ""
+        },
+        {
+          "section" : "Input",
+          "name" : "TScrewToPaddle",
+          "type" : "Time",
+          "start" : "T#3S",
+          "comment" : ""
+        },
+        {
+          "section" : "Input",
+          "name" : "TReqOffScrewStop",
+          "type" : "Time",
+          "start" : "T#3S",
+          "comment" : ""
+        },
+        {
+          "section" : "Input",
+          "name" : "TScrewTripBlower",
+          "type" : "Time",
+          "start" : "T#5S",
+          "comment" : ""
+        },
+        {
+          "section" : "Input",
+          "name" : "TAutoStopBlower",
+          "type" : "Time",
+          "start" : "T#5S",
+          "comment" : ""
+        },
+        {
+          "section" : "Input",
+          "name" : "RestartAfterBlowerTrip",
+          "type" : "Bool",
+          "start" : "TRUE",
+          "comment" : ""
+        },
+        {
+          "section" : "Output",
+          "name" : "AutoMode",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "Auto Start mode active"
+        },
+        {
+          "section" : "Output",
+          "name" : "BlowerAutoStart",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "Blower01 property Auto Start  (L1)"
+        },
+        {
+          "section" : "Output",
+          "name" : "BlowerAutoStop",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "Blower01 property Auto Stop   (L2)"
+        },
+        {
+          "section" : "Output",
+          "name" : "ScrewAutoStart",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "Screw01  property Auto Start  (L1)"
+        },
+        {
+          "section" : "Output",
+          "name" : "ScrewAutoStop",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "Screw01  property Auto Stop   (L2)"
+        },
+        {
+          "section" : "Output",
+          "name" : "ScrewInterlock",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "Screw01  property Interlock   (L2) = Blower01 not running"
+        },
+        {
+          "section" : "Output",
+          "name" : "PaddleAutoStop",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "Paddle0x property Auto Stop   (L2)"
+        },
+        {
+          "section" : "Output",
+          "name" : "PaddleInterlock",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "Paddle0x property Interlock   (L2) = Screw01 not running"
+        },
+        {
+          "section" : "Output",
+          "name" : "PatternCmd",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "enable Paddle Patterns"
+        },
+        {
+          "section" : "Output",
+          "name" : "BlowerStopPending",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "Blower01 stop delay running"
+        },
+        {
+          "section" : "Output",
+          "name" : "BlowerStopRemaining",
+          "type" : "Time",
+          "start" : "",
+          "comment" : "remaining time of the Blower01 stop delay"
+        },
+        {
+          "section" : "Static",
+          "name" : "BlowerCmd",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "Static",
+          "name" : "ScrewCmd",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "Static",
+          "name" : "PrevBlowerRun",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "Static",
+          "name" : "PrevScrewRun",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "Static",
+          "name" : "StopDelay",
+          "type" : "Time",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "Static",
+          "name" : "rtStart",
+          "type" : "R_TRIG",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "Static",
+          "name" : "tmReqOn",
+          "type" : "TON_TIME",
+          "start" : "",
+          "comment" : "External Request held"
+        },
+        {
+          "section" : "Static",
+          "name" : "tmReqOff",
+          "type" : "TON_TIME",
+          "start" : "",
+          "comment" : "External Request lost"
+        },
+        {
+          "section" : "Static",
+          "name" : "tmBlowerReady",
+          "type" : "TON_TIME",
+          "start" : "",
+          "comment" : "Blower01 running long enough"
+        },
+        {
+          "section" : "Static",
+          "name" : "tmScrewReady",
+          "type" : "TON_TIME",
+          "start" : "",
+          "comment" : "Screw01 running long enough"
+        },
+        {
+          "section" : "Static",
+          "name" : "tmBlowerStop",
+          "type" : "TON_TIME",
+          "start" : "",
+          "comment" : "Blower01 stop delay"
+        }
+      ],
+      "networks" : [
+        {
+          "title" : "Mode (Auto Start / Auto Stop / E-Stop)",
+          "comment" : "",
+          "lang" : "SCL",
+          "scl" : [
+            "#rtStart(CLK := #CmdAutoStart);",
+            "IF #EStopActive THEN",
+            "    #AutoMode := FALSE;",
+            "    #BlowerCmd := FALSE;",
+            "    #ScrewCmd := FALSE;",
+            "    #BlowerStopPending := FALSE;",
+            "ELSE",
+            "    IF #rtStart.Q AND NOT #CmdAutoStop THEN",
+            "        #AutoMode := TRUE;",
+            "        #BlowerStopPending := FALSE;",
+            "    END_IF;",
+            "    IF #CmdAutoStop AND #AutoMode THEN",
+            "        #AutoMode := FALSE;",
+            "        #ScrewCmd := FALSE;",
+            "        IF #BlowerCmd THEN",
+            "            #BlowerStopPending := TRUE;",
+            "            #StopDelay := #TAutoStopBlower;",
+            "        END_IF;",
+            "    END_IF;",
+            "END_IF;"
+          ]
+        },
+        {
+          "title" : "Trips (device stopped while Auto wanted it running)",
+          "comment" : "Screw01 stopped -> Paddle Patterns stop now, Blower01 stops after the delay",
+          "lang" : "SCL",
+          "scl" : [
+            "IF #AutoMode AND #ScrewCmd AND #PrevScrewRun AND NOT #ScrewRunning THEN",
+            "    #AutoMode := FALSE;",
+            "    #ScrewCmd := FALSE;",
+            "    #BlowerStopPending := TRUE;",
+            "    #StopDelay := #TScrewTripBlower;",
+            "END_IF;",
+            "// Blower01 stopped -> optional end of Auto mode",
+            "IF #AutoMode AND #BlowerCmd AND #PrevBlowerRun AND NOT #BlowerRunning AND NOT #RestartAfterBlowerTrip THEN",
+            "    #AutoMode := FALSE;",
+            "    #BlowerCmd := FALSE;",
+            "    #ScrewCmd := FALSE;",
+            "END_IF;",
+            "#PrevScrewRun := #ScrewRunning;",
+            "#PrevBlowerRun := #BlowerRunning;"
+          ]
+        },
+        {
+          "title" : "Delays",
+          "comment" : "",
+          "lang" : "SCL",
+          "scl" : [
+            "#tmReqOn(IN := #ExtRequest, PT := #TReqHold);",
+            "#tmReqOff(IN := NOT #ExtRequest, PT := #TReqOffScrewStop);",
+            "#tmBlowerReady(IN := #AutoMode AND #BlowerRunning, PT := #TBlowerToScrew);"
+          ]
+        },
+        {
+          "title" : "Auto commands",
+          "comment" : "",
+          "lang" : "SCL",
+          "scl" : [
+            "IF #AutoMode THEN",
+            "    #BlowerCmd := TRUE;",
+            "    #BlowerStopPending := FALSE;",
+            "    IF NOT #BlowerRunning THEN",
+            "        // Blower01 not running -> Screw01 and Paddle Patterns stop now",
+            "        #ScrewCmd := FALSE;",
+            "    ELSE",
+            "        IF NOT #ScrewCmd AND #ExtRequest AND #tmBlowerReady.Q AND #tmReqOn.Q THEN",
+            "            #ScrewCmd := TRUE;",
+            "        END_IF;",
+            "        IF #ScrewCmd AND #tmReqOff.Q THEN",
+            "            #ScrewCmd := FALSE;",
+            "        END_IF;",
+            "    END_IF;",
+            "ELSE",
+            "    // Auto Stop: no reaction to External Request",
+            "    #ScrewCmd := FALSE;",
+            "    IF NOT #BlowerStopPending THEN",
+            "        #BlowerCmd := FALSE;",
+            "    END_IF;",
+            "END_IF;",
+            "",
+            "#tmBlowerStop(IN := #BlowerStopPending, PT := #StopDelay);",
+            "IF #tmBlowerStop.Q THEN",
+            "    #BlowerCmd := FALSE;",
+            "    #BlowerStopPending := FALSE;",
+            "END_IF;",
+            "IF #BlowerStopPending THEN",
+            "    #BlowerStopRemaining := #StopDelay - #tmBlowerStop.ET;",
+            "ELSE",
+            "    #BlowerStopRemaining := T#0S;",
+            "END_IF;",
+            "",
+            "// Request lost -> Paddle Patterns stop at once (no delay)",
+            "#tmScrewReady(IN := #ScrewCmd AND #ScrewRunning, PT := #TScrewToPaddle);",
+            "#PatternCmd := #AutoMode AND #ScrewCmd AND #ScrewRunning AND #BlowerRunning",
+            "               AND #ExtRequest AND #tmScrewReady.Q;"
+          ]
+        },
+        {
+          "title" : "Device properties",
+          "comment" : "",
+          "lang" : "SCL",
+          "scl" : [
+            "#BlowerAutoStart := #BlowerCmd;",
+            "#BlowerAutoStop := NOT #AutoMode AND NOT #BlowerCmd;",
+            "#ScrewAutoStart := #ScrewCmd;",
+            "#ScrewAutoStop := NOT #AutoMode;",
+            "#ScrewInterlock := NOT #BlowerRunning;",
+            "#PaddleAutoStop := NOT #AutoMode;",
+            "#PaddleInterlock := NOT #ScrewRunning;"
+          ]
+        }
+      ]
+    },
+    {
+      "kind" : "FB",
+      "number" : 3,
+      "name" : "FB_PaddlePattern",
+      "comment" : "=============================================================================\r\nFluff Silo System - S7-1200\r\nFB \"FB_PaddlePattern\" : Paddle Patterns (SystemAnalysis.md ch. 7)\r\nTable of up to 10 steps: Mask (bit0 = Paddle01, bit1 = Paddle02, bit2 = Paddle03,\r\n0 = pause) and StepTime (0.1 s). The table runs in a loop while Enable = TRUE.\r\n- start: first step that is not blocked\r\n- step time elapsed: next step that is not blocked\r\n- current step blocked (its paddles stopped: fault / E-Stop / disable / manual stop):\r\njump to the next step with a paddle that can run, so the next paddle continues\r\n- Enable = FALSE: all paddles off at once, next start begins at step 1 again\r\n=============================================================================",
+      "interface" : [
+        {
+          "section" : "Input",
+          "name" : "Enable",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "PatternCmd from the sequencer"
+        },
+        {
+          "section" : "Input",
+          "name" : "Available",
+          "type" : "Array[0..2] of Bool",
+          "start" : "",
+          "comment" : "Paddle01..03 may run"
+        },
+        {
+          "section" : "Input",
+          "name" : "StepCount",
+          "type" : "Int",
+          "start" : "",
+          "comment" : "0..10"
+        },
+        {
+          "section" : "Input",
+          "name" : "Mask",
+          "type" : "Array[0..9] of Int",
+          "start" : "",
+          "comment" : "paddles per step"
+        },
+        {
+          "section" : "Input",
+          "name" : "StepTime",
+          "type" : "Array[0..9] of Int",
+          "start" : "",
+          "comment" : "0.1 s, minimum 0.5 s"
+        },
+        {
+          "section" : "Output",
+          "name" : "PaddleCmd",
+          "type" : "Array[0..2] of Bool",
+          "start" : "",
+          "comment" : "Auto Start request for Paddle01..03"
+        },
+        {
+          "section" : "Output",
+          "name" : "Active",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "Paddle Patterns running"
+        },
+        {
+          "section" : "Output",
+          "name" : "CurrentStep",
+          "type" : "Int",
+          "start" : "",
+          "comment" : "1..10, 0 = not running"
+        },
+        {
+          "section" : "Output",
+          "name" : "ElapsedTenths",
+          "type" : "Int",
+          "start" : "",
+          "comment" : "time in the current step, 0.1 s"
+        },
+        {
+          "section" : "Static",
+          "name" : "Step",
+          "type" : "Int",
+          "start" : "",
+          "comment" : "current step, 0-based"
+        },
+        {
+          "section" : "Static",
+          "name" : "Restart",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "restart the step timer in this scan"
+        },
+        {
+          "section" : "Static",
+          "name" : "tmStep",
+          "type" : "TON_TIME",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "Temp",
+          "name" : "n",
+          "type" : "Int",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "Temp",
+          "name" : "k",
+          "type" : "Int",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "Temp",
+          "name" : "s",
+          "type" : "Int",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "Temp",
+          "name" : "pass",
+          "type" : "Int",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "Temp",
+          "name" : "nextStep",
+          "type" : "Int",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "Temp",
+          "name" : "search",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "Temp",
+          "name" : "skipPauses",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "Temp",
+          "name" : "starting",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "Temp",
+          "name" : "w",
+          "type" : "Word",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "Temp",
+          "name" : "stepT",
+          "type" : "Time",
+          "start" : "",
+          "comment" : ""
+        }
+      ],
+      "networks" : [
+        {
+          "title" : "",
+          "comment" : "",
+          "lang" : "SCL",
+          "scl" : [
+            "#n := LIMIT(MN := 0, IN := #StepCount, MX := 10);",
+            "",
+            "REGION Disabled",
+            "    IF NOT #Enable OR #n = 0 THEN",
+            "        #Active := FALSE;",
+            "        #Step := 0;",
+            "        #Restart := TRUE;",
+            "        #tmStep(IN := FALSE, PT := T#0S);",
+            "        #PaddleCmd[0] := FALSE;",
+            "        #PaddleCmd[1] := FALSE;",
+            "        #PaddleCmd[2] := FALSE;",
+            "        #CurrentStep := 0;",
+            "        #ElapsedTenths := 0;",
+            "        RETURN;",
+            "    END_IF;",
+            "END_REGION",
+            "",
+            "REGION Decide whether to change step",
+            "    IF (#Step < 0) OR (#Step >= #n) THEN   // table shortened by the HMI",
+            "        #Step := 0;",
+            "        #Restart := TRUE;",
+            "    END_IF;",
+            "",
+            "    #search := FALSE;",
+            "    #skipPauses := FALSE;",
+            "    #starting := FALSE;",
+            "    IF NOT #Active THEN",
+            "        #Active := TRUE;",
+            "        #starting := TRUE;",
+            "        #search := TRUE;",
+            "        #Step := #n - 1;   // so that the search begins with step 1",
+            "    ELSIF #tmStep.Q THEN",
+            "        #search := TRUE;   // step time elapsed",
+            "    ELSIF \"FC_StepBlocked\"(Mask := #Mask[#Step], Available := #Available) THEN",
+            "        #search := TRUE;   // paddle in this step stopped -> next paddle continues",
+            "        #skipPauses := TRUE;",
+            "    END_IF;",
+            "END_REGION",
+            "",
+            "REGION Find next step",
+            "    IF #search THEN",
+            "        #nextStep := -1;",
+            "        // pass 0: only steps with a paddle (when skipping pauses), pass 1: any step",
+            "        FOR #pass := 0 TO 1 DO",
+            "            IF (#pass = 0) AND NOT #skipPauses THEN",
+            "                CONTINUE;",
+            "            END_IF;",
+            "            FOR #k := 1 TO #n DO",
+            "                #s := (#Step + #k) MOD #n;",
+            "                IF NOT \"FC_StepBlocked\"(Mask := #Mask[#s], Available := #Available)",
+            "                    AND ((#pass = 1) OR (#Mask[#s] <> 0)) THEN",
+            "                    #nextStep := #s;",
+            "                    EXIT;",
+            "                END_IF;",
+            "            END_FOR;",
+            "            IF #nextStep >= 0 THEN",
+            "                EXIT;",
+            "            END_IF;",
+            "        END_FOR;",
+            "",
+            "        IF #starting AND (#nextStep < 0) THEN",
+            "            #nextStep := 0;",
+            "        END_IF;",
+            "        IF (#nextStep >= 0) AND ((#nextStep <> #Step) OR NOT #skipPauses) THEN",
+            "            #Step := #nextStep;",
+            "            #Restart := TRUE;",
+            "        END_IF;",
+            "    END_IF;",
+            "END_REGION",
+            "",
+            "REGION Step timer and outputs",
+            "    #stepT := \"FC_TenthsToTime\"(Tenths := MAX(IN1 := #StepTime[#Step], IN2 := 5));",
+            "    #tmStep(IN := NOT #Restart, PT := #stepT);",
+            "    #Restart := FALSE;",
+            "",
+            "    #w := INT_TO_WORD(#Mask[#Step]);",
+            "    #PaddleCmd[0] := #w.%X0;",
+            "    #PaddleCmd[1] := #w.%X1;",
+            "    #PaddleCmd[2] := #w.%X2;",
+            "    #CurrentStep := #Step + 1;",
+            "    #ElapsedTenths := DINT_TO_INT(TIME_TO_DINT(#tmStep.ET) / 100);",
+            "END_REGION"
+          ]
+        }
+      ]
+    },
+    {
+      "kind" : "FB",
+      "number" : 4,
+      "name" : "FB_FluffSilo",
+      "comment" : "=============================================================================\r\nFluff Silo System - S7-1200\r\nFB \"FB_FluffSilo\" : top level, called once per scan from OB1 with \"iDB_FluffSilo\"\r\nI/O (PLC tags)  ->  E-Stop latch, External Request, parameters\r\n->  FB_Sequencer -> FB_PaddlePattern -> 5 x FB_Motor  ->  outputs\r\n->  DB_HMI status for FluffSilo HMI\r\nConfiguration: static variables marked [CFG] - change their start values in\r\n\"iDB_FluffSilo\" (or online). See README section \"Options\".\r\n=============================================================================",
+      "interface" : [
+        {
+          "section" : "Static",
+          "name" : "FbTimeout",
+          "type" : "Time",
+          "start" : "T#3S",
+          "comment" : "[CFG] running feedback supervision"
+        },
+        {
+          "section" : "Static",
+          "name" : "SafeInterlock",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "[CFG] TRUE: Interlock also blocks Manual Start"
+        },
+        {
+          "section" : "Static",
+          "name" : "RestartAfterBlowerTrip",
+          "type" : "Bool",
+          "start" : "TRUE",
+          "comment" : "[CFG] FALSE: a Blower01 trip ends Auto mode"
+        },
+        {
+          "section" : "Static",
+          "name" : "FillOnLevel",
+          "type" : "Real",
+          "start" : "25.0",
+          "comment" : "[CFG] % - Fill_Request ON below this level"
+        },
+        {
+          "section" : "Static",
+          "name" : "FillOffLevel",
+          "type" : "Real",
+          "start" : "90.0",
+          "comment" : "[CFG] % - Fill_Request OFF at this level"
+        },
+        {
+          "section" : "Static",
+          "name" : "EStopLatch",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "E-Stop latched (until reset)"
+        },
+        {
+          "section" : "Static",
+          "name" : "FillReq",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "Static",
+          "name" : "LevelPct",
+          "type" : "Real",
+          "start" : "",
+          "comment" : "silo level 0..100 %"
+        },
+        {
+          "section" : "Static",
+          "name" : "LevelSensorFault",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "Static",
+          "name" : "AnyFault",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "Static",
+          "name" : "rtReset",
+          "type" : "R_TRIG",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "Static",
+          "name" : "Seq",
+          "type" : "\"FB_Sequencer\"",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "Static",
+          "name" : "Pattern",
+          "type" : "\"FB_PaddlePattern\"",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "Static",
+          "name" : "Blower01",
+          "type" : "\"FB_Motor\"",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "Static",
+          "name" : "Screw01",
+          "type" : "\"FB_Motor\"",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "Static",
+          "name" : "Paddle01",
+          "type" : "\"FB_Motor\"",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "Static",
+          "name" : "Paddle02",
+          "type" : "\"FB_Motor\"",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "Static",
+          "name" : "Paddle03",
+          "type" : "\"FB_Motor\"",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "Temp",
+          "name" : "resetPulse",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "Temp",
+          "name" : "extReq",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "Temp",
+          "name" : "cmdStart",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "Temp",
+          "name" : "cmdStop",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "Temp",
+          "name" : "avail",
+          "type" : "Array[0..2] of Bool",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "Temp",
+          "name" : "tBlowerToScrew",
+          "type" : "Time",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "Temp",
+          "name" : "tReqHold",
+          "type" : "Time",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "Temp",
+          "name" : "tScrewToPaddle",
+          "type" : "Time",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "Temp",
+          "name" : "tReqOffScrewStop",
+          "type" : "Time",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "Temp",
+          "name" : "tScrewTripBlower",
+          "type" : "Time",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "Temp",
+          "name" : "tAutoStopBlower",
+          "type" : "Time",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "Temp",
+          "name" : "i",
+          "type" : "Int",
+          "start" : "",
+          "comment" : ""
+        }
+      ],
+      "networks" : [
+        {
+          "title" : "E-Stop and reset",
+          "comment" : "Hardware E-Stop (safety relay, NC) or HMI E-Stop -> latched until Reset",
+          "lang" : "SCL",
+          "scl" : [
+            "// NOTE: the safety relay must switch off the contactors by hardware.",
+            "//       The PLC only follows it (category / PL according to the risk assessment).",
+            "#rtReset(CLK := \"PB_Reset\" OR \"DB_HMI\".Cmd.ResetEStop);",
+            "#resetPulse := #rtReset.Q;",
+            "IF NOT \"EStop_OK\" OR \"DB_HMI\".Cmd.EStop THEN",
+            "    #EStopLatch := TRUE;",
+            "END_IF;",
+            "IF #resetPulse AND \"EStop_OK\" AND NOT \"DB_HMI\".Cmd.EStop THEN",
+            "    #EStopLatch := FALSE;",
+            "END_IF;"
+          ]
+        },
+        {
+          "title" : "External Request and parameters",
+          "comment" : "External Request = hardware input from the consumer OR the HMI button",
+          "lang" : "SCL",
+          "scl" : [
+            "#extReq := \"ExtRequest_In\" OR \"DB_HMI\".Cmd.ExtRequest;",
+            "",
+            "\"FC_ValidateParams\"();",
+            "#tBlowerToScrew := \"FC_TenthsToTime\"(Tenths := \"DB_HMI\".Delay[0]);",
+            "#tReqHold := \"FC_TenthsToTime\"(Tenths := \"DB_HMI\".Delay[1]);",
+            "#tScrewToPaddle := \"FC_TenthsToTime\"(Tenths := \"DB_HMI\".Delay[2]);",
+            "#tReqOffScrewStop := \"FC_TenthsToTime\"(Tenths := \"DB_HMI\".Delay[3]);",
+            "#tScrewTripBlower := \"FC_TenthsToTime\"(Tenths := \"DB_HMI\".Delay[4]);",
+            "#tAutoStopBlower := \"FC_TenthsToTime\"(Tenths := \"DB_HMI\".Delay[5]);"
+          ]
+        },
+        {
+          "title" : "Auto sequence",
+          "comment" : "panel Auto Stop push button is NC: wire break = stop, start refused while pressed",
+          "lang" : "SCL",
+          "scl" : [
+            "#cmdStop := \"DB_HMI\".Cmd.AutoStop OR NOT \"PB_AutoStop\";",
+            "#cmdStart := (\"DB_HMI\".Cmd.AutoStart OR \"PB_AutoStart\") AND NOT #cmdStop;",
+            "",
+            "#Seq(CmdAutoStart := #cmdStart,",
+            "     CmdAutoStop := #cmdStop,",
+            "     EStopActive := #EStopLatch,",
+            "     ExtRequest := #extReq,",
+            "     BlowerRunning := \"Blower01_FB\",",
+            "     ScrewRunning := \"Screw01_FB\",",
+            "     TBlowerToScrew := #tBlowerToScrew,",
+            "     TReqHold := #tReqHold,",
+            "     TScrewToPaddle := #tScrewToPaddle,",
+            "     TReqOffScrewStop := #tReqOffScrewStop,",
+            "     TScrewTripBlower := #tScrewTripBlower,",
+            "     TAutoStopBlower := #tAutoStopBlower,",
+            "     RestartAfterBlowerTrip := #RestartAfterBlowerTrip);"
+          ]
+        },
+        {
+          "title" : "Paddle Patterns",
+          "comment" : "availability of the paddles from the previous scan",
+          "lang" : "SCL",
+          "scl" : [
+            "#avail[0] := #Paddle01.Available;",
+            "#avail[1] := #Paddle02.Available;",
+            "#avail[2] := #Paddle03.Available;",
+            "",
+            "#Pattern(Enable := #Seq.PatternCmd,",
+            "         Available := #avail,",
+            "         StepCount := \"DB_HMI\".Pattern.StepCount,",
+            "         Mask := \"DB_HMI\".Pattern.Mask,",
+            "         StepTime := \"DB_HMI\".Pattern.StepTime);"
+          ]
+        },
+        {
+          "title" : "Devices",
+          "comment" : "DevCmd index = device * 8 + command",
+          "lang" : "SCL",
+          "scl" : [
+            "// command: 0 ManualStart, 1 ManualStop, 2 ReturnAuto, 3 Enable, 4 Disable, 5 ResetFault",
+            "#Blower01(AutoStart := #Seq.BlowerAutoStart,",
+            "          AutoStop := #Seq.BlowerAutoStop,",
+            "          Interlock := FALSE,",
+            "          EStop := #EStopLatch,",
+            "          CmdManStart := \"DB_HMI\".DevCmd[0],",
+            "          CmdManStop := \"DB_HMI\".DevCmd[1],",
+            "          CmdReturnAuto := \"DB_HMI\".DevCmd[2],",
+            "          CmdEnable := \"DB_HMI\".DevCmd[3],",
+            "          CmdDisable := \"DB_HMI\".DevCmd[4],",
+            "          CmdResetFault := \"DB_HMI\".DevCmd[5] OR #resetPulse,",
+            "          Feedback := \"Blower01_FB\",",
+            "          OverloadOK := \"Blower01_OL\",",
+            "          FbTimeout := #FbTimeout,",
+            "          SafeInterlock := #SafeInterlock);",
+            "",
+            "#Screw01(AutoStart := #Seq.ScrewAutoStart,",
+            "         AutoStop := #Seq.ScrewAutoStop,",
+            "         Interlock := #Seq.ScrewInterlock,",
+            "         EStop := #EStopLatch,",
+            "         CmdManStart := \"DB_HMI\".DevCmd[8],",
+            "         CmdManStop := \"DB_HMI\".DevCmd[9],",
+            "         CmdReturnAuto := \"DB_HMI\".DevCmd[10],",
+            "         CmdEnable := \"DB_HMI\".DevCmd[11],",
+            "         CmdDisable := \"DB_HMI\".DevCmd[12],",
+            "         CmdResetFault := \"DB_HMI\".DevCmd[13] OR #resetPulse,",
+            "         Feedback := \"Screw01_FB\",",
+            "         OverloadOK := \"Screw01_OL\",",
+            "         FbTimeout := #FbTimeout,",
+            "         SafeInterlock := #SafeInterlock);",
+            "",
+            "#Paddle01(AutoStart := #Pattern.PaddleCmd[0],",
+            "          AutoStop := #Seq.PaddleAutoStop,",
+            "          Interlock := #Seq.PaddleInterlock,",
+            "          EStop := #EStopLatch,",
+            "          CmdManStart := \"DB_HMI\".DevCmd[16],",
+            "          CmdManStop := \"DB_HMI\".DevCmd[17],",
+            "          CmdReturnAuto := \"DB_HMI\".DevCmd[18],",
+            "          CmdEnable := \"DB_HMI\".DevCmd[19],",
+            "          CmdDisable := \"DB_HMI\".DevCmd[20],",
+            "          CmdResetFault := \"DB_HMI\".DevCmd[21] OR #resetPulse,",
+            "          Feedback := \"Paddle01_FB\",",
+            "          OverloadOK := \"Paddle01_OL\",",
+            "          FbTimeout := #FbTimeout,",
+            "          SafeInterlock := #SafeInterlock);",
+            "",
+            "#Paddle02(AutoStart := #Pattern.PaddleCmd[1],",
+            "          AutoStop := #Seq.PaddleAutoStop,",
+            "          Interlock := #Seq.PaddleInterlock,",
+            "          EStop := #EStopLatch,",
+            "          CmdManStart := \"DB_HMI\".DevCmd[24],",
+            "          CmdManStop := \"DB_HMI\".DevCmd[25],",
+            "          CmdReturnAuto := \"DB_HMI\".DevCmd[26],",
+            "          CmdEnable := \"DB_HMI\".DevCmd[27],",
+            "          CmdDisable := \"DB_HMI\".DevCmd[28],",
+            "          CmdResetFault := \"DB_HMI\".DevCmd[29] OR #resetPulse,",
+            "          Feedback := \"Paddle02_FB\",",
+            "          OverloadOK := \"Paddle02_OL\",",
+            "          FbTimeout := #FbTimeout,",
+            "          SafeInterlock := #SafeInterlock);",
+            "",
+            "#Paddle03(AutoStart := #Pattern.PaddleCmd[2],",
+            "          AutoStop := #Seq.PaddleAutoStop,",
+            "          Interlock := #Seq.PaddleInterlock,",
+            "          EStop := #EStopLatch,",
+            "          CmdManStart := \"DB_HMI\".DevCmd[32],",
+            "          CmdManStop := \"DB_HMI\".DevCmd[33],",
+            "          CmdReturnAuto := \"DB_HMI\".DevCmd[34],",
+            "          CmdEnable := \"DB_HMI\".DevCmd[35],",
+            "          CmdDisable := \"DB_HMI\".DevCmd[36],",
+            "          CmdResetFault := \"DB_HMI\".DevCmd[37] OR #resetPulse,",
+            "          Feedback := \"Paddle03_FB\",",
+            "          OverloadOK := \"Paddle03_OL\",",
+            "          FbTimeout := #FbTimeout,",
+            "          SafeInterlock := #SafeInterlock);"
+          ]
+        },
+        {
+          "title" : "Outputs",
+          "comment" : "",
+          "lang" : "SCL",
+          "scl" : [
+            "\"Blower01_Run\" := #Blower01.Run;",
+            "\"Screw01_Run\" := #Screw01.Run;",
+            "\"Paddle01_Run\" := #Paddle01.Run;",
+            "\"Paddle02_Run\" := #Paddle02.Run;",
+            "\"Paddle03_Run\" := #Paddle03.Run;",
+            "",
+            "#AnyFault := #Blower01.Status.Fault ",
+            "             OR #Screw01.Status.Fault ",
+            "             OR #Paddle01.Status.Fault",
+            "             OR #Paddle02.Status.Fault ",
+            "             OR #Paddle03.Status.Fault;",
+            "\"Lamp_AutoRun\" := #Seq.AutoMode;",
+            "\"Lamp_Fault\" := #AnyFault OR #LevelSensorFault;",
+            "\"Lamp_EStop\" := #EStopLatch;"
+          ]
+        },
+        {
+          "title" : "Silo level and fill request",
+          "comment" : "",
+          "lang" : "SCL",
+          "scl" : [
+            "#LevelPct := \"FC_ScaleAnalog\"(Raw := \"Silo_Level_AI\", EngLow := 0.0, EngHigh := 100.0,",
+            "                              Fault => #LevelSensorFault);",
+            "// request raw material for the silo (hysteresis), never on a broken sensor",
+            "IF #LevelSensorFault THEN",
+            "    #FillReq := FALSE;",
+            "ELSIF #LevelPct < #FillOnLevel THEN",
+            "    #FillReq := TRUE;",
+            "ELSIF #LevelPct >= #FillOffLevel THEN",
+            "    #FillReq := FALSE;",
+            "END_IF;",
+            "\"Fill_Request\" := #FillReq;"
+          ]
+        },
+        {
+          "title" : "Status to HMI",
+          "comment" : "",
+          "lang" : "SCL",
+          "scl" : [
+            "\"DB_HMI\".Dev[0] := #Blower01.Status;",
+            "\"DB_HMI\".Dev[1] := #Screw01.Status;",
+            "\"DB_HMI\".Dev[2] := #Paddle01.Status;",
+            "\"DB_HMI\".Dev[3] := #Paddle02.Status;",
+            "\"DB_HMI\".Dev[4] := #Paddle03.Status;",
+            "",
+            "\"DB_HMI\".Sys.AutoMode := #Seq.AutoMode;",
+            "\"DB_HMI\".Sys.ExtRequest := #extReq;",
+            "\"DB_HMI\".Sys.PatternActive := #Pattern.Active;",
+            "\"DB_HMI\".Sys.EStop := #EStopLatch;",
+            "",
+            "\"DB_HMI\".Proc.CurrentStep := #Pattern.CurrentStep;",
+            "\"DB_HMI\".Proc.StepElapsed := #Pattern.ElapsedTenths;",
+            "\"DB_HMI\".Proc.SiloLevel := REAL_TO_INT(#LevelPct * 10.0);"
+          ]
+        },
+        {
+          "title" : "Acknowledge HMI pulse commands",
+          "comment" : "every command acts once; Cmd.ExtRequest is a maintained signal and stays",
+          "lang" : "SCL",
+          "scl" : [
+            "\"DB_HMI\".Cmd.AutoStart := FALSE;",
+            "\"DB_HMI\".Cmd.AutoStop := FALSE;",
+            "\"DB_HMI\".Cmd.EStop := FALSE;",
+            "\"DB_HMI\".Cmd.ResetEStop := FALSE;",
+            "FOR #i := 0 TO 39 DO",
+            "    \"DB_HMI\".DevCmd[#i] := FALSE;",
+            "END_FOR;"
+          ]
+        }
+      ]
+    }
+  ],
+  "types" : [
+    {
+      "number" : 1,
+      "name" : "typeDevStatus",
+      "comment" : "=============================================================================\r\nFluff Silo System - S7-1200\r\nUDT \"typeDevStatus\" : the 10 properties of one device as seen by the HMI\r\nLayout (non-optimized DB): 10 Bool = 2 bytes\r\nx.0 AutoStart  x.1 AutoStop  x.2 Interlock  x.3 ManualStart  x.4 ManualStop\r\nx.5 Enable     x.6 Disable   x.7 Fault      (x+1).0 EStop    (x+1).1 Running\r\nMust match the FluffSilo HMI register map - do not reorder.\r\n=============================================================================",
+      "members" : [
+        {
+          "name" : "AutoStart",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "L1  auto run request (sequencer / Paddle Patterns)"
+        },
+        {
+          "name" : "AutoStop",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "L2  auto stop"
+        },
+        {
+          "name" : "Interlock",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "L2  upstream device not running"
+        },
+        {
+          "name" : "ManualStart",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "L3  manual start latched"
+        },
+        {
+          "name" : "ManualStop",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "L4  manual stop latched"
+        },
+        {
+          "name" : "Enable",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "L5  device enabled"
+        },
+        {
+          "name" : "Disable",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "L5  device disabled"
+        },
+        {
+          "name" : "Fault",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "L6  fault latched (overload / feedback)"
+        },
+        {
+          "name" : "EStop",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "L6  E-Stop active"
+        },
+        {
+          "name" : "Running",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "feedback: device really running"
+        }
+      ]
+    },
+    {
+      "number" : 2,
+      "name" : "DB_HMI_Pattern",
+      "comment" : "the anonymous Struct of DB_HMI.Pattern (made by the import of an .scl source)",
+      "members" : [
+        {
+          "name" : "StepCount",
+          "type" : "Int",
+          "start" : "",
+          "comment" : "DBW40 0..10"
+        },
+        {
+          "name" : "Mask",
+          "type" : "Array[0..9] of Int",
+          "start" : "",
+          "comment" : "DBW42..60"
+        },
+        {
+          "name" : "StepTime",
+          "type" : "Array[0..9] of Int",
+          "start" : "",
+          "comment" : "DBW62..80 0.1 s"
+        }
+      ]
+    },
+    {
+      "number" : 3,
+      "name" : "DB_HMI_Proc",
+      "comment" : "the anonymous Struct of DB_HMI.Proc (made by the import of an .scl source)",
+      "members" : [
+        {
+          "name" : "CurrentStep",
+          "type" : "Int",
+          "start" : "",
+          "comment" : "DBW32 active pattern step 1..10, 0 = none"
+        },
+        {
+          "name" : "StepElapsed",
+          "type" : "Int",
+          "start" : "",
+          "comment" : "DBW34 0.1 s"
+        },
+        {
+          "name" : "SiloLevel",
+          "type" : "Int",
+          "start" : "",
+          "comment" : "DBW36 0.1 %"
+        },
+        {
+          "name" : "Spare",
+          "type" : "Int",
+          "start" : "",
+          "comment" : "DBW38"
+        }
+      ]
+    },
+    {
+      "number" : 4,
+      "name" : "DB_HMI_Cmd",
+      "comment" : "the anonymous Struct of DB_HMI.Cmd (made by the import of an .scl source)",
+      "members" : [
+        {
+          "name" : "AutoStart",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "DBX12.0 pulse"
+        },
+        {
+          "name" : "AutoStop",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "DBX12.1 pulse"
+        },
+        {
+          "name" : "EStop",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "DBX12.2 pulse (HMI E-Stop, additional to hardware E-Stop)"
+        },
+        {
+          "name" : "ResetEStop",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "DBX12.3 pulse"
+        },
+        {
+          "name" : "ExtRequest",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "DBX12.4 maintained 1/0"
+        }
+      ]
+    },
+    {
+      "number" : 5,
+      "name" : "DB_HMI_Sys",
+      "comment" : "the anonymous Struct of DB_HMI.Sys (made by the import of an .scl source)",
+      "members" : [
+        {
+          "name" : "AutoMode",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "DBX10.0 Auto Start mode active"
+        },
+        {
+          "name" : "ExtRequest",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "DBX10.1 External Request (input OR HMI)"
+        },
+        {
+          "name" : "PatternActive",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "DBX10.2 Paddle Patterns running"
+        },
+        {
+          "name" : "EStop",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "DBX10.3 E-Stop latched"
+        }
+      ]
+    }
+  ],
+  "dbs" : [
+    {
+      "number" : 10,
+      "name" : "DB_HMI",
+      "comment" : "=============================================================================\r\nFluff Silo System - S7-1200\r\nDB \"DB_HMI\"  (set block number = 10 after generating the block!)\r\nInterface to FluffSilo HMI (Siemens S7 / PUT-GET).\r\n* Standard access (NOT optimized) - the HMI uses absolute offsets\r\n* Retentive: parameters (delays, Paddle Patterns) survive power loss\r\n* PLC Properties: \"Permit access with PUT/GET communication\" = ON\r\nByte map (must match HMI default S7 map, see README):\r\nDBX0.0  .. DBX9.7   Dev[0..4]        device status, 2 bytes per device\r\nDBX10.0 .. DBX10.3  Sys              AutoMode, ExtRequest, PatternActive, EStop\r\nDBX12.0 .. DBX12.4  Cmd              AutoStart, AutoStop, EStop, ResetEStop, ExtRequest\r\nDBX14.0 .. DBX18.7  DevCmd[0..39]    device commands, index = device*8 + command\r\nDBW20   .. DBW30    Delay[0..5]      0.1 s\r\nDBW32 / 34 / 36     Proc             CurrentStep, StepElapsed (0.1 s), SiloLevel (0.1 %)\r\nDBW40               Pattern.StepCount\r\nDBW42   .. DBW60    Pattern.Mask[0..9]      bit0 = Paddle01, bit1 = Paddle02, bit2 = Paddle03\r\nDBW62   .. DBW80    Pattern.StepTime[0..9]  0.1 s\r\nDevices: 0 = Blower01, 1 = Screw01, 2 = Paddle01, 3 = Paddle02, 4 = Paddle03\r\nDevice commands: 0 ManualStart, 1 ManualStop, 2 ReturnAuto, 3 Enable, 4 Disable, 5 ResetFault\r\nHMI command bits are cleared by the PLC after one scan (except Cmd.ExtRequest).\r\n=============================================================================",
+      "optimized" : false,
+      "vars" : [
+        {
+          "name" : "Dev",
+          "type" : "Array[0..4] of \"typeDevStatus\"",
+          "start" : "",
+          "comment" : "DBB0..9    PLC -> HMI",
+          "retain" : true
+        },
+        {
+          "name" : "Sys",
+          "type" : "\"DB_HMI_Sys\"",
+          "start" : "",
+          "comment" : "",
+          "retain" : true
+        },
+        {
+          "name" : "Cmd",
+          "type" : "\"DB_HMI_Cmd\"",
+          "start" : "",
+          "comment" : "",
+          "retain" : true
+        },
+        {
+          "name" : "DevCmd",
+          "type" : "Array[0..39] of Bool",
+          "start" : "",
+          "comment" : "DBB14..18  HMI -> PLC, [device*8 + command], pulses",
+          "retain" : true
+        },
+        {
+          "name" : "Delay",
+          "type" : "Array[0..5] of Int",
+          "start" : "[70, 30, 2(030), 2(50)]",
+          "comment" : "",
+          "retain" : true
+        },
+        {
+          "name" : "Proc",
+          "type" : "\"DB_HMI_Proc\"",
+          "start" : "",
+          "comment" : "",
+          "retain" : true
+        },
+        {
+          "name" : "Pattern",
+          "type" : "\"DB_HMI_Pattern\"",
+          "start" : "",
+          "comment" : "",
+          "retain" : true
+        }
+      ]
+    },
+    {
+      "number" : 2,
+      "name" : "iDB_FluffSilo",
+      "comment" : "=============================================================================\r\nFluff Silo System - S7-1200\r\nInstance DB of FB_FluffSilo (contains the multi-instances of FB_Sequencer,\r\nFB_PaddlePattern and the 5 FB_Motor).\r\nNON_RETAIN on purpose: after a power cycle Manual Start / Disable / fault latches\r\nand Auto mode are cleared - the plant never restarts by itself.\r\n=============================================================================",
+      "optimized" : true,
+      "instanceOf" : 4,
+      "vars" : [
+        {
+          "name" : "FbTimeout",
+          "type" : "Time",
+          "start" : "T#3S",
+          "comment" : "[CFG] running feedback supervision"
+        },
+        {
+          "name" : "SafeInterlock",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "[CFG] TRUE: Interlock also blocks Manual Start"
+        },
+        {
+          "name" : "RestartAfterBlowerTrip",
+          "type" : "Bool",
+          "start" : "TRUE",
+          "comment" : "[CFG] FALSE: a Blower01 trip ends Auto mode"
+        },
+        {
+          "name" : "FillOnLevel",
+          "type" : "Real",
+          "start" : "25.0",
+          "comment" : "[CFG] % - Fill_Request ON below this level"
+        },
+        {
+          "name" : "FillOffLevel",
+          "type" : "Real",
+          "start" : "90.0",
+          "comment" : "[CFG] % - Fill_Request OFF at this level"
+        },
+        {
+          "name" : "EStopLatch",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "E-Stop latched (until reset)"
+        },
+        {
+          "name" : "FillReq",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "name" : "LevelPct",
+          "type" : "Real",
+          "start" : "",
+          "comment" : "silo level 0..100 %"
+        },
+        {
+          "name" : "LevelSensorFault",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "name" : "AnyFault",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "name" : "rtReset",
+          "type" : "R_TRIG",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "name" : "Seq",
+          "type" : "\"FB_Sequencer\"",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "name" : "Pattern",
+          "type" : "\"FB_PaddlePattern\"",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "name" : "Blower01",
+          "type" : "\"FB_Motor\"",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "name" : "Screw01",
+          "type" : "\"FB_Motor\"",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "name" : "Paddle01",
+          "type" : "\"FB_Motor\"",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "name" : "Paddle02",
+          "type" : "\"FB_Motor\"",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "name" : "Paddle03",
+          "type" : "\"FB_Motor\"",
+          "start" : "",
+          "comment" : ""
+        }
+      ]
+    }
+  ],
+  "tags" : [
+    {
+      "name" : "EStop_OK",
+      "type" : "Bool",
+      "address" : "%I0.0",
+      "comment" : "Safety relay: E-Stop chain healthy (1 = OK, NC chain)",
+      "group" : 1
+    },
+    {
+      "name" : "PB_AutoStart",
+      "type" : "Bool",
+      "address" : "%I0.1",
+      "comment" : "Panel push button Auto Start (NO)",
+      "group" : 1
+    },
+    {
+      "name" : "PB_AutoStop",
+      "type" : "Bool",
+      "address" : "%I0.2",
+      "comment" : "Panel push button Auto Stop (NC, 0 = stop)",
+      "group" : 1
+    },
+    {
+      "name" : "PB_Reset",
+      "type" : "Bool",
+      "address" : "%I0.3",
+      "comment" : "Panel push button Reset E-Stop / faults (NO)",
+      "group" : 1
+    },
+    {
+      "name" : "ExtRequest_In",
+      "type" : "Bool",
+      "address" : "%I0.4",
+      "comment" : "External Request from consumer (1 = material requested)",
+      "group" : 1
+    },
+    {
+      "name" : "Blower01_FB",
+      "type" : "Bool",
+      "address" : "%I0.5",
+      "comment" : "Blower01 running feedback (contactor aux NO)",
+      "group" : 1
+    },
+    {
+      "name" : "Blower01_OL",
+      "type" : "Bool",
+      "address" : "%I0.6",
+      "comment" : "Blower01 overload relay OK (NC, 0 = tripped)",
+      "group" : 1
+    },
+    {
+      "name" : "Screw01_FB",
+      "type" : "Bool",
+      "address" : "%I0.7",
+      "comment" : "Screw01 running feedback (contactor aux NO)",
+      "group" : 1
+    },
+    {
+      "name" : "Screw01_OL",
+      "type" : "Bool",
+      "address" : "%I1.0",
+      "comment" : "Screw01 overload relay OK (NC, 0 = tripped)",
+      "group" : 1
+    },
+    {
+      "name" : "Paddle01_FB",
+      "type" : "Bool",
+      "address" : "%I1.1",
+      "comment" : "Paddle01 running feedback (contactor aux NO)",
+      "group" : 1
+    },
+    {
+      "name" : "Paddle01_OL",
+      "type" : "Bool",
+      "address" : "%I1.2",
+      "comment" : "Paddle01 overload relay OK (NC, 0 = tripped)",
+      "group" : 1
+    },
+    {
+      "name" : "Paddle02_FB",
+      "type" : "Bool",
+      "address" : "%I1.3",
+      "comment" : "Paddle02 running feedback (contactor aux NO)",
+      "group" : 1
+    },
+    {
+      "name" : "Paddle02_OL",
+      "type" : "Bool",
+      "address" : "%I1.4",
+      "comment" : "Paddle02 overload relay OK (NC, 0 = tripped)",
+      "group" : 1
+    },
+    {
+      "name" : "Paddle03_FB",
+      "type" : "Bool",
+      "address" : "%I1.5",
+      "comment" : "Paddle03 running feedback (contactor aux NO)",
+      "group" : 1
+    },
+    {
+      "name" : "Paddle03_OL",
+      "type" : "Bool",
+      "address" : "%I8.0",
+      "comment" : "Paddle03 overload relay OK (NC, 0 = tripped) - SM 1221 DI8",
+      "group" : 1
+    },
+    {
+      "name" : "Blower01_Run",
+      "type" : "Bool",
+      "address" : "%Q0.0",
+      "comment" : "Blower01 contactor K1",
+      "group" : 1
+    },
+    {
+      "name" : "Screw01_Run",
+      "type" : "Bool",
+      "address" : "%Q0.1",
+      "comment" : "Screw01 contactor K2",
+      "group" : 1
+    },
+    {
+      "name" : "Paddle01_Run",
+      "type" : "Bool",
+      "address" : "%Q0.2",
+      "comment" : "Paddle01 contactor K3",
+      "group" : 1
+    },
+    {
+      "name" : "Paddle02_Run",
+      "type" : "Bool",
+      "address" : "%Q0.3",
+      "comment" : "Paddle02 contactor K4",
+      "group" : 1
+    },
+    {
+      "name" : "Paddle03_Run",
+      "type" : "Bool",
+      "address" : "%Q0.4",
+      "comment" : "Paddle03 contactor K5",
+      "group" : 1
+    },
+    {
+      "name" : "Lamp_AutoRun",
+      "type" : "Bool",
+      "address" : "%Q0.5",
+      "comment" : "Pilot lamp Auto Start mode (green)",
+      "group" : 1
+    },
+    {
+      "name" : "Lamp_Fault",
+      "type" : "Bool",
+      "address" : "%Q0.6",
+      "comment" : "Pilot lamp fault (red)",
+      "group" : 1
+    },
+    {
+      "name" : "Lamp_EStop",
+      "type" : "Bool",
+      "address" : "%Q0.7",
+      "comment" : "Pilot lamp E-Stop active (yellow)",
+      "group" : 1
+    },
+    {
+      "name" : "Fill_Request",
+      "type" : "Bool",
+      "address" : "%Q1.0",
+      "comment" : "Request raw material for the silo (level < 25 %, off at 90 %)",
+      "group" : 1
+    },
+    {
+      "name" : "Silo_Level_AI",
+      "type" : "Int",
+      "address" : "%IW64",
+      "comment" : "Silo level sensor 0..10 V = 0..100 % (CPU AI0)",
+      "group" : 1
+    }
+  ],
+  "tagGroups" : [
+    {
+      "id" : 1,
+      "name" : "FluffSilo_IO"
+    }
+  ],
+  "watch" : [
+    {
+      "address" : "\"DB_HMI\".Dev[0]",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "\"DB_HMI\".Dev[1]",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "\"DB_HMI\".Dev[2]",
+      "format" : "DEC",
+      "modify" : ""
+    }
+  ],
+  "diTypes" : [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "aiChannels" : [
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    }
+  ],
+  "comm" : {
+    "s7" : true,
+    "s7Port" : 102,
+    "modbus" : false,
+    "modbusPort" : 502,
+    "modbusUnit" : 1,
+    "holding" : "M",
+    "putGet" : true,
+    "allInterfaces" : false,
+    "ip" : "127.0.0.1",
+    "mask" : "255.255.255.0",
+    "ipc" : true,
+    "mcpWrite" : true
+  }
+}

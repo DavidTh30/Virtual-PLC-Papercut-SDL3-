@@ -1,0 +1,409 @@
+{
+  "format" : "VirtualPLC",
+  "version" : 1,
+  "name" : "SCL 64 bit: LInt, LReal, LTime, LDT, DT, DTL (S7-1500)",
+  "author" : "Virtual PLC examples",
+  "comment" : "SCL with the 64 bit types of the S7-1500, exact beyond 2^53: an LInt cycle counter, LReal arithmetic, an LTime from TON_LTIME, LDT and DT plus a time, DT_TO_DATE / DT_TO_TOD, a DTL struct, an LWord with slices and a CTU_DINT. I0.0 runs the LTime timer and counts.",
+  "cpu" : "CPU 1516-3 PN/DP",
+  "family" : "S7-1500",
+  "cyclicMs" : 100,
+  "clockByte" : 0,
+  "blocks" : [
+    {
+      "kind" : "OB",
+      "number" : 1,
+      "name" : "Main",
+      "comment" : "Main program cycle",
+      "networks" : [
+        {
+          "title" : "64 bit arithmetic",
+          "comment" : "exact LInt / ULInt, LReal",
+          "lang" : "SCL",
+          "scl" : [
+            "\"Long\".Cycles := \"Long\".Cycles + 1;",
+            "\"Long\".BigPlus := \"Long\".Big + ULINT_TO_LINT(\"Long\".Cycles);",
+            "\"Long\".Third := 1.0 / LREAL#3.0;",
+            "\"Long\".Mask.%X0 := \"Run\";"
+          ]
+        },
+        {
+          "title" : "Long times and dates",
+          "comment" : "LDT + LTime, DT + TIME, DT_TO_DATE / DT_TO_TOD, DTL",
+          "lang" : "SCL",
+          "scl" : [
+            "\"Runner_DB\"(Go := \"Run\", Q => \"Done\", Et => \"Long\".Elapsed, Cv => \"Long\".Count);",
+            "\"Long\".Later := \"Long\".Start + \"Long\".Elapsed;",
+            "\"Long\".Stamp2 := \"Long\".Stamp + T#1H;",
+            "\"Long\".Day := DT_TO_DATE(\"Long\".Stamp2);",
+            "\"Long\".Clock := DT_TO_TOD(\"Long\".Stamp2);",
+            "\"Long\".Local.YEAR := 2024;",
+            "\"Long\".Local.MONTH := 2;",
+            "\"Long\".Local.DAY := 1;"
+          ]
+        }
+      ]
+    },
+    {
+      "kind" : "FB",
+      "number" : 1,
+      "name" : "Runner",
+      "comment" : "TON_LTIME and CTU_DINT as statics",
+      "interface" : [
+        {
+          "section" : "Input",
+          "name" : "Go",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : ""
+        },
+        {
+          "section" : "Output",
+          "name" : "Q",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : ""
+        },
+        {
+          "section" : "Output",
+          "name" : "Et",
+          "type" : "LTime",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "Output",
+          "name" : "Cv",
+          "type" : "DInt",
+          "start" : "0",
+          "comment" : ""
+        },
+        {
+          "section" : "Static",
+          "name" : "Timer",
+          "type" : "TON_LTIME",
+          "start" : "",
+          "comment" : "an LTime timer"
+        },
+        {
+          "section" : "Static",
+          "name" : "Counter",
+          "type" : "CTU_DINT",
+          "start" : "",
+          "comment" : "a DInt counter"
+        }
+      ],
+      "networks" : [
+        {
+          "title" : "Timer and counter",
+          "comment" : "LT#3S, PV 100000",
+          "lang" : "SCL",
+          "scl" : [
+            "#Timer(IN := #Go, PT := LT#3S, Q => #Q, ET => #Et);",
+            "#Counter(CU := #Go, R := FALSE, PV := 100000, CV => #Cv);"
+          ]
+        }
+      ]
+    }
+  ],
+  "dbs" : [
+    {
+      "number" : 1,
+      "name" : "Long",
+      "comment" : "",
+      "optimized" : false,
+      "vars" : [
+        {
+          "name" : "Cycles",
+          "type" : "ULInt",
+          "start" : "0",
+          "comment" : "cycles since the start"
+        },
+        {
+          "name" : "Big",
+          "type" : "LInt",
+          "start" : "9007199254740993",
+          "comment" : "2^53 + 1: no Double holds it"
+        },
+        {
+          "name" : "BigPlus",
+          "type" : "LInt",
+          "start" : "0",
+          "comment" : "Big + Cycles, exact"
+        },
+        {
+          "name" : "Third",
+          "type" : "LReal",
+          "start" : "0.0",
+          "comment" : "1.0 / 3.0 in 64 bit"
+        },
+        {
+          "name" : "Elapsed",
+          "type" : "LTime",
+          "start" : "LT#0NS",
+          "comment" : "ET of TON_LTIME (ns)"
+        },
+        {
+          "name" : "Start",
+          "type" : "LDT",
+          "start" : "LDT#2024-01-31-12:00:00",
+          "comment" : "a date and time in ns"
+        },
+        {
+          "name" : "Later",
+          "type" : "LDT",
+          "start" : "",
+          "comment" : "Start + Elapsed"
+        },
+        {
+          "name" : "Stamp",
+          "type" : "Date_And_Time",
+          "start" : "DT#2024-01-31-23:30:00",
+          "comment" : "a DT (BCD)"
+        },
+        {
+          "name" : "Stamp2",
+          "type" : "Date_And_Time",
+          "start" : "",
+          "comment" : "Stamp + T#1H: the next day"
+        },
+        {
+          "name" : "Day",
+          "type" : "Date",
+          "start" : "",
+          "comment" : "DT_TO_DATE(Stamp2)"
+        },
+        {
+          "name" : "Clock",
+          "type" : "Time_Of_Day",
+          "start" : "",
+          "comment" : "DT_TO_TOD(Stamp2)"
+        },
+        {
+          "name" : "Local",
+          "type" : "DTL",
+          "start" : "",
+          "comment" : "a DTL: YEAR, MONTH, DAY, ..."
+        },
+        {
+          "name" : "Mask",
+          "type" : "LWord",
+          "start" : "LW#16#FFFF0000FFFF0000",
+          "comment" : "an LWord, bits set by slices"
+        },
+        {
+          "name" : "Count",
+          "type" : "DInt",
+          "start" : "0",
+          "comment" : "CTU_DINT.CV"
+        }
+      ]
+    },
+    {
+      "number" : 2,
+      "name" : "Runner_DB",
+      "comment" : "",
+      "optimized" : false,
+      "instanceOf" : 1,
+      "vars" : [
+      ]
+    }
+  ],
+  "tags" : [
+    {
+      "name" : "Clock_2Hz",
+      "type" : "Bool",
+      "address" : "%M0.3",
+      "comment" : "clock memory 2 Hz"
+    },
+    {
+      "name" : "Clock_1Hz",
+      "type" : "Bool",
+      "address" : "%M0.5",
+      "comment" : "clock memory 1 Hz"
+    },
+    {
+      "name" : "Run",
+      "type" : "Bool",
+      "address" : "%I0.0",
+      "comment" : "switch: the timer runs, the counter counts"
+    },
+    {
+      "name" : "Done",
+      "type" : "Bool",
+      "address" : "%Q0.0",
+      "comment" : "TON_LTIME: Q after LT#3S"
+    }
+  ],
+  "watch" : [
+    {
+      "address" : "\"Long\".Cycles",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Long\".BigPlus",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Long\".Elapsed",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Long\".Later",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Long\".Stamp2",
+      "format" : "DEC",
+      "modify" : ""
+    }
+  ],
+  "diTypes" : [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "aiChannels" : [
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    }
+  ],
+  "comm" : {
+    "s7" : true,
+    "s7Port" : 102,
+    "modbus" : true,
+    "modbusPort" : 502,
+    "modbusUnit" : 1,
+    "holding" : "M",
+    "putGet" : true,
+    "allInterfaces" : false,
+    "ip" : "127.0.0.1",
+    "mask" : "255.255.255.0",
+    "ipc" : false
+  }
+}

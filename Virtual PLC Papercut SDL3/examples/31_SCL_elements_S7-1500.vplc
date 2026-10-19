@@ -1,0 +1,533 @@
+{
+  "format" : "VirtualPLC",
+  "version" : 1,
+  "name" : "SCL elements: literals, MUX, slices, 2D arrays, system FBs (S7-1500)",
+  "author" : "Virtual PLC examples",
+  "comment" : "SCL as in the SCL Compiler: typed literals (INT#, UDINT#, 8#, D#, TOD#), VAR CONSTANT, MUX, slices (.%X3, .%B1), a two-dimensional array with a start list, an FC that returns its value as #Name and is called with positional arguments, and the system FBs TON_TIME, CTU_INT, R_TRIG, F_TRIG, RS and SR as statics of an FB. I0.0 counts and starts the timer, I0.1 resets the RS / SR.",
+  "cpu" : "CPU 1516-3 PN/DP",
+  "family" : "S7-1500",
+  "cyclicMs" : 100,
+  "clockByte" : 0,
+  "blocks" : [
+    {
+      "kind" : "OB",
+      "number" : 1,
+      "name" : "Main",
+      "comment" : "Main program cycle",
+      "networks" : [
+        {
+          "title" : "Literals, constants, MUX, slices",
+          "comment" : "VAR CONSTANT, typed literals, MUX, .%X / .%B",
+          "lang" : "SCL",
+          "scl" : [
+            "VAR CONSTANT",
+            "    BASE : Int := 10;",
+            "END_VAR",
+            "\"Elems\".Picked := MUX(K := \"Elems\".Sel, IN0 := #BASE, IN1 := INT#2 * #BASE, IN2 := 8#36, INELSE := -1);",
+            "\"Elems\".Status.%X3 := \"Start\";",
+            "\"Elems\".Status.%B1 := 16#A5;",
+            "\"Elems\".Bit11 := \"Elems\".Status.%X11;"
+          ]
+        },
+        {
+          "title" : "Two dimensions, FC",
+          "comment" : "Grid[i, j] in loops, an FC with positional arguments",
+          "lang" : "SCL",
+          "scl" : [
+            "VAR_TEMP",
+            "    i : Int;",
+            "    j : Int;",
+            "END_VAR",
+            "\"Elems\".Sum := 0;",
+            "FOR #i := 0 TO 2 DO",
+            "    FOR #j := 1 TO 3 DO",
+            "        \"Elems\".Sum := \"Elems\".Sum + \"Elems\".Grid[#i, #j];",
+            "    END_FOR;",
+            "END_FOR;",
+            "\"Elems\".Avg := \"Avg2\"(\"Elems\".Grid[0, 1], \"Elems\".Grid[2, 3]);"
+          ]
+        },
+        {
+          "title" : "System FBs",
+          "comment" : "the FB with the system FBs",
+          "lang" : "SCL",
+          "scl" : [
+            "\"Signals_DB\"(Go := \"Start\", Clr := \"Reset\", TimeUp => \"Lamp_Time\", Counted => \"Lamp_Count\",",
+            "             RsQ => \"Lamp_RS\", SrQ => \"Lamp_SR\");"
+          ]
+        }
+      ]
+    },
+    {
+      "kind" : "FC",
+      "number" : 1,
+      "name" : "Avg2",
+      "comment" : "the average of two Ints: the Return value is written as #Avg2",
+      "interface" : [
+        {
+          "section" : "Input",
+          "name" : "a",
+          "type" : "Int",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "Input",
+          "name" : "b",
+          "type" : "Int",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "Return",
+          "name" : "Ret_Val",
+          "type" : "Int",
+          "start" : "",
+          "comment" : "the average"
+        }
+      ],
+      "networks" : [
+        {
+          "title" : "Average",
+          "comment" : "TIA writes the function value as #<name of the FC>",
+          "lang" : "SCL",
+          "scl" : [
+            "#Avg2 := (#a + #b) / 2;"
+          ]
+        }
+      ]
+    },
+    {
+      "kind" : "FB",
+      "number" : 1,
+      "name" : "Signals",
+      "comment" : "the system FBs as statics: called as #name(..)",
+      "interface" : [
+        {
+          "section" : "Input",
+          "name" : "Go",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : ""
+        },
+        {
+          "section" : "Input",
+          "name" : "Clr",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : ""
+        },
+        {
+          "section" : "Output",
+          "name" : "TimeUp",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : ""
+        },
+        {
+          "section" : "Output",
+          "name" : "Counted",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : ""
+        },
+        {
+          "section" : "Output",
+          "name" : "RsQ",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : ""
+        },
+        {
+          "section" : "Output",
+          "name" : "SrQ",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : ""
+        },
+        {
+          "section" : "Static",
+          "name" : "Delay",
+          "type" : "TON_TIME",
+          "start" : "",
+          "comment" : "on delay"
+        },
+        {
+          "section" : "Static",
+          "name" : "Presses",
+          "type" : "CTU_INT",
+          "start" : "",
+          "comment" : "counts up"
+        },
+        {
+          "section" : "Static",
+          "name" : "Up",
+          "type" : "R_TRIG",
+          "start" : "",
+          "comment" : "rising edge"
+        },
+        {
+          "section" : "Static",
+          "name" : "Down",
+          "type" : "F_TRIG",
+          "start" : "",
+          "comment" : "falling edge"
+        },
+        {
+          "section" : "Static",
+          "name" : "Rs",
+          "type" : "RS",
+          "start" : "",
+          "comment" : "reset dominant"
+        },
+        {
+          "section" : "Static",
+          "name" : "Sr",
+          "type" : "SR",
+          "start" : "",
+          "comment" : "set dominant"
+        }
+      ],
+      "networks" : [
+        {
+          "title" : "System FBs",
+          "comment" : "TON_TIME, CTU_INT, R_TRIG, F_TRIG, RS, SR",
+          "lang" : "SCL",
+          "scl" : [
+            "#Delay(IN := #Go, PT := T#2S, Q => #TimeUp);",
+            "#Up(CLK := #Go);",
+            "#Down(CLK := #Go);",
+            "IF #Up.Q THEN \"Elems\".Edges := \"Elems\".Edges + 1; END_IF;",
+            "IF #Down.Q THEN \"Elems\".Falls := \"Elems\".Falls + 1; END_IF;",
+            "#Presses(CU := #Go, R := #Clr, PV := 3, Q => #Counted);",
+            "#Rs(S := #Go, R1 := #Clr, Q1 => #RsQ);",
+            "#Sr(S1 := #Go, R := #Clr, Q1 => #SrQ);"
+          ]
+        }
+      ]
+    }
+  ],
+  "dbs" : [
+    {
+      "number" : 1,
+      "name" : "Elems",
+      "comment" : "",
+      "optimized" : false,
+      "vars" : [
+        {
+          "name" : "Sel",
+          "type" : "Int",
+          "start" : "1",
+          "comment" : "MUX: K (0..2)"
+        },
+        {
+          "name" : "Picked",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "MUX(K := Sel, 10, 20, 30)"
+        },
+        {
+          "name" : "Status",
+          "type" : "Word",
+          "start" : "W#16#0",
+          "comment" : "bits and a byte set by slices"
+        },
+        {
+          "name" : "Bit11",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "Status.%X11"
+        },
+        {
+          "name" : "Big",
+          "type" : "UDInt",
+          "start" : "UDINT#4000000000",
+          "comment" : "a UDInt literal"
+        },
+        {
+          "name" : "Day",
+          "type" : "Date",
+          "start" : "D#2024-01-31",
+          "comment" : "a Date literal"
+        },
+        {
+          "name" : "Noon",
+          "type" : "Time_Of_Day",
+          "start" : "TOD#12:00:00",
+          "comment" : "a Time_Of_Day literal"
+        },
+        {
+          "name" : "Grid",
+          "type" : "Array[0..2, 1..3] of Int",
+          "start" : "[1, 2, 3, 4(0), 9, 9]",
+          "comment" : "two dimensions, a start list"
+        },
+        {
+          "name" : "Sum",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "the sum of Grid"
+        },
+        {
+          "name" : "Avg",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "\"Avg2\"(Grid[0, 1], Grid[2, 3])"
+        },
+        {
+          "name" : "Edges",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "rising edges of Start (R_TRIG)"
+        },
+        {
+          "name" : "Falls",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "falling edges of Start (F_TRIG)"
+        }
+      ]
+    },
+    {
+      "number" : 2,
+      "name" : "Signals_DB",
+      "comment" : "",
+      "optimized" : false,
+      "instanceOf" : 1,
+      "vars" : [
+      ]
+    }
+  ],
+  "tags" : [
+    {
+      "name" : "Clock_2Hz",
+      "type" : "Bool",
+      "address" : "%M0.3",
+      "comment" : "clock memory 2 Hz"
+    },
+    {
+      "name" : "Clock_1Hz",
+      "type" : "Bool",
+      "address" : "%M0.5",
+      "comment" : "clock memory 1 Hz"
+    },
+    {
+      "name" : "Start",
+      "type" : "Bool",
+      "address" : "%I0.0",
+      "comment" : "push button: count, time, edges"
+    },
+    {
+      "name" : "Reset",
+      "type" : "Bool",
+      "address" : "%I0.1",
+      "comment" : "push button: reset RS / SR"
+    },
+    {
+      "name" : "Lamp_Time",
+      "type" : "Bool",
+      "address" : "%Q0.0",
+      "comment" : "TON_TIME: 2 s after Start"
+    },
+    {
+      "name" : "Lamp_Count",
+      "type" : "Bool",
+      "address" : "%Q0.1",
+      "comment" : "CTU_INT: 3 presses"
+    },
+    {
+      "name" : "Lamp_RS",
+      "type" : "Bool",
+      "address" : "%Q0.2",
+      "comment" : "RS: reset wins"
+    },
+    {
+      "name" : "Lamp_SR",
+      "type" : "Bool",
+      "address" : "%Q0.3",
+      "comment" : "SR: set wins"
+    }
+  ],
+  "watch" : [
+    {
+      "address" : "\"Elems\".Sel",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Elems\".Picked",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Elems\".Status",
+      "format" : "HEX",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Elems\".Sum",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Elems\".Avg",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Elems\".Edges",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Signals_DB\".Presses.CV",
+      "format" : "DEC",
+      "modify" : ""
+    }
+  ],
+  "diTypes" : [
+    1,
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "aiChannels" : [
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    }
+  ],
+  "comm" : {
+    "s7" : true,
+    "s7Port" : 102,
+    "modbus" : true,
+    "modbusPort" : 502,
+    "modbusUnit" : 1,
+    "holding" : "M",
+    "putGet" : true,
+    "allInterfaces" : false,
+    "ip" : "127.0.0.1",
+    "mask" : "255.255.255.0",
+    "ipc" : false
+  }
+}
