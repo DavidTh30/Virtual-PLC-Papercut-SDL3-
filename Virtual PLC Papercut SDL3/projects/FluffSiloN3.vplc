@@ -1507,8 +1507,8 @@
             "     CmdAutoStop := #cmdStop,",
             "     EStopActive := #EStopLatch,",
             "     ExtRequest := #extReq,",
-            "     BlowerRunning := \"Blower01_FB\",",
-            "     ScrewRunning := \"Screw01_FB\",",
+            "     BlowerRunning := \"Blower01_Run\",",
+            "     ScrewRunning := \"Screw01_Run\",",
             "     TBlowerToScrew := #tBlowerToScrew,",
             "     TReqHold := #tReqHold,",
             "     TScrewToPaddle := #tScrewToPaddle,",
@@ -1550,7 +1550,7 @@
             "          CmdEnable := \"DB_HMI\".DevCmd[3],",
             "          CmdDisable := \"DB_HMI\".DevCmd[4],",
             "          CmdResetFault := \"DB_HMI\".DevCmd[5] OR #resetPulse,",
-            "          Feedback := \"Blower01_FB\",",
+            "          Feedback := \"Blower01_Run\",",
             "          OverloadOK := \"Blower01_OL\",",
             "          FbTimeout := #FbTimeout,",
             "          SafeInterlock := #SafeInterlock);",
@@ -1565,7 +1565,7 @@
             "         CmdEnable := \"DB_HMI\".DevCmd[11],",
             "         CmdDisable := \"DB_HMI\".DevCmd[12],",
             "         CmdResetFault := \"DB_HMI\".DevCmd[13] OR #resetPulse,",
-            "         Feedback := \"Screw01_FB\",",
+            "         Feedback := \"Screw01_Run\",",
             "         OverloadOK := \"Screw01_OL\",",
             "         FbTimeout := #FbTimeout,",
             "         SafeInterlock := #SafeInterlock);",
@@ -1580,7 +1580,7 @@
             "          CmdEnable := \"DB_HMI\".DevCmd[19],",
             "          CmdDisable := \"DB_HMI\".DevCmd[20],",
             "          CmdResetFault := \"DB_HMI\".DevCmd[21] OR #resetPulse,",
-            "          Feedback := \"Paddle01_FB\",",
+            "          Feedback := \"Paddle01_Run\",",
             "          OverloadOK := \"Paddle01_OL\",",
             "          FbTimeout := #FbTimeout,",
             "          SafeInterlock := #SafeInterlock);",
@@ -1595,7 +1595,7 @@
             "          CmdEnable := \"DB_HMI\".DevCmd[27],",
             "          CmdDisable := \"DB_HMI\".DevCmd[28],",
             "          CmdResetFault := \"DB_HMI\".DevCmd[29] OR #resetPulse,",
-            "          Feedback := \"Paddle02_FB\",",
+            "          Feedback := \"Paddle02_Run\",",
             "          OverloadOK := \"Paddle02_OL\",",
             "          FbTimeout := #FbTimeout,",
             "          SafeInterlock := #SafeInterlock);",
@@ -1610,7 +1610,7 @@
             "          CmdEnable := \"DB_HMI\".DevCmd[35],",
             "          CmdDisable := \"DB_HMI\".DevCmd[36],",
             "          CmdResetFault := \"DB_HMI\".DevCmd[37] OR #resetPulse,",
-            "          Feedback := \"Paddle03_FB\",",
+            "          Feedback := \"Paddle03_Run\",",
             "          OverloadOK := \"Paddle03_OL\",",
             "          FbTimeout := #FbTimeout,",
             "          SafeInterlock := #SafeInterlock);"
@@ -1888,63 +1888,6 @@
   ],
   "dbs" : [
     {
-      "number" : 10,
-      "name" : "DB_HMI",
-      "comment" : "=============================================================================\r\nFluff Silo System - S7-1200\r\nDB \"DB_HMI\"  (set block number = 10 after generating the block!)\r\nInterface to FluffSilo HMI (Siemens S7 / PUT-GET).\r\n* Standard access (NOT optimized) - the HMI uses absolute offsets\r\n* Retentive: parameters (delays, Paddle Patterns) survive power loss\r\n* PLC Properties: \"Permit access with PUT/GET communication\" = ON\r\nByte map (must match HMI default S7 map, see README):\r\nDBX0.0  .. DBX9.7   Dev[0..4]        device status, 2 bytes per device\r\nDBX10.0 .. DBX10.3  Sys              AutoMode, ExtRequest, PatternActive, EStop\r\nDBX12.0 .. DBX12.4  Cmd              AutoStart, AutoStop, EStop, ResetEStop, ExtRequest\r\nDBX14.0 .. DBX18.7  DevCmd[0..39]    device commands, index = device*8 + command\r\nDBW20   .. DBW30    Delay[0..5]      0.1 s\r\nDBW32 / 34 / 36     Proc             CurrentStep, StepElapsed (0.1 s), SiloLevel (0.1 %)\r\nDBW40               Pattern.StepCount\r\nDBW42   .. DBW60    Pattern.Mask[0..9]      bit0 = Paddle01, bit1 = Paddle02, bit2 = Paddle03\r\nDBW62   .. DBW80    Pattern.StepTime[0..9]  0.1 s\r\nDevices: 0 = Blower01, 1 = Screw01, 2 = Paddle01, 3 = Paddle02, 4 = Paddle03\r\nDevice commands: 0 ManualStart, 1 ManualStop, 2 ReturnAuto, 3 Enable, 4 Disable, 5 ResetFault\r\nHMI command bits are cleared by the PLC after one scan (except Cmd.ExtRequest).\r\n=============================================================================",
-      "optimized" : false,
-      "vars" : [
-        {
-          "name" : "Dev",
-          "type" : "Array[0..4] of \"typeDevStatus\"",
-          "start" : "",
-          "comment" : "DBB0..9    PLC -> HMI",
-          "retain" : true
-        },
-        {
-          "name" : "Sys",
-          "type" : "\"DB_HMI_Sys\"",
-          "start" : "",
-          "comment" : "",
-          "retain" : true
-        },
-        {
-          "name" : "Cmd",
-          "type" : "\"DB_HMI_Cmd\"",
-          "start" : "",
-          "comment" : "",
-          "retain" : true
-        },
-        {
-          "name" : "DevCmd",
-          "type" : "Array[0..39] of Bool",
-          "start" : "",
-          "comment" : "DBB14..18  HMI -> PLC, [device*8 + command], pulses",
-          "retain" : true
-        },
-        {
-          "name" : "Delay",
-          "type" : "Array[0..5] of Int",
-          "start" : "[70, 30, 2(030), 2(50)]",
-          "comment" : "",
-          "retain" : true
-        },
-        {
-          "name" : "Proc",
-          "type" : "\"DB_HMI_Proc\"",
-          "start" : "",
-          "comment" : "",
-          "retain" : true
-        },
-        {
-          "name" : "Pattern",
-          "type" : "\"DB_HMI_Pattern\"",
-          "start" : "",
-          "comment" : "",
-          "retain" : true
-        }
-      ]
-    },
-    {
       "number" : 2,
       "name" : "iDB_FluffSilo",
       "comment" : "=============================================================================\r\nFluff Silo System - S7-1200\r\nInstance DB of FB_FluffSilo (contains the multi-instances of FB_Sequencer,\r\nFB_PaddlePattern and the 5 FB_Motor).\r\nNON_RETAIN on purpose: after a power cycle Manual Start / Disable / fault latches\r\nand Auto mode are cleared - the plant never restarts by itself.\r\n=============================================================================",
@@ -2058,6 +2001,63 @@
           "type" : "\"FB_Motor\"",
           "start" : "",
           "comment" : ""
+        }
+      ]
+    },
+    {
+      "number" : 10,
+      "name" : "DB_HMI",
+      "comment" : "=============================================================================\r\nFluff Silo System - S7-1200\r\nDB \"DB_HMI\"  (set block number = 10 after generating the block!)\r\nInterface to FluffSilo HMI (Siemens S7 / PUT-GET).\r\n* Standard access (NOT optimized) - the HMI uses absolute offsets\r\n* Retentive: parameters (delays, Paddle Patterns) survive power loss\r\n* PLC Properties: \"Permit access with PUT/GET communication\" = ON\r\nByte map (must match HMI default S7 map, see README):\r\nDBX0.0  .. DBX9.7   Dev[0..4]        device status, 2 bytes per device\r\nDBX10.0 .. DBX10.3  Sys              AutoMode, ExtRequest, PatternActive, EStop\r\nDBX12.0 .. DBX12.4  Cmd              AutoStart, AutoStop, EStop, ResetEStop, ExtRequest\r\nDBX14.0 .. DBX18.7  DevCmd[0..39]    device commands, index = device*8 + command\r\nDBW20   .. DBW30    Delay[0..5]      0.1 s\r\nDBW32 / 34 / 36     Proc             CurrentStep, StepElapsed (0.1 s), SiloLevel (0.1 %)\r\nDBW40               Pattern.StepCount\r\nDBW42   .. DBW60    Pattern.Mask[0..9]      bit0 = Paddle01, bit1 = Paddle02, bit2 = Paddle03\r\nDBW62   .. DBW80    Pattern.StepTime[0..9]  0.1 s\r\nDevices: 0 = Blower01, 1 = Screw01, 2 = Paddle01, 3 = Paddle02, 4 = Paddle03\r\nDevice commands: 0 ManualStart, 1 ManualStop, 2 ReturnAuto, 3 Enable, 4 Disable, 5 ResetFault\r\nHMI command bits are cleared by the PLC after one scan (except Cmd.ExtRequest).\r\n=============================================================================",
+      "optimized" : false,
+      "vars" : [
+        {
+          "name" : "Dev",
+          "type" : "Array[0..4] of \"typeDevStatus\"",
+          "start" : "",
+          "comment" : "DBB0..9    PLC -> HMI",
+          "retain" : true
+        },
+        {
+          "name" : "Sys",
+          "type" : "\"DB_HMI_Sys\"",
+          "start" : "",
+          "comment" : "",
+          "retain" : true
+        },
+        {
+          "name" : "Cmd",
+          "type" : "\"DB_HMI_Cmd\"",
+          "start" : "",
+          "comment" : "",
+          "retain" : true
+        },
+        {
+          "name" : "DevCmd",
+          "type" : "Array[0..39] of Bool",
+          "start" : "",
+          "comment" : "DBB14..18  HMI -> PLC, [device*8 + command], pulses",
+          "retain" : true
+        },
+        {
+          "name" : "Delay",
+          "type" : "Array[0..5] of Int",
+          "start" : "[70, 30, 2(030), 2(50)]",
+          "comment" : "",
+          "retain" : true
+        },
+        {
+          "name" : "Proc",
+          "type" : "\"DB_HMI_Proc\"",
+          "start" : "",
+          "comment" : "",
+          "retain" : true
+        },
+        {
+          "name" : "Pattern",
+          "type" : "\"DB_HMI_Pattern\"",
+          "start" : "",
+          "comment" : "",
+          "retain" : true
         }
       ]
     }
@@ -2331,7 +2331,7 @@
   "aiChannels" : [
     {
       "mode" : "manual",
-      "value" : 0
+      "value" : 24062
     },
     {
       "mode" : "manual",
