@@ -25,7 +25,7 @@ interface
 uses
   Classes, SysUtils, Math, Types, StrUtils, DateUtils, TypInfo, LazUTF8, BGRABitmap, BGRABitmapTypes,
   uPaperDL, uUiBase, uPlcTypes, uPlcProject, uPlcCompiler, uPlcRuntime, uPlcServer, uPlcClient, uTextEdit,
-  uClaude, uClaudeHttp, uPlcExport, Dialogs, fpjson, uLocalIp, uIpcServer, uChatPdf, ShellApi, uHelpForm, uExamples, Clipbrd, uSclElems, uSclSource, uObCatalog, uSclSig, uXref;
+  uClaude, uClaudeHttp, uPlcExport, Dialogs, fpjson, uLocalIp, uIpcServer, uChatPdf, ShellApi, uHelpForm, uExamples, Clipbrd, uSclElems, uSclSource, uObCatalog, uSclSig, uXref, uElemHelp;
 
 type
   TScreen = (scCpu, scProgram, scIO, scWatch, scDB, scTags, scPorts, scProject);
@@ -181,6 +181,13 @@ type
     FArrOpen: TStringList;     // the arrays opened: "DB".Var
     { the cross reference: the operand, its block (#locals), the uses, what is shown }
     FXrefOn, FXrefOk: Boolean;
+    { the help of an element of the panel (its right button, F1): the page, the networks of its LAD pictures }
+    FEhOn: Boolean;
+    FEhPage: TElemHelpPage;
+    FEhIdx: Integer;
+    FEhLang: Char;
+    FEhScroll, FEhH: Single;
+    FEhNets: array of TNetwork;
     FXrefText, FXrefInfo, FXrefAsk: string;
     FXrefBlk: TBlock;
     FXref: TXrefs;
@@ -223,7 +230,7 @@ type
     { vertical scroll bars that the mouse drags: 0 the program editor, 1 the compiler messages,
       2 the blocks, 3 the tag table, 4 the data blocks list, 5 the variables, 6 the watch table,
       7 the project files, 8 the LAD elements, 9 the example projects }
-    FVs: array[0..20] of record X, Top, H, Range, View: Single; end;
+    FVs: array[0..21] of record X, Top, H, Range, View: Single; end;
     FPalScroll, FPalH: Single;   // the LAD elements palette
     FLadTypes: array of TDataType;   // the data type list of a LAD box (FLadTypeWhich 1 IN / 2 OUT)
     FBlockScroll, FDBListScroll, FFileScroll: Single;
@@ -418,6 +425,14 @@ type
     procedure XrefOpen(const S: string; Blk: TBlock);
     procedure XrefJump(K: Integer);
     procedure DrawXref;
+    procedure EhOpen(I: Integer);
+    procedure EhClose;
+    procedure EhFreeNets;
+    procedure EhInsert;
+    function EhCanInsert: Boolean;
+    function EhWrap(const S: string; Kind: TFontKind; Size, W: Single): TStringArray;
+    function EhFlow(const S: string; X0, Y, W: Single): Single;
+    procedure DrawElemHelp;
     function XrefAtCaret: string;
     procedure XrefMenu(const S: string);
     function PickHeadItems(I: Integer): string;
@@ -620,6 +635,10 @@ type
     procedure TestArrOpen(VarIdx: Integer);                 // the test: an array of the DB opened
     procedure TestOpenKey(const Key: string);               // .. a row opened by its key: DB.Var.Member
     function DbRowText(I: Integer): string;                 // .. a row of the variables table
+    function TestElemHelp(const Cap: string): Boolean;     // .. the help of an element of the panel opened
+    function ElemHelpShown: string;                         // .. the help page shown as text ('' : none)
+    procedure TestEhScroll(V: Single);                      // .. the help page scrolled
+    procedure TestSelNet(I: Integer);                       // .. network I selected (LAD: its first cell)
     function IfRowText(I: Integer): string;                 // .. a row of the editor's interface
     procedure TestIfaceVar(const Sec, AName, AType: string);  // .. a variable added to the interface
     procedure TestProgScroll(V: Single);                    // .. the program editor scrolled
@@ -706,7 +725,9 @@ const
   acIoListRow = 327; acIoListFil = 328; acWatchMode = 329; acWatchModePick = 330; acDbMode = 331; acDbModePick = 332;
   whIoList = 18;
   acMcpWrite = 333; acMcpCopy = 334; acDbJump = 335;
-  acIfSub = 336; acIfOpen = 337;   // the editor's interface: a member / element row (dragged), the open mark   // an output of the I/O screen (DQ channel, 1000 + AQ): its region for the right button
+  acIfSub = 336; acIfOpen = 337;
+  { the help of an element: open (Par: the element), close, the previous / next element, insert the example, copy }
+  acEhOpen = 338; acEhClose = 339; acEhPrev = 340; acEhNext = 341; acEhIns = 342; acEhCopy = 343; whEh = 30;   // the editor's interface: a member / element row (dragged), the open mark   // an output of the I/O screen (DQ channel, 1000 + AQ): its region for the right button
   fdObDlgName = 198; fdObDlgNum = 199; acObDlg = 295; acObDlgEv = 296; acObDlgNum = 297; acObDlgLang = 298;
   acObDlgOk = 299; acObDlgCancel = 300; acObEdge = 301; acObTodMode = 302; acObTodPick = 303; acObTodOn = 304;
   acObCopyCall = 305; acObFault = 306; fdObCycle = 307; fdObPhase = 308; fdObTrig = 309; fdObTod = 310;
@@ -2237,6 +2258,7 @@ begin
   DrawKeyRmDlg;
   DrawObDlg;
   DrawXref;
+  DrawElemHelp;
   DrawCtx;
   DrawAsk;
   EndFrame;
@@ -4967,8 +4989,8 @@ begin
       end;
       if ViewH > 300 then
       begin
-        TxtFit(fkUI, 9.5, X, TY + 44, W, 'Right button: Insert / Copy.', cInkFaint);
-        TxtFit(fkUI, 9.5, X, TY + 57, W, 'The mouse on an element: what it does.', cInkFaint);
+        TxtFit(fkUI, 9.5, X, TY + 44, W, 'Right button: Insert, Copy, Help.', cInkFaint);
+        TxtFit(fkUI, 9.5, X, TY + 57, W, 'The mouse on an element: what it does; F1 its help.', cInkFaint);
       end;
     end;
   finally
@@ -5773,6 +5795,8 @@ begin
       end;
   end;
 end;
+
+{$I uelemhelpui.inc}
 
 procedure TPlcUI.DrawXref;
 const
@@ -6828,6 +6852,7 @@ begin
     18: Result := FPickScroll;
     19: Result := FXrefScroll;
     20: Result := FIoListScroll;
+    21: Result := FEhScroll;
   else
     Result := FPalScroll;
   end;
@@ -6856,6 +6881,7 @@ begin
     18: FPickScroll := V;
     19: FXrefScroll := V;
     20: FIoListScroll := V;
+    21: FEhScroll := V;
   else
     FPalScroll := V;
   end;
@@ -7506,6 +7532,25 @@ procedure TPlcUI.KeyDown(Key: TUiKey; Ch: Char; Mods: TUiMods);
 var
   EnterInKey: Boolean;
 begin
+  // the help of an element: Esc closes it, the arrows / pages scroll it; F1 on an element of the panel opens it
+  if FEhOn and not FCtxOn then
+  begin
+    case Key of
+      ukEsc: EhClose;
+      ukUp: FEhScroll := FEhScroll - 40;
+      ukDown: FEhScroll := FEhScroll + 40;
+      ukPgUp: FEhScroll := FEhScroll - 600;
+      ukPgDn: FEhScroll := FEhScroll + 600;
+      ukHome: FEhScroll := 0;
+      ukEnd: FEhScroll := FEhH;
+    end;
+    Exit;
+  end;
+  if (Key = ukF1) and (Screen = scProgram) and (FElemHover >= 0) and (FElemHover <= High(FElems)) and not FCtxOn then
+  begin
+    EhOpen(FElemHover);
+    Exit;
+  end;
   // Esc closes the cross reference / the + OB dialog first (also while one of its fields has the focus)
   if (FXrefOn or FObDlgOn) and (Key = ukEsc) and not FCtxOn then
   begin
@@ -8174,6 +8219,9 @@ begin
     'addscl': Id := Act(acAddMenu, 2);
     'redo': Id := Act(acRedo, 0);
     'elem': Id := Act(acElem, Par);
+    'ehclose': Id := Act(acEhClose, 0);
+    'ehnext': Id := Act(acEhNext, 0);
+    'ehins': Id := Act(acEhIns, 0);
     'sclsrc': Id := Act(acSclSrcMenu, 0);
     'elemcat': Id := Act(acElemCat, Par);
     'ioview': Id := Act(acIoView, Par);
@@ -8759,11 +8807,23 @@ begin
   if Id >= 0 then
     case Id shr 16 of
       acElem:
-        if ((Id and $FFFF) <= High(FElems)) and (FElems[Id and $FFFF].Snip <> '') then
+        if (Id and $FFFF) <= High(FElems) then
         begin
           FElemPress := Id and $FFFF;
-          OpenCtx(FMX, FMY, ['Insert at the caret', 'Copy'], [Act(acElemIns, Id and $FFFF),
-            Act(acElemCopy, Id and $FFFF)], [(CurNet <> nil) and (CurNet.Kind = nkSCL), True]);
+          if FElemLang = 'L' then
+          begin
+            if (FElems[Id and $FFFF].Kind >= 0) or (FElems[Id and $FFFF].Snip <> '') then
+              OpenCtx(FMX, FMY, ['Put into the selected cell', 'Help'#9'F1'], [Act(acElemIns, Id and $FFFF),
+                Act(acEhOpen, Id and $FFFF)], [(CurNet <> nil) and (CurNet.Kind = nkLAD), True])
+            else
+              OpenCtx(FMX, FMY, ['Help'#9'F1'], [Act(acEhOpen, Id and $FFFF)], [True]);
+          end
+          else if FElems[Id and $FFFF].Snip <> '' then
+            OpenCtx(FMX, FMY, ['Insert at the caret', 'Copy', 'Help'#9'F1'], [Act(acElemIns, Id and $FFFF),
+              Act(acElemCopy, Id and $FFFF), Act(acEhOpen, Id and $FFFF)],
+              [(CurNet <> nil) and (CurNet.Kind in [nkSCL, nkSTL]), True, True])
+          else
+            OpenCtx(FMX, FMY, ['Help'#9'F1'], [Act(acEhOpen, Id and $FFFF)], [True]);
           Exit;
         end;
       acHelp:
@@ -14056,6 +14116,20 @@ begin
         FWatchSel := FWRows[Par].WI;
       end;
     acXrefClose: FXrefOn := False;
+    acEhOpen: EhOpen(Par);
+    acEhClose: EhClose;
+    acEhPrev, acEhNext:
+      if FEhOn and (FEhLang = FElemLang) then
+      begin
+        if Id shr 16 = acEhPrev then I := FEhIdx - 1 else I := FEhIdx + 1;
+        if (I >= 0) and (I <= High(FElems)) then EhOpen(I);
+      end;
+    acEhIns: EhInsert;
+    acEhCopy:
+      begin
+        ClipboardOut := ElemHelpText(FEhPage);
+        Toast('The help page is on the clipboard');
+      end;
     acIoOut: ;
     acXrefFilter:
       begin
@@ -14912,6 +14986,7 @@ begin
     whGrpTree, whGrpTree + 1: FGrpScroll[Id - whGrpTree] := FGrpScroll[Id - whGrpTree] - DY;
     whPick: FPickScroll := FPickScroll - DY * 34;
     whXref: FXrefScroll := FXrefScroll - DY;
+    whEh: FEhScroll := FEhScroll - DY * 60;
     whIoList: FIoListScroll := FIoListScroll - DY;
     whVars: FVarScroll := FVarScroll - DY;
     whTags: FTagScroll := FTagScroll - DY;

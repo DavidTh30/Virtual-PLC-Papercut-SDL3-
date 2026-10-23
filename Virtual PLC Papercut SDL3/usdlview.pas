@@ -1237,6 +1237,74 @@ begin
     FShotWait := FShots[0].Wait;
     Exit;
   end;
+  if (Length(FShots) = 0) and (GetEnvironmentVariable('VPLC_ELEMHELP_TEST') <> '') then
+  begin
+    // the help of the elements: the right button (Help) in SCL, STL and LAD, F1, Next, the pictures, Esc,
+    // Insert example (SCL at the caret, LAD as a new network)
+    DeleteFile(FShotDir + 'elemhelp_check.txt');
+    Add(10, 'ipc', 'ex 33');
+    Add(5, 'screen', '1');
+    Add(10, 'elem', 'caret 0 0 0');
+    Add(10, 'elem', 'showcat Timers');
+    Add(5, 'elem', 'open Timers');
+    Add(5, 'elem', 'show TON (on delay)');
+    Add(10, 'elem', 'rclick TON (on delay)');
+    Add(10, 'shot', 'elemhelp_1_menu');
+    Add(5, 'eh', 'menu');
+    Add(5, 'uiclick2', 'ctx:2');
+    Add(20, 'shot', 'elemhelp_2_scl_ton');
+    Add(5, 'eh', 'dump');
+    Add(5, 'eh', 'scroll 560');
+    Add(20, 'shot', 'elemhelp_3_scl_ton_timing');
+    Add(5, 'uiclick2', 'ehnext:0');
+    Add(20, 'shot', 'elemhelp_4_next_tof');
+    Add(5, 'eh', 'dump');
+    Add(5, 'eh', 'esc');
+    Add(5, 'eh', 'dump');
+    Add(5, 'eh', 'open IF ... ELSIF ... ELSE');
+    Add(5, 'eh', 'scroll 330');
+    Add(20, 'shot', 'elemhelp_5_scl_elsif_flow');
+    Add(5, 'eh', 'open FOR ... TO ... DO');
+    Add(5, 'eh', 'scroll 330');
+    Add(20, 'shot', 'elemhelp_6_scl_for_flow');
+    Add(5, 'eh', 'open SHL');
+    Add(5, 'eh', 'scroll 300');
+    Add(20, 'shot', 'elemhelp_7_scl_shl_bits');
+    Add(5, 'eh', 'open CASE ... OF');
+    Add(10, 'elem', 'caret 0 0 0');
+    Add(5, 'uiclick2', 'ehins:0');
+    Add(10, 'eh', 'code');
+    Add(5, 'eh', 'esc');
+    // STL: the menu by its key: F1 on an element
+    Add(10, 'elem', 'caret 9 0 0');
+    Add(10, 'elem', 'showcat Bit logic');
+    Add(5, 'elem', 'show AN');
+    Add(5, 'eh', 'hover AN');
+    Add(5, 'eh', 'f1');
+    Add(20, 'shot', 'elemhelp_8_stl_an');
+    Add(5, 'eh', 'dump');
+    Add(5, 'eh', 'esc');
+    // LAD
+    Add(10, 'eh', 'net 1');
+    Add(10, 'elem', 'showcat Timers');
+    Add(5, 'elem', 'open Timers');
+    Add(5, 'elem', 'show TON');
+    Add(10, 'elem', 'rclick TON');
+    Add(5, 'eh', 'menu');
+    Add(5, 'uiclick2', 'ctx:1');
+    Add(20, 'shot', 'elemhelp_9_lad_ton');
+    Add(5, 'eh', 'dump');
+    Add(5, 'eh', 'open -| |- NO contact');
+    Add(20, 'shot', 'elemhelp_10_lad_no');
+    Add(5, 'eh', 'nets');
+    Add(5, 'uiclick2', 'ehins:0');
+    Add(10, 'eh', 'nets');
+    Add(20, 'shot', 'elemhelp_11_lad_inserted');
+    Add(5, 'quit');
+    FShotPos := 0;
+    FShotWait := FShots[0].Wait;
+    Exit;
+  end;
   if (Length(FShots) = 0) and (GetEnvironmentVariable('VPLC_IFSTRUCT_TEST') <> '') then
   begin
     // the editor's interface: a struct / an array / a timer opens to its members, deeper; a member dragged
@@ -3401,6 +3469,59 @@ begin
         end;
       end;
       SaveToFile(FShotDir + 'watchstruct_check.txt');
+    finally
+      Free;
+    end;
+  if St.Cmd = 'eh' then
+    with TStringList.Create do
+    try
+      // the help of an element: open <caption>, f1 <caption> (the mouse on it, F1), scroll <px>, esc, dump,
+      // menu (the right button menu), code (the SCL network 1), nets (the networks of the block)
+      if FileExists(FShotDir + 'elemhelp_check.txt') then LoadFromFile(FShotDir + 'elemhelp_check.txt');
+      S0 := ExtractWord(1, St.Arg, [' ']);
+      S1 := Trim(Copy(St.Arg, Length(S0) + 2, MaxInt));
+      if S0 = 'open' then Add(Format('open %s: %s', [S1, BoolToStr(UI.TestElemHelp(S1), True)]))
+      else if S0 = 'hover' then
+      begin
+        V := UI.ElemFind(S1, False);
+        Pt := UI.HitPoint('elem', V);
+        UI.MouseMove(Pt.X, Pt.Y);
+      end
+      else if S0 = 'f1' then UI.KeyDown(ukF1, #0, [])
+      else if S0 = 'net' then UI.TestSelNet(StrToInt(S1))
+      else if S0 = 'scroll' then UI.TestEhScroll(StrToInt(S1))
+      else if S0 = 'esc' then UI.KeyDown(ukEsc, #0, [])
+      else if S0 = 'menu' then
+        Add('menu: ' + IntToStr(UI.CtxIndex('Help')) + ' = the index of Help')
+      else if S0 = 'code' then
+      begin
+        Add('SCL network 1 after Insert example:');
+        for P := 0 to Min(5, UI.CurBlockPublic.Net(0).Stl.Count - 1) do Add('  ' + UI.CurBlockPublic.Net(0).Stl[P]);
+      end
+      else if S0 = 'nets' then
+      begin
+        S1 := '';
+        for P := 0 to UI.CurBlockPublic.NetCount - 1 do
+          case UI.CurBlockPublic.Net(P).Kind of
+            nkLAD: S1 := S1 + 'L';
+            nkSTL: S1 := S1 + 'S';
+          else
+            S1 := S1 + 'C';
+          end;
+        Add(Format('networks: %d %s', [UI.CurBlockPublic.NetCount, S1]));
+        for P := 0 to UI.CurBlockPublic.NetCount - 1 do
+          if Copy(UI.CurBlockPublic.Net(P).Title, 1, 8) = 'Example:' then
+            Add(Format('  network %d "%s": cell 0,0 %s %s, 0,1 %s %s', [P + 1, UI.CurBlockPublic.Net(P).Title,
+              LadKindIds[UI.CurBlockPublic.Net(P).Cell(0, 0).Kind], UI.CurBlockPublic.Net(P).Cell(0, 0).Opnd,
+              LadKindIds[UI.CurBlockPublic.Net(P).Cell(0, 1).Kind], UI.CurBlockPublic.Net(P).Cell(0, 1).Opnd]));
+      end
+      else
+      begin
+        S1 := UI.ElemHelpShown;
+        if S1 = '' then Add('--- no help shown')
+        else Add('--- ' + StringReplace(Copy(S1, 1, 900), LineEnding, ' | ', [rfReplaceAll]));
+      end;
+      SaveToFile(FShotDir + 'elemhelp_check.txt');
     finally
       Free;
     end;
