@@ -1,0 +1,1479 @@
+{
+  "format" : "VirtualPLC",
+  "version" : 1,
+  "name" : "MosaicWall",
+  "author" : "",
+  "comment" : "",
+  "cpu" : "CPU 1214C DC/DC/DC",
+  "family" : "S7-1200",
+  "cyclicMs" : 100,
+  "clockByte" : -1,
+  "blocks" : [
+    {
+      "kind" : "OB",
+      "number" : 1,
+      "name" : "Main",
+      "comment" : "Main program cycle",
+      "interface" : [
+      ],
+      "networks" : [
+        {
+          "title" : "Assembly Line A",
+          "comment" : "The line with its six stations; the FactoryHMI talks to it through DB10 \"HMI\" (S7 communication, TCP 102).",
+          "lang" : "SCL",
+          "scl" : [
+            "\"Line_DB\"();"
+          ]
+        }
+      ]
+    },
+    {
+      "kind" : "FB",
+      "number" : 1,
+      "name" : "Station",
+      "comment" : "One station of Assembly Line A: start/stop latch, interlocks, state, speed ramp, temperature, vibration, power, part counter. Called once per station from OB1; the HMI only sets the Cmd pulses and SpeedSP in DB10 \"HMI\".",
+      "interface" : [
+        {
+          "section" : "Input",
+          "name" : "LineRun",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "line run latch"
+        },
+        {
+          "section" : "Input",
+          "name" : "LineStart",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "LINE start pulse: enables the station"
+        },
+        {
+          "section" : "Input",
+          "name" : "Tick",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "one cycle every 100 ms"
+        },
+        {
+          "section" : "Input",
+          "name" : "InAvail",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "a part is waiting in front"
+        },
+        {
+          "section" : "Input",
+          "name" : "OutFree",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "room in the output buffer"
+        },
+        {
+          "section" : "Input",
+          "name" : "SpeedMax",
+          "type" : "Real",
+          "start" : "",
+          "comment" : "parts/min"
+        },
+        {
+          "section" : "Input",
+          "name" : "TempRise",
+          "type" : "Real",
+          "start" : "",
+          "comment" : "degC at full load"
+        },
+        {
+          "section" : "Input",
+          "name" : "TempTrip",
+          "type" : "Real",
+          "start" : "",
+          "comment" : "over-temperature trip, degC"
+        },
+        {
+          "section" : "Input",
+          "name" : "PowerRated",
+          "type" : "Real",
+          "start" : "",
+          "comment" : "kW"
+        },
+        {
+          "section" : "Input",
+          "name" : "Seed",
+          "type" : "DInt",
+          "start" : "",
+          "comment" : "random seed of this station"
+        },
+        {
+          "section" : "Output",
+          "name" : "PartDone",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "one part finished in this cycle"
+        },
+        {
+          "section" : "InOut",
+          "name" : "State",
+          "type" : "Int",
+          "start" : "",
+          "comment" : "0 stop 1 run 2 starved 3 blocked 4 fault 5 maint"
+        },
+        {
+          "section" : "InOut",
+          "name" : "FaultCode",
+          "type" : "Int",
+          "start" : "",
+          "comment" : "1..6 faults, 7 over-temperature"
+        },
+        {
+          "section" : "InOut",
+          "name" : "Speed",
+          "type" : "Real",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "InOut",
+          "name" : "SpeedSP",
+          "type" : "Real",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "InOut",
+          "name" : "Temp",
+          "type" : "Real",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "InOut",
+          "name" : "Vib",
+          "type" : "Real",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "InOut",
+          "name" : "Power",
+          "type" : "Real",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "InOut",
+          "name" : "Count",
+          "type" : "DInt",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "InOut",
+          "name" : "CmdStart",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "InOut",
+          "name" : "CmdStop",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "InOut",
+          "name" : "CmdReset",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "InOut",
+          "name" : "Enabled",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "Static",
+          "name" : "Progress",
+          "type" : "Real",
+          "start" : "",
+          "comment" : "fraction of the current part"
+        },
+        {
+          "section" : "Static",
+          "name" : "Rnd",
+          "type" : "DInt",
+          "start" : "",
+          "comment" : "random generator state (0: take Seed)"
+        },
+        {
+          "section" : "Static",
+          "name" : "Timer",
+          "type" : "Real",
+          "start" : "",
+          "comment" : "s in fault / maintenance"
+        },
+        {
+          "section" : "Temp",
+          "name" : "Load",
+          "type" : "Real",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "Temp",
+          "name" : "Target",
+          "type" : "Real",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "Temp",
+          "name" : "R",
+          "type" : "Real",
+          "start" : "",
+          "comment" : "random 0..1"
+        }
+      ],
+      "networks" : [
+        {
+          "title" : "Operator requests and interlocks",
+          "comment" : "The HMI only requests: start is refused while a fault / maintenance is active, reset only when the station has cooled below the trip limit - 2 degC. Every request pulse is cleared here.",
+          "lang" : "SCL",
+          "scl" : [
+            "IF #LineStart AND #State < 4 THEN",
+            "    #Enabled := TRUE;",
+            "END_IF;",
+            "IF #CmdStart AND #State < 4 THEN",
+            "    #Enabled := TRUE;",
+            "END_IF;",
+            "IF #CmdStop THEN",
+            "    #Enabled := FALSE;",
+            "END_IF;",
+            "IF #CmdReset AND #State = 4 AND #Temp < #TempTrip - 2.0 THEN",
+            "    #State := 0;",
+            "    #FaultCode := 0;",
+            "    #Timer := 0.0;",
+            "END_IF;",
+            "#CmdStart := FALSE;",
+            "#CmdStop := FALSE;",
+            "#CmdReset := FALSE;",
+            "#SpeedSP := LIMIT(MN := 10.0, IN := #SpeedSP, MX := #SpeedMax);"
+          ]
+        },
+        {
+          "title" : "Process model (every 100 ms)",
+          "comment" : "State machine (fault -> maintenance after 60 s -> stopped after 20 s), speed ramp, parts, temperature with 20 s lag, vibration, power, over-temperature trip, rare random faults.",
+          "lang" : "SCL",
+          "scl" : [
+            "#PartDone := FALSE;",
+            "IF NOT #Tick THEN",
+            "    RETURN;",
+            "END_IF;",
+            "",
+            "// random 0..1 (Lehmer generator, period 65536)",
+            "IF #Rnd <= 0 THEN",
+            "    #Rnd := #Seed MOD 65536 + 1;",
+            "END_IF;",
+            "#Rnd := (#Rnd * 75) MOD 65537;",
+            "#R := DINT_TO_REAL(#Rnd) / 65537.0;",
+            "",
+            "// state machine",
+            "IF #State = 4 THEN",
+            "    #Timer := #Timer + 0.1;",
+            "    IF #Timer >= 60.0 THEN",
+            "        #State := 5;",
+            "        #Timer := 0.0;",
+            "    END_IF;",
+            "ELSIF #State = 5 THEN",
+            "    #Timer := #Timer + 0.1;",
+            "    IF #Timer >= 20.0 THEN",
+            "        #State := 0;",
+            "        #FaultCode := 0;",
+            "        #Timer := 0.0;",
+            "    END_IF;",
+            "ELSIF NOT (#Enabled AND #LineRun) THEN",
+            "    #State := 0;",
+            "ELSIF NOT #InAvail THEN",
+            "    #State := 2;",
+            "ELSIF NOT #OutFree THEN",
+            "    #State := 3;",
+            "ELSE",
+            "    #State := 1;",
+            "END_IF;",
+            "",
+            "// speed and parts",
+            "IF #State = 1 THEN",
+            "    #Speed := #Speed + (#SpeedSP - #Speed) * 0.15;",
+            "    #Progress := #Progress + #Speed / 600.0;",
+            "    IF #Progress >= 1.0 THEN",
+            "        #Progress := #Progress - 1.0;",
+            "        #PartDone := TRUE;",
+            "        #Count := #Count + 1;",
+            "    END_IF;",
+            "ELSE",
+            "    #Speed := #Speed * 0.7;",
+            "END_IF;",
+            "",
+            "// process values",
+            "#Load := #Speed / #SpeedMax;",
+            "#Target := 32.0 + #TempRise * #Load * (0.9 + 0.25 * #SpeedSP / #SpeedMax);",
+            "#Temp := #Temp + (#Target - #Temp) * 0.005 + (#R - 0.5) * 0.1;",
+            "#Vib := #Vib + (0.6 + 4.2 * #Load * #Load - #Vib) * 0.2 + (#R - 0.5) * 0.1;",
+            "IF #Vib < 0.0 THEN",
+            "    #Vib := 0.0;",
+            "END_IF;",
+            "IF #State = 1 THEN",
+            "    #Power := #PowerRated * (0.25 + 0.75 * #Load);",
+            "ELSIF #State = 2 OR #State = 3 THEN",
+            "    #Power := #PowerRated * 0.2;",
+            "ELSE",
+            "    #Power := #PowerRated * 0.05;",
+            "END_IF;",
+            "",
+            "// over-temperature trip, random faults (about 1 per 30 min per running station)",
+            "IF #State >= 1 AND #State <= 3 AND #Temp > #TempTrip THEN",
+            "    #State := 4;",
+            "    #FaultCode := 7;",
+            "    #Timer := 0.0;",
+            "ELSIF #State = 1 AND #R < 0.0000556 THEN",
+            "    #State := 4;",
+            "    #FaultCode := REAL_TO_INT(#R * 1000000.0) MOD 6 + 1;",
+            "    #Timer := 0.0;",
+            "END_IF;"
+          ]
+        }
+      ]
+    },
+    {
+      "kind" : "FB",
+      "number" : 2,
+      "name" : "Line",
+      "comment" : "Assembly Line A: line run latch, 100 ms tick, the six stations (multi-instances of \"Station\") and the part buffers between them. All HMI signals are in DB10 \"HMI\" (non-optimized, absolute access for S7 communication).",
+      "interface" : [
+        {
+          "section" : "Static",
+          "name" : "TickTimer",
+          "type" : "TON_TIME",
+          "start" : "",
+          "comment" : "100 ms time base"
+        },
+        {
+          "section" : "Static",
+          "name" : "Tick",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "TRUE for one cycle every 100 ms"
+        },
+        {
+          "section" : "Static",
+          "name" : "S10",
+          "type" : "\"Station\"",
+          "start" : "",
+          "comment" : "Feeder"
+        },
+        {
+          "section" : "Static",
+          "name" : "S20",
+          "type" : "\"Station\"",
+          "start" : "",
+          "comment" : "Press"
+        },
+        {
+          "section" : "Static",
+          "name" : "S30",
+          "type" : "\"Station\"",
+          "start" : "",
+          "comment" : "Welder"
+        },
+        {
+          "section" : "Static",
+          "name" : "S40",
+          "type" : "\"Station\"",
+          "start" : "",
+          "comment" : "Paint Booth"
+        },
+        {
+          "section" : "Static",
+          "name" : "S50",
+          "type" : "\"Station\"",
+          "start" : "",
+          "comment" : "Vision Inspect"
+        },
+        {
+          "section" : "Static",
+          "name" : "S60",
+          "type" : "\"Station\"",
+          "start" : "",
+          "comment" : "Packer"
+        },
+        {
+          "section" : "Temp",
+          "name" : "LineStart",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "Temp",
+          "name" : "Done10",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "Temp",
+          "name" : "Done20",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "Temp",
+          "name" : "Done30",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "Temp",
+          "name" : "Done40",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "Temp",
+          "name" : "Done50",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "section" : "Temp",
+          "name" : "Done60",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : ""
+        }
+      ],
+      "networks" : [
+        {
+          "title" : "Heartbeat, time base, line requests",
+          "comment" : "LINE_Heartbeat counts every cycle (the HMI sends no command while it stands still). LINE start / stop are request pulses from the HMI, cleared here.",
+          "lang" : "SCL",
+          "scl" : [
+            "\"HMI\".LINE_Heartbeat := \"HMI\".LINE_Heartbeat + 1;",
+            "",
+            "#TickTimer(IN := NOT #Tick, PT := T#100MS);",
+            "#Tick := #TickTimer.Q;",
+            "",
+            "#LineStart := \"HMI\".LINE_CmdStart;",
+            "IF \"HMI\".LINE_CmdStart THEN",
+            "    \"HMI\".LINE_Running := TRUE;",
+            "END_IF;",
+            "IF \"HMI\".LINE_CmdStop THEN",
+            "    \"HMI\".LINE_Running := FALSE;",
+            "END_IF;",
+            "\"HMI\".LINE_CmdStart := FALSE;",
+            "\"HMI\".LINE_CmdStop := FALSE;"
+          ]
+        },
+        {
+          "title" : "Stations ST10 .. ST60",
+          "comment" : "Limits per station as in SPEC_FactoryHMI section 5.1 (speed max, temperature rise / trip, rated power). A station runs when it has a part in front and room behind it.",
+          "lang" : "SCL",
+          "scl" : [
+            "#S10(LineRun := \"HMI\".LINE_Running, LineStart := #LineStart, Tick := #Tick,",
+            "     InAvail := TRUE, OutFree := \"HMI\".ST20_InBuf < 12,",
+            "     SpeedMax := 80.0, TempRise := 18.0, TempTrip := 80.0, PowerRated := 4.5, Seed := 1070,",
+            "     PartDone => #Done10,",
+            "     State := \"HMI\".ST10_State, FaultCode := \"HMI\".ST10_FaultCode, Speed := \"HMI\".ST10_Speed, SpeedSP := \"HMI\".ST10_SpeedSP,",
+            "     Temp := \"HMI\".ST10_Temp, Vib := \"HMI\".ST10_Vib, Power := \"HMI\".ST10_Power, Count := \"HMI\".ST10_Count,",
+            "     CmdStart := \"HMI\".ST10_CmdStart, CmdStop := \"HMI\".ST10_CmdStop, CmdReset := \"HMI\".ST10_CmdReset, Enabled := \"HMI\".ST10_Enabled);",
+            "#S20(LineRun := \"HMI\".LINE_Running, LineStart := #LineStart, Tick := #Tick,",
+            "     InAvail := \"HMI\".ST20_InBuf > 0, OutFree := \"HMI\".ST30_InBuf < 12,",
+            "     SpeedMax := 70.0, TempRise := 38.0, TempTrip := 88.0, PowerRated := 22.0, Seed := 1140,",
+            "     PartDone => #Done20,",
+            "     State := \"HMI\".ST20_State, FaultCode := \"HMI\".ST20_FaultCode, Speed := \"HMI\".ST20_Speed, SpeedSP := \"HMI\".ST20_SpeedSP,",
+            "     Temp := \"HMI\".ST20_Temp, Vib := \"HMI\".ST20_Vib, Power := \"HMI\".ST20_Power, Count := \"HMI\".ST20_Count,",
+            "     CmdStart := \"HMI\".ST20_CmdStart, CmdStop := \"HMI\".ST20_CmdStop, CmdReset := \"HMI\".ST20_CmdReset, Enabled := \"HMI\".ST20_Enabled);",
+            "#S30(LineRun := \"HMI\".LINE_Running, LineStart := #LineStart, Tick := #Tick,",
+            "     InAvail := \"HMI\".ST30_InBuf > 0, OutFree := \"HMI\".ST40_InBuf < 12,",
+            "     SpeedMax := 70.0, TempRise := 52.0, TempTrip := 95.0, PowerRated := 35.0, Seed := 1210,",
+            "     PartDone => #Done30,",
+            "     State := \"HMI\".ST30_State, FaultCode := \"HMI\".ST30_FaultCode, Speed := \"HMI\".ST30_Speed, SpeedSP := \"HMI\".ST30_SpeedSP,",
+            "     Temp := \"HMI\".ST30_Temp, Vib := \"HMI\".ST30_Vib, Power := \"HMI\".ST30_Power, Count := \"HMI\".ST30_Count,",
+            "     CmdStart := \"HMI\".ST30_CmdStart, CmdStop := \"HMI\".ST30_CmdStop, CmdReset := \"HMI\".ST30_CmdReset, Enabled := \"HMI\".ST30_Enabled);",
+            "#S40(LineRun := \"HMI\".LINE_Running, LineStart := #LineStart, Tick := #Tick,",
+            "     InAvail := \"HMI\".ST40_InBuf > 0, OutFree := \"HMI\".ST50_InBuf < 12,",
+            "     SpeedMax := 75.0, TempRise := 28.0, TempTrip := 68.0, PowerRated := 18.0, Seed := 1280,",
+            "     PartDone => #Done40,",
+            "     State := \"HMI\".ST40_State, FaultCode := \"HMI\".ST40_FaultCode, Speed := \"HMI\".ST40_Speed, SpeedSP := \"HMI\".ST40_SpeedSP,",
+            "     Temp := \"HMI\".ST40_Temp, Vib := \"HMI\".ST40_Vib, Power := \"HMI\".ST40_Power, Count := \"HMI\".ST40_Count,",
+            "     CmdStart := \"HMI\".ST40_CmdStart, CmdStop := \"HMI\".ST40_CmdStop, CmdReset := \"HMI\".ST40_CmdReset, Enabled := \"HMI\".ST40_Enabled);",
+            "#S50(LineRun := \"HMI\".LINE_Running, LineStart := #LineStart, Tick := #Tick,",
+            "     InAvail := \"HMI\".ST50_InBuf > 0, OutFree := \"HMI\".ST60_InBuf < 12,",
+            "     SpeedMax := 90.0, TempRise := 12.0, TempTrip := 62.0, PowerRated := 2.5, Seed := 1350,",
+            "     PartDone => #Done50,",
+            "     State := \"HMI\".ST50_State, FaultCode := \"HMI\".ST50_FaultCode, Speed := \"HMI\".ST50_Speed, SpeedSP := \"HMI\".ST50_SpeedSP,",
+            "     Temp := \"HMI\".ST50_Temp, Vib := \"HMI\".ST50_Vib, Power := \"HMI\".ST50_Power, Count := \"HMI\".ST50_Count,",
+            "     CmdStart := \"HMI\".ST50_CmdStart, CmdStop := \"HMI\".ST50_CmdStop, CmdReset := \"HMI\".ST50_CmdReset, Enabled := \"HMI\".ST50_Enabled);",
+            "#S60(LineRun := \"HMI\".LINE_Running, LineStart := #LineStart, Tick := #Tick,",
+            "     InAvail := \"HMI\".ST60_InBuf > 0, OutFree := TRUE,",
+            "     SpeedMax := 80.0, TempRise := 16.0, TempTrip := 75.0, PowerRated := 6.0, Seed := 1420,",
+            "     PartDone => #Done60,",
+            "     State := \"HMI\".ST60_State, FaultCode := \"HMI\".ST60_FaultCode, Speed := \"HMI\".ST60_Speed, SpeedSP := \"HMI\".ST60_SpeedSP,",
+            "     Temp := \"HMI\".ST60_Temp, Vib := \"HMI\".ST60_Vib, Power := \"HMI\".ST60_Power, Count := \"HMI\".ST60_Count,",
+            "     CmdStart := \"HMI\".ST60_CmdStart, CmdStop := \"HMI\".ST60_CmdStop, CmdReset := \"HMI\".ST60_CmdReset, Enabled := \"HMI\".ST60_Enabled);"
+          ]
+        },
+        {
+          "title" : "Part buffers and rejects",
+          "comment" : "A finished part leaves the station's input buffer and enters the next one. ST50 Vision rejects every 50th part (2 %) and 1 more in 10 while the welder is above 80 degC; rejected parts leave the line. Parts out of ST60 are good parts (ST60_Count).",
+          "lang" : "SCL",
+          "scl" : [
+            "IF #Done10 THEN",
+            "    \"HMI\".ST20_InBuf := \"HMI\".ST20_InBuf + 1;",
+            "END_IF;",
+            "IF #Done20 THEN",
+            "    \"HMI\".ST20_InBuf := \"HMI\".ST20_InBuf - 1;",
+            "    \"HMI\".ST30_InBuf := \"HMI\".ST30_InBuf + 1;",
+            "END_IF;",
+            "IF #Done30 THEN",
+            "    \"HMI\".ST30_InBuf := \"HMI\".ST30_InBuf - 1;",
+            "    \"HMI\".ST40_InBuf := \"HMI\".ST40_InBuf + 1;",
+            "END_IF;",
+            "IF #Done40 THEN",
+            "    \"HMI\".ST40_InBuf := \"HMI\".ST40_InBuf - 1;",
+            "    \"HMI\".ST50_InBuf := \"HMI\".ST50_InBuf + 1;",
+            "END_IF;",
+            "IF #Done50 THEN",
+            "    \"HMI\".ST50_InBuf := \"HMI\".ST50_InBuf - 1;",
+            "    IF \"HMI\".ST50_Count MOD 50 = 7 OR (\"HMI\".ST30_Temp > 80.0 AND \"HMI\".ST50_Count MOD 10 = 3) THEN",
+            "        \"HMI\".ST50_Reject := \"HMI\".ST50_Reject + 1;",
+            "    ELSE",
+            "        \"HMI\".ST60_InBuf := \"HMI\".ST60_InBuf + 1;",
+            "    END_IF;",
+            "END_IF;",
+            "IF #Done60 THEN",
+            "    \"HMI\".ST60_InBuf := \"HMI\".ST60_InBuf - 1;",
+            "END_IF;"
+          ]
+        }
+      ]
+    }
+  ],
+  "dbs" : [
+    {
+      "number" : 1,
+      "name" : "ST10_DB",
+      "comment" : "",
+      "optimized" : false,
+      "instanceOf" : 1,
+      "vars" : [
+        {
+          "name" : "LineRun",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "line run latch"
+        },
+        {
+          "name" : "LineStart",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "LINE start pulse: enables the station"
+        },
+        {
+          "name" : "Tick",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "one cycle every 100 ms"
+        },
+        {
+          "name" : "InAvail",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "a part is waiting in front"
+        },
+        {
+          "name" : "OutFree",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "room in the output buffer"
+        },
+        {
+          "name" : "SpeedMax",
+          "type" : "Real",
+          "start" : "",
+          "comment" : "parts/min"
+        },
+        {
+          "name" : "TempRise",
+          "type" : "Real",
+          "start" : "",
+          "comment" : "degC at full load"
+        },
+        {
+          "name" : "TempTrip",
+          "type" : "Real",
+          "start" : "",
+          "comment" : "over-temperature trip, degC"
+        },
+        {
+          "name" : "PowerRated",
+          "type" : "Real",
+          "start" : "",
+          "comment" : "kW"
+        },
+        {
+          "name" : "Seed",
+          "type" : "DInt",
+          "start" : "",
+          "comment" : "random seed of this station"
+        },
+        {
+          "name" : "PartDone",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "one part finished in this cycle"
+        },
+        {
+          "name" : "State",
+          "type" : "Int",
+          "start" : "",
+          "comment" : "0 stop 1 run 2 starved 3 blocked 4 fault 5 maint"
+        },
+        {
+          "name" : "FaultCode",
+          "type" : "Int",
+          "start" : "",
+          "comment" : "1..6 faults, 7 over-temperature"
+        },
+        {
+          "name" : "Speed",
+          "type" : "Real",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "name" : "SpeedSP",
+          "type" : "Real",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "name" : "Temp",
+          "type" : "Real",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "name" : "Vib",
+          "type" : "Real",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "name" : "Power",
+          "type" : "Real",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "name" : "Count",
+          "type" : "DInt",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "name" : "CmdStart",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "name" : "CmdStop",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "name" : "CmdReset",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "name" : "Enabled",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : ""
+        },
+        {
+          "name" : "Progress",
+          "type" : "Real",
+          "start" : "",
+          "comment" : "fraction of the current part"
+        },
+        {
+          "name" : "Rnd",
+          "type" : "DInt",
+          "start" : "",
+          "comment" : "random generator state (0: take Seed)"
+        },
+        {
+          "name" : "Timer",
+          "type" : "Real",
+          "start" : "",
+          "comment" : "s in fault / maintenance"
+        }
+      ]
+    },
+    {
+      "number" : 2,
+      "name" : "Line_DB",
+      "comment" : "",
+      "optimized" : false,
+      "instanceOf" : 2,
+      "vars" : [
+        {
+          "name" : "TickTimer",
+          "type" : "TON_TIME",
+          "start" : "",
+          "comment" : "100 ms time base"
+        },
+        {
+          "name" : "Tick",
+          "type" : "Bool",
+          "start" : "",
+          "comment" : "TRUE for one cycle every 100 ms"
+        },
+        {
+          "name" : "S10",
+          "type" : "\"Station\"",
+          "start" : "",
+          "comment" : "Feeder"
+        },
+        {
+          "name" : "S20",
+          "type" : "\"Station\"",
+          "start" : "",
+          "comment" : "Press"
+        },
+        {
+          "name" : "S30",
+          "type" : "\"Station\"",
+          "start" : "",
+          "comment" : "Welder"
+        },
+        {
+          "name" : "S40",
+          "type" : "\"Station\"",
+          "start" : "",
+          "comment" : "Paint Booth"
+        },
+        {
+          "name" : "S50",
+          "type" : "\"Station\"",
+          "start" : "",
+          "comment" : "Vision Inspect"
+        },
+        {
+          "name" : "S60",
+          "type" : "\"Station\"",
+          "start" : "",
+          "comment" : "Packer"
+        }
+      ]
+    },
+    {
+      "number" : 10,
+      "name" : "HMI",
+      "comment" : "",
+      "optimized" : false,
+      "vars" : [
+        {
+          "name" : "ST10_State",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "ST10 0 stop 1 run 2 starved 3 blocked 4 fault 5 maint"
+        },
+        {
+          "name" : "ST10_FaultCode",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "1..6 faults, 7 over-temperature"
+        },
+        {
+          "name" : "ST10_Speed",
+          "type" : "Real",
+          "start" : "0.0",
+          "comment" : "parts/min"
+        },
+        {
+          "name" : "ST10_SpeedSP",
+          "type" : "Real",
+          "start" : "62.0",
+          "comment" : "parts/min, written by the HMI"
+        },
+        {
+          "name" : "ST10_Temp",
+          "type" : "Real",
+          "start" : "32.0",
+          "comment" : "degC"
+        },
+        {
+          "name" : "ST10_Vib",
+          "type" : "Real",
+          "start" : "0.8",
+          "comment" : "mm/s"
+        },
+        {
+          "name" : "ST10_Power",
+          "type" : "Real",
+          "start" : "0.0",
+          "comment" : "kW"
+        },
+        {
+          "name" : "ST10_Count",
+          "type" : "DInt",
+          "start" : "0",
+          "comment" : "parts processed"
+        },
+        {
+          "name" : "ST10_Reject",
+          "type" : "DInt",
+          "start" : "0",
+          "comment" : "parts rejected"
+        },
+        {
+          "name" : "ST10_InBuf",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "parts waiting in front"
+        },
+        {
+          "name" : "ST10_CmdStart",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "HMI pulse, PLC clears"
+        },
+        {
+          "name" : "ST10_CmdStop",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "HMI pulse, PLC clears"
+        },
+        {
+          "name" : "ST10_CmdReset",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "HMI pulse, PLC clears"
+        },
+        {
+          "name" : "ST10_Enabled",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "station start latch (status)"
+        },
+        {
+          "name" : "ST20_State",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "ST20 0 stop 1 run 2 starved 3 blocked 4 fault 5 maint"
+        },
+        {
+          "name" : "ST20_FaultCode",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "1..6 faults, 7 over-temperature"
+        },
+        {
+          "name" : "ST20_Speed",
+          "type" : "Real",
+          "start" : "0.0",
+          "comment" : "parts/min"
+        },
+        {
+          "name" : "ST20_SpeedSP",
+          "type" : "Real",
+          "start" : "62.0",
+          "comment" : "parts/min, written by the HMI"
+        },
+        {
+          "name" : "ST20_Temp",
+          "type" : "Real",
+          "start" : "32.0",
+          "comment" : "degC"
+        },
+        {
+          "name" : "ST20_Vib",
+          "type" : "Real",
+          "start" : "0.8",
+          "comment" : "mm/s"
+        },
+        {
+          "name" : "ST20_Power",
+          "type" : "Real",
+          "start" : "0.0",
+          "comment" : "kW"
+        },
+        {
+          "name" : "ST20_Count",
+          "type" : "DInt",
+          "start" : "0",
+          "comment" : "parts processed"
+        },
+        {
+          "name" : "ST20_Reject",
+          "type" : "DInt",
+          "start" : "0",
+          "comment" : "parts rejected"
+        },
+        {
+          "name" : "ST20_InBuf",
+          "type" : "Int",
+          "start" : "4",
+          "comment" : "parts waiting in front"
+        },
+        {
+          "name" : "ST20_CmdStart",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "HMI pulse, PLC clears"
+        },
+        {
+          "name" : "ST20_CmdStop",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "HMI pulse, PLC clears"
+        },
+        {
+          "name" : "ST20_CmdReset",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "HMI pulse, PLC clears"
+        },
+        {
+          "name" : "ST20_Enabled",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "station start latch (status)"
+        },
+        {
+          "name" : "ST30_State",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "ST30 0 stop 1 run 2 starved 3 blocked 4 fault 5 maint"
+        },
+        {
+          "name" : "ST30_FaultCode",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "1..6 faults, 7 over-temperature"
+        },
+        {
+          "name" : "ST30_Speed",
+          "type" : "Real",
+          "start" : "0.0",
+          "comment" : "parts/min"
+        },
+        {
+          "name" : "ST30_SpeedSP",
+          "type" : "Real",
+          "start" : "62.0",
+          "comment" : "parts/min, written by the HMI"
+        },
+        {
+          "name" : "ST30_Temp",
+          "type" : "Real",
+          "start" : "32.0",
+          "comment" : "degC"
+        },
+        {
+          "name" : "ST30_Vib",
+          "type" : "Real",
+          "start" : "0.8",
+          "comment" : "mm/s"
+        },
+        {
+          "name" : "ST30_Power",
+          "type" : "Real",
+          "start" : "0.0",
+          "comment" : "kW"
+        },
+        {
+          "name" : "ST30_Count",
+          "type" : "DInt",
+          "start" : "0",
+          "comment" : "parts processed"
+        },
+        {
+          "name" : "ST30_Reject",
+          "type" : "DInt",
+          "start" : "0",
+          "comment" : "parts rejected"
+        },
+        {
+          "name" : "ST30_InBuf",
+          "type" : "Int",
+          "start" : "4",
+          "comment" : "parts waiting in front"
+        },
+        {
+          "name" : "ST30_CmdStart",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "HMI pulse, PLC clears"
+        },
+        {
+          "name" : "ST30_CmdStop",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "HMI pulse, PLC clears"
+        },
+        {
+          "name" : "ST30_CmdReset",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "HMI pulse, PLC clears"
+        },
+        {
+          "name" : "ST30_Enabled",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "station start latch (status)"
+        },
+        {
+          "name" : "ST40_State",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "ST40 0 stop 1 run 2 starved 3 blocked 4 fault 5 maint"
+        },
+        {
+          "name" : "ST40_FaultCode",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "1..6 faults, 7 over-temperature"
+        },
+        {
+          "name" : "ST40_Speed",
+          "type" : "Real",
+          "start" : "0.0",
+          "comment" : "parts/min"
+        },
+        {
+          "name" : "ST40_SpeedSP",
+          "type" : "Real",
+          "start" : "62.0",
+          "comment" : "parts/min, written by the HMI"
+        },
+        {
+          "name" : "ST40_Temp",
+          "type" : "Real",
+          "start" : "32.0",
+          "comment" : "degC"
+        },
+        {
+          "name" : "ST40_Vib",
+          "type" : "Real",
+          "start" : "0.8",
+          "comment" : "mm/s"
+        },
+        {
+          "name" : "ST40_Power",
+          "type" : "Real",
+          "start" : "0.0",
+          "comment" : "kW"
+        },
+        {
+          "name" : "ST40_Count",
+          "type" : "DInt",
+          "start" : "0",
+          "comment" : "parts processed"
+        },
+        {
+          "name" : "ST40_Reject",
+          "type" : "DInt",
+          "start" : "0",
+          "comment" : "parts rejected"
+        },
+        {
+          "name" : "ST40_InBuf",
+          "type" : "Int",
+          "start" : "4",
+          "comment" : "parts waiting in front"
+        },
+        {
+          "name" : "ST40_CmdStart",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "HMI pulse, PLC clears"
+        },
+        {
+          "name" : "ST40_CmdStop",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "HMI pulse, PLC clears"
+        },
+        {
+          "name" : "ST40_CmdReset",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "HMI pulse, PLC clears"
+        },
+        {
+          "name" : "ST40_Enabled",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "station start latch (status)"
+        },
+        {
+          "name" : "ST50_State",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "ST50 0 stop 1 run 2 starved 3 blocked 4 fault 5 maint"
+        },
+        {
+          "name" : "ST50_FaultCode",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "1..6 faults, 7 over-temperature"
+        },
+        {
+          "name" : "ST50_Speed",
+          "type" : "Real",
+          "start" : "0.0",
+          "comment" : "parts/min"
+        },
+        {
+          "name" : "ST50_SpeedSP",
+          "type" : "Real",
+          "start" : "62.0",
+          "comment" : "parts/min, written by the HMI"
+        },
+        {
+          "name" : "ST50_Temp",
+          "type" : "Real",
+          "start" : "32.0",
+          "comment" : "degC"
+        },
+        {
+          "name" : "ST50_Vib",
+          "type" : "Real",
+          "start" : "0.8",
+          "comment" : "mm/s"
+        },
+        {
+          "name" : "ST50_Power",
+          "type" : "Real",
+          "start" : "0.0",
+          "comment" : "kW"
+        },
+        {
+          "name" : "ST50_Count",
+          "type" : "DInt",
+          "start" : "0",
+          "comment" : "parts processed"
+        },
+        {
+          "name" : "ST50_Reject",
+          "type" : "DInt",
+          "start" : "0",
+          "comment" : "parts rejected"
+        },
+        {
+          "name" : "ST50_InBuf",
+          "type" : "Int",
+          "start" : "4",
+          "comment" : "parts waiting in front"
+        },
+        {
+          "name" : "ST50_CmdStart",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "HMI pulse, PLC clears"
+        },
+        {
+          "name" : "ST50_CmdStop",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "HMI pulse, PLC clears"
+        },
+        {
+          "name" : "ST50_CmdReset",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "HMI pulse, PLC clears"
+        },
+        {
+          "name" : "ST50_Enabled",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "station start latch (status)"
+        },
+        {
+          "name" : "ST60_State",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "ST60 0 stop 1 run 2 starved 3 blocked 4 fault 5 maint"
+        },
+        {
+          "name" : "ST60_FaultCode",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "1..6 faults, 7 over-temperature"
+        },
+        {
+          "name" : "ST60_Speed",
+          "type" : "Real",
+          "start" : "0.0",
+          "comment" : "parts/min"
+        },
+        {
+          "name" : "ST60_SpeedSP",
+          "type" : "Real",
+          "start" : "62.0",
+          "comment" : "parts/min, written by the HMI"
+        },
+        {
+          "name" : "ST60_Temp",
+          "type" : "Real",
+          "start" : "32.0",
+          "comment" : "degC"
+        },
+        {
+          "name" : "ST60_Vib",
+          "type" : "Real",
+          "start" : "0.8",
+          "comment" : "mm/s"
+        },
+        {
+          "name" : "ST60_Power",
+          "type" : "Real",
+          "start" : "0.0",
+          "comment" : "kW"
+        },
+        {
+          "name" : "ST60_Count",
+          "type" : "DInt",
+          "start" : "0",
+          "comment" : "parts processed"
+        },
+        {
+          "name" : "ST60_Reject",
+          "type" : "DInt",
+          "start" : "0",
+          "comment" : "parts rejected"
+        },
+        {
+          "name" : "ST60_InBuf",
+          "type" : "Int",
+          "start" : "4",
+          "comment" : "parts waiting in front"
+        },
+        {
+          "name" : "ST60_CmdStart",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "HMI pulse, PLC clears"
+        },
+        {
+          "name" : "ST60_CmdStop",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "HMI pulse, PLC clears"
+        },
+        {
+          "name" : "ST60_CmdReset",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "HMI pulse, PLC clears"
+        },
+        {
+          "name" : "ST60_Enabled",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "station start latch (status)"
+        },
+        {
+          "name" : "LINE_Heartbeat",
+          "type" : "Int",
+          "start" : "0",
+          "comment" : "counts every cycle"
+        },
+        {
+          "name" : "LINE_Running",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "line run latch (status)"
+        },
+        {
+          "name" : "LINE_CmdStart",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "HMI pulse, PLC clears"
+        },
+        {
+          "name" : "LINE_CmdStop",
+          "type" : "Bool",
+          "start" : "FALSE",
+          "comment" : "HMI pulse, PLC clears"
+        }
+      ]
+    }
+  ],
+  "tags" : [
+  ],
+  "watch" : [
+  ],
+  "diTypes" : [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "aiChannels" : [
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    }
+  ],
+  "comm" : {
+    "s7" : true,
+    "s7Port" : 102,
+    "modbus" : true,
+    "modbusPort" : 502,
+    "modbusUnit" : 1,
+    "holding" : "M",
+    "putGet" : true,
+    "allInterfaces" : false,
+    "ip" : "127.0.0.1",
+    "mask" : "255.255.255.0",
+    "ipc" : true,
+    "mcpWrite" : true
+  }
+}
