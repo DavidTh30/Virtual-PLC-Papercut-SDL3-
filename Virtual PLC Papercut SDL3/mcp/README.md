@@ -30,7 +30,7 @@ program of the running Virtual PLC. It talks to the app through its IPC server, 
 | `compile` | every error and warning | no |
 | `read_values` | live values (`wait_ms` waits first) | no |
 | `get_diagnostics` | the mode, the stop cause, the diagnostic buffer | no |
-| `write_network`, `delete_network` | a network of SCL, STL or LAD | yes |
+| `write_network`, `delete_network` | a network of SCL, STL, LAD, FBD or CFC (boxes as nodes) | yes |
 | `create_block`, `set_interface` | an FC / FB, the interface of a block | yes |
 | `add_db_variables`, `add_tags` | DB variables, PLC tags | yes |
 | `set_inputs` | operate the simulated inputs | yes |

@@ -1,0 +1,669 @@
+{
+  "format" : "VirtualPLC",
+  "version" : 1,
+  "name" : "FBD and CFC: motor, start warning, tank level, box counter (S7-1500)",
+  "author" : "Virtual PLC examples",
+  "comment" : "The same logic as boxes: FBD networks (trees from the left) and CFC charts (free blocks with wires, run in the order of the data flow). I0.0 starts the motor (a 3 s horn first), I0.1 stops it, I0.2 is the overload; the AI slider is the tank level; I0.3 counts boxes, 10 make a batch, I0.4 resets. Monitor (F9) shows the values at the pins.",
+  "cpu" : "CPU 1516-3 PN/DP",
+  "family" : "S7-1500",
+  "cyclicMs" : 100,
+  "clockByte" : 0,
+  "blocks" : [
+    {
+      "kind" : "OB",
+      "number" : 1,
+      "name" : "Main",
+      "comment" : "Main program cycle",
+      "interface" : [
+      ],
+      "networks" : [
+        {
+          "title" : "Motor: start / stop",
+          "comment" : "OR: the start or the motor itself (self holding); AND with the negated stop and overload",
+          "lang" : "FBD",
+          "nodes" : [
+            {
+              "id" : 1,
+              "box" : "or",
+              "type" : "Bool",
+              "in" : [
+                {
+                  "pin" : "IN1",
+                  "op" : "\"Start_PB\""
+                },
+                {
+                  "pin" : "IN2",
+                  "op" : "\"Motor\""
+                }
+              ],
+              "out" : [
+                {
+                  "pin" : "Q"
+                }
+              ]
+            },
+            {
+              "id" : 2,
+              "box" : "and",
+              "type" : "Bool",
+              "in" : [
+                {
+                  "pin" : "IN1",
+                  "from" : "1.Q"
+                },
+                {
+                  "pin" : "IN2",
+                  "op" : "\"Stop_PB\"",
+                  "neg" : true
+                },
+                {
+                  "pin" : "IN3",
+                  "op" : "\"Overload\"",
+                  "neg" : true
+                }
+              ],
+              "out" : [
+                {
+                  "pin" : "Q"
+                }
+              ]
+            },
+            {
+              "id" : 3,
+              "box" : "assign",
+              "inst" : "\"Motor\"",
+              "type" : "Bool",
+              "in" : [
+                {
+                  "pin" : "IN",
+                  "from" : "2.Q"
+                }
+              ],
+              "out" : [
+              ]
+            }
+          ]
+        },
+        {
+          "title" : "Start warning",
+          "comment" : "TON: the horn sounds while the start button is held, at most 3 s",
+          "lang" : "FBD",
+          "nodes" : [
+            {
+              "id" : 1,
+              "box" : "ton",
+              "inst" : "\"Ctrl\".Warn",
+              "type" : "Bool",
+              "in" : [
+                {
+                  "pin" : "IN",
+                  "op" : "\"Start_PB\""
+                },
+                {
+                  "pin" : "PT",
+                  "op" : "T#3S"
+                }
+              ],
+              "out" : [
+                {
+                  "pin" : "Q"
+                },
+                {
+                  "pin" : "ET"
+                }
+              ]
+            },
+            {
+              "id" : 2,
+              "box" : "and",
+              "type" : "Bool",
+              "in" : [
+                {
+                  "pin" : "IN1",
+                  "op" : "\"Start_PB\""
+                },
+                {
+                  "pin" : "IN2",
+                  "from" : "1.Q",
+                  "neg" : true
+                }
+              ],
+              "out" : [
+                {
+                  "pin" : "Q"
+                }
+              ]
+            },
+            {
+              "id" : 3,
+              "box" : "assign",
+              "inst" : "\"Horn\"",
+              "type" : "Bool",
+              "in" : [
+                {
+                  "pin" : "IN",
+                  "from" : "2.Q"
+                }
+              ],
+              "out" : [
+              ]
+            }
+          ]
+        },
+        {
+          "title" : "Tank level",
+          "comment" : "NORM_X and SCALE_X: 0..27648 to 0..100 %; the alarms at 80 % and 20 %",
+          "lang" : "CFC",
+          "nodes" : [
+            {
+              "id" : 1,
+              "box" : "normx",
+              "type" : "Int",
+              "x" : 14,
+              "y" : 2,
+              "order" : 1,
+              "in" : [
+                {
+                  "pin" : "EN"
+                },
+                {
+                  "pin" : "MIN",
+                  "op" : "0"
+                },
+                {
+                  "pin" : "VALUE",
+                  "op" : "\"Level_AI\""
+                },
+                {
+                  "pin" : "MAX",
+                  "op" : "27648"
+                }
+              ],
+              "out" : [
+                {
+                  "pin" : "OUT"
+                }
+              ]
+            },
+            {
+              "id" : 2,
+              "box" : "scalex",
+              "type" : "Real",
+              "x" : 44,
+              "y" : 2,
+              "order" : 2,
+              "in" : [
+                {
+                  "pin" : "EN"
+                },
+                {
+                  "pin" : "MIN",
+                  "op" : "0.0"
+                },
+                {
+                  "pin" : "VALUE",
+                  "from" : "1.OUT"
+                },
+                {
+                  "pin" : "MAX",
+                  "op" : "100.0"
+                }
+              ],
+              "out" : [
+                {
+                  "pin" : "OUT",
+                  "op" : "\"Level_pct\""
+                }
+              ]
+            },
+            {
+              "id" : 3,
+              "box" : "cmp",
+              "type" : "Real",
+              "cmp" : ">=",
+              "x" : 74,
+              "y" : 2,
+              "order" : 3,
+              "in" : [
+                {
+                  "pin" : "IN1",
+                  "from" : "2.OUT"
+                },
+                {
+                  "pin" : "IN2",
+                  "op" : "80.0"
+                }
+              ],
+              "out" : [
+                {
+                  "pin" : "Q"
+                }
+              ]
+            },
+            {
+              "id" : 4,
+              "box" : "assign",
+              "inst" : "\"High_Alarm\"",
+              "type" : "Bool",
+              "x" : 104,
+              "y" : 2,
+              "order" : 4,
+              "in" : [
+                {
+                  "pin" : "IN",
+                  "from" : "3.Q"
+                }
+              ],
+              "out" : [
+              ]
+            },
+            {
+              "id" : 5,
+              "box" : "cmp",
+              "type" : "Real",
+              "cmp" : "<=",
+              "x" : 74,
+              "y" : 12,
+              "order" : 5,
+              "in" : [
+                {
+                  "pin" : "IN1",
+                  "from" : "2.OUT"
+                },
+                {
+                  "pin" : "IN2",
+                  "op" : "20.0"
+                }
+              ],
+              "out" : [
+                {
+                  "pin" : "Q"
+                }
+              ]
+            },
+            {
+              "id" : 6,
+              "box" : "assign",
+              "inst" : "\"Low_Alarm\"",
+              "type" : "Bool",
+              "x" : 104,
+              "y" : 10,
+              "order" : 6,
+              "in" : [
+                {
+                  "pin" : "IN",
+                  "from" : "5.Q"
+                }
+              ],
+              "out" : [
+              ]
+            }
+          ],
+          "chartw" : 144,
+          "charth" : 42
+        },
+        {
+          "title" : "Box counter",
+          "comment" : "P: one pulse per box; CTU: 10 boxes make a batch; Reset_PB starts again",
+          "lang" : "CFC",
+          "nodes" : [
+            {
+              "id" : 1,
+              "box" : "p",
+              "inst" : "\"Edge_M\"",
+              "type" : "Bool",
+              "x" : 14,
+              "y" : 2,
+              "order" : 1,
+              "in" : [
+                {
+                  "pin" : "IN",
+                  "op" : "\"Box_Sensor\""
+                }
+              ],
+              "out" : [
+                {
+                  "pin" : "Q"
+                }
+              ]
+            },
+            {
+              "id" : 2,
+              "box" : "ctu",
+              "inst" : "\"Ctrl\".Count",
+              "type" : "Bool",
+              "x" : 44,
+              "y" : 2,
+              "order" : 2,
+              "in" : [
+                {
+                  "pin" : "CU",
+                  "from" : "1.Q"
+                },
+                {
+                  "pin" : "R",
+                  "op" : "\"Reset_PB\""
+                },
+                {
+                  "pin" : "PV",
+                  "op" : "10"
+                }
+              ],
+              "out" : [
+                {
+                  "pin" : "Q"
+                },
+                {
+                  "pin" : "CV",
+                  "op" : "\"Boxes\""
+                }
+              ]
+            },
+            {
+              "id" : 3,
+              "box" : "assign",
+              "inst" : "\"Batch_Done\"",
+              "type" : "Bool",
+              "x" : 74,
+              "y" : 2,
+              "order" : 3,
+              "in" : [
+                {
+                  "pin" : "IN",
+                  "from" : "2.Q"
+                }
+              ],
+              "out" : [
+              ]
+            }
+          ],
+          "chartw" : 120,
+          "charth" : 42
+        }
+      ]
+    }
+  ],
+  "dbs" : [
+    {
+      "number" : 1,
+      "name" : "Ctrl",
+      "comment" : "",
+      "optimized" : false,
+      "vars" : [
+        {
+          "name" : "Warn",
+          "type" : "IEC_TIMER",
+          "start" : "",
+          "comment" : "start warning time"
+        },
+        {
+          "name" : "Count",
+          "type" : "IEC_COUNTER",
+          "start" : "",
+          "comment" : "the boxes of a batch"
+        }
+      ]
+    }
+  ],
+  "tags" : [
+    {
+      "name" : "Clock_2Hz",
+      "type" : "Bool",
+      "address" : "%M0.3",
+      "comment" : "clock memory 2 Hz"
+    },
+    {
+      "name" : "Clock_1Hz",
+      "type" : "Bool",
+      "address" : "%M0.5",
+      "comment" : "clock memory 1 Hz"
+    },
+    {
+      "name" : "Start_PB",
+      "type" : "Bool",
+      "address" : "%I0.0",
+      "comment" : "start button"
+    },
+    {
+      "name" : "Stop_PB",
+      "type" : "Bool",
+      "address" : "%I0.1",
+      "comment" : "stop button"
+    },
+    {
+      "name" : "Overload",
+      "type" : "Bool",
+      "address" : "%I0.2",
+      "comment" : "overload relay"
+    },
+    {
+      "name" : "Box_Sensor",
+      "type" : "Bool",
+      "address" : "%I0.3",
+      "comment" : "a box passes"
+    },
+    {
+      "name" : "Reset_PB",
+      "type" : "Bool",
+      "address" : "%I0.4",
+      "comment" : "reset the box counter"
+    },
+    {
+      "name" : "Level_AI",
+      "type" : "Int",
+      "address" : "%IW64",
+      "comment" : "level sensor 0..10 V"
+    },
+    {
+      "name" : "Motor",
+      "type" : "Bool",
+      "address" : "%Q0.0",
+      "comment" : "conveyor motor"
+    },
+    {
+      "name" : "Horn",
+      "type" : "Bool",
+      "address" : "%Q0.1",
+      "comment" : "start warning"
+    },
+    {
+      "name" : "High_Alarm",
+      "type" : "Bool",
+      "address" : "%Q0.2",
+      "comment" : "level above 80 %"
+    },
+    {
+      "name" : "Low_Alarm",
+      "type" : "Bool",
+      "address" : "%Q0.3",
+      "comment" : "level below 20 %"
+    },
+    {
+      "name" : "Batch_Done",
+      "type" : "Bool",
+      "address" : "%Q0.4",
+      "comment" : "10 boxes"
+    },
+    {
+      "name" : "Level_pct",
+      "type" : "Real",
+      "address" : "%MD10",
+      "comment" : "level 0..100 %"
+    },
+    {
+      "name" : "Boxes",
+      "type" : "Int",
+      "address" : "%MW20",
+      "comment" : "boxes counted"
+    },
+    {
+      "name" : "Edge_M",
+      "type" : "Bool",
+      "address" : "%M30.0",
+      "comment" : "edge memory of Box_Sensor"
+    }
+  ],
+  "watch" : [
+    {
+      "address" : "\"Level_pct\"",
+      "format" : "REAL",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Boxes\"",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "\"Ctrl\".Warn.ET",
+      "format" : "TIME",
+      "modify" : ""
+    }
+  ],
+  "diTypes" : [
+    1,
+    1,
+    0,
+    1,
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "aiChannels" : [
+    {
+      "mode" : "manual",
+      "value" : 6000
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    }
+  ],
+  "comm" : {
+    "s7" : true,
+    "s7Port" : 102,
+    "modbus" : true,
+    "modbusPort" : 502,
+    "modbusUnit" : 1,
+    "holding" : "M",
+    "putGet" : true,
+    "allInterfaces" : false,
+    "ip" : "127.0.0.1",
+    "mask" : "255.255.255.0",
+    "ipc" : false,
+    "mcpWrite" : false
+  }
+}
