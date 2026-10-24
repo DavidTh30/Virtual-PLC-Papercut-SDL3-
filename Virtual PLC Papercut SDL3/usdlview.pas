@@ -899,7 +899,7 @@ procedure TSDLView.RunScript;
 var
   St: TShotStep;
   P, V: Integer;
-  Pt, Pp: TPointF;
+  Pt, Pp, P0: TPointF;
   Pc: PChar;
   S0, S1, S2, S3: string;
   Blk: TBlock;
@@ -1300,6 +1300,154 @@ begin
     Add(5, 'uiclick2', 'ehins:0');
     Add(10, 'eh', 'nets');
     Add(20, 'shot', 'elemhelp_11_lad_inserted');
+    Add(5, 'quit');
+    FShotPos := 0;
+    FShotWait := FShots[0].Wait;
+    Exit;
+  end;
+  if (Length(FShots) = 0) and (GetEnvironmentVariable('VPLC_EHWIN_TEST') <> '') then
+  begin
+    // the help window: moved by its title bar, sized by its corner; its text selected with the mouse (a drag,
+    // a double click, Shift+click), Ctrl+C, the right button Copy, Ctrl+A
+    DeleteFile(FShotDir + 'elemhelp_check.txt');
+    Add(10, 'ipc', 'ex 33');
+    Add(5, 'screen', '1');
+    Add(10, 'elem', 'caret 0 0 0');
+    Add(10, 'elem', 'showcat Timers');
+    Add(5, 'elem', 'open Timers');
+    Add(5, 'elem', 'show TON (on delay)');
+    Add(5, 'eh', 'hover TON (on delay)');
+    Add(5, 'eh', 'f1');
+    Add(10, 'eh', 'state');
+    Add(5, 'eh', 'drag title 200 -100 120 60');
+    Add(10, 'eh', 'state');
+    Add(5, 'eh', 'drag grip 0 0 -360 -220');
+    Add(20, 'eh', 'state');
+    Add(10, 'shot', 'ehwin_1_moved_sized');
+    Add(5, 'eh', 'drag grip 0 0 200 140');
+    Add(10, 'eh', 'state');
+    Add(5, 'eh', 'select On delay.|0|IN|2');
+    Add(10, 'eh', 'state');
+    Add(10, 'shot', 'ehwin_2_selected');
+    Add(5, 'eh', 'ctrlc');
+    Add(10, 'eh', 'clipboard');
+    Add(5, 'eh', 'dblclick #TON_Instance(IN|4');
+    Add(10, 'eh', 'state');
+    Add(5, 'eh', 'rclick #TON_Instance(IN|4');
+    Add(10, 'shot', 'ehwin_3_menu');
+    Add(5, 'eh', 'menu');
+    Add(5, 'uiclick2', 'ctx:0');
+    Add(10, 'eh', 'clipboard');
+    Add(5, 'eh', 'ctrla');
+    Add(10, 'eh', 'statelen');
+    Add(5, 'quit');
+    FShotPos := 0;
+    FShotWait := FShots[0].Wait;
+    Exit;
+  end;
+  if (Length(FShots) = 0) and (GetEnvironmentVariable('VPLC_FBDEX_TEST') <> '') then
+  begin
+    // the example of FBD and CFC in RUN with the monitor: the motor started, a box counted
+    DeleteFile(FShotDir + 'fbd_check.txt');
+    Add(10, 'ipc', 'ex 34');
+    Add(5, 'screen', '1');
+    Add(10, 'fkey', '8');
+    Add(30, 'fkey', '5');
+    Add(10, 'fkey', '9');
+    Add(5, 'fb', 'input 0');
+    Add(5, 'fb', 'input 3');
+    Add(5, 'eh', 'net 0');
+    Add(5, 'fb', 'top');
+    Add(40, 'shot', 'fbdex_1_fbd_monitor');
+    Add(5, 'eh', 'net 2');
+    Add(5, 'fb', 'top');
+    Add(30, 'shot', 'fbdex_2_cfc_monitor');
+    Add(5, 'fb', 'msgs');
+    Add(5, 'quit');
+    FShotPos := 0;
+    FShotWait := FShots[0].Wait;
+    Exit;
+  end;
+  if (Length(FShots) = 0) and (GetEnvironmentVariable('VPLC_FBD_TEST') <> '') then
+  begin
+    // FBD and CFC: networks added, boxes from the panel (a double click) and their operands, a box after the
+    // selected one, a wire and a move with the mouse (CFC), a LAD network converted, compiled and monitored
+    DeleteFile(FShotDir + 'fbd_check.txt');
+    Add(10, 'ipc', 'ex 33');
+    Add(5, 'screen', '1');
+    Add(10, 'eh', 'net 0');
+    Add(10, 'uiclick2', 'addfbd:0');
+    Add(5, 'uiclick2', 'ctx:1');
+    Add(10, 'elem', 'show AND');
+    Add(10, 'elem', 'dbl AND');
+    Add(5, 'fb', 'op %I0.0');
+    Add(5, 'fb', 'op %I0.1');
+    Add(5, 'fb', 'sel 1 -1 0');
+    Add(5, 'fb', 'ins assign');
+    Add(5, 'fb', 'op %Q0.0');
+    Add(5, 'fb', 'sel 0 -1 0');
+    Add(5, 'fb', 'ins add');
+    Add(5, 'fb', 'op %MW20');
+    Add(5, 'fb', 'op 5');
+    Add(5, 'fb', 'sel 3 -1 0');
+    Add(5, 'fb', 'ins cmp');
+    Add(5, 'fb', 'op 10');
+    Add(5, 'fb', 'sel 4 -1 0');
+    Add(5, 'fb', 'ins assign');
+    Add(5, 'fb', 'op %Q0.1');
+    Add(5, 'fb', 'neg 1 1');
+    Add(20, 'shot', 'fbd_1_network');
+    Add(5, 'fb', 'dump FBD');
+    // CFC
+    Add(10, 'uiclick2', 'addcfc:0');
+    Add(5, 'uiclick2', 'ctx:1');
+    Add(10, 'fb', 'ins and');
+    Add(5, 'fb', 'op %I0.2');
+    Add(5, 'fb', 'op %I0.3');
+    Add(5, 'fb', 'sel 0 -1 0');
+    Add(5, 'fb', 'ins ton');
+    Add(5, 'fb', 'sel 0 -1 0');
+    Add(5, 'fb', 'ins assign');
+    Add(5, 'fb', 'op %Q0.2');
+    Add(5, 'fb', 'top');
+    Add(20, 'shot', 'fbd_2_cfc_blocks');
+    Add(5, 'fb', 'wire 1 0 3 0');
+    Add(10, 'fb', 'move 3 260 -60');
+    Add(20, 'shot', 'fbd_3_cfc_wired');
+    Add(5, 'fb', 'dump CFC');
+    Add(5, 'fb', 'sel 2 -1 0');
+    Add(5, 'fb', 'del');
+    Add(5, 'fb', 'dump CFC without the TON');
+    // LAD to FBD: the right button on network 2 (LAD), Convert to FBD
+    Add(10, 'eh', 'net 3');
+    Add(20, 'uirclick', 'net:3');
+    Add(10, 'shot', 'fbd_4_convert_menu');
+    Add(5, 'uiclick2', 'ctx:10');
+    Add(20, 'shot', 'fbd_5_converted');
+    Add(5, 'fb', 'dump converted');
+    Add(10, 'fkey', '8');
+    Add(30, 'fkey', '5');
+    Add(10, 'fkey', '9');
+    Add(5, 'fb', 'input 0');
+    Add(5, 'fb', 'input 2');
+    Add(5, 'fb', 'input 3');
+    Add(5, 'eh', 'net 1');
+    Add(5, 'fb', 'top');
+    Add(40, 'shot', 'fbd_6_monitor');
+    Add(5, 'fb', 'msgs');
+    // the help of the FBD / CFC boxes
+    Add(10, 'fkey', '9');
+    Add(5, 'eh', 'net 1');
+    Add(10, 'eh', 'open TON');
+    Add(5, 'eh', 'scroll 640');
+    Add(20, 'shot', 'fbd_7_help_ton');
+    Add(5, 'eh', 'esc');
+    Add(5, 'eh', 'net 2');
+    Add(10, 'eh', 'open AND');
+    Add(5, 'eh', 'scroll 420');
+    Add(20, 'shot', 'fbd_8_help_cfc_and');
+    Add(5, 'uiclick2', 'ehins:0');
+    Add(10, 'fb', 'dump inserted from the help');
     Add(5, 'quit');
     FShotPos := 0;
     FShotWait := FShots[0].Wait;
@@ -2715,7 +2863,7 @@ begin
         'refresh': UI.RefreshProjectFiles;
         'folder 0': UI.FileFolder := 0;
         'folder 1': UI.FileFolder := 1;
-        'ex 2', 'ex 6', 'ex 15', 'ex 29', 'ex 30', 'ex 31', 'ex 32', 'ex 33', 'ex 19', 'ex 20', 'ex 22', 'ex 23', 'ex 25': UI.LoadExampleNow(StrToInt(Copy(St.Arg, 4, 2)));
+        'ex 2', 'ex 6', 'ex 15', 'ex 29', 'ex 30', 'ex 34', 'ex 31', 'ex 32', 'ex 33', 'ex 19', 'ex 20', 'ex 22', 'ex 23', 'ex 25': UI.LoadExampleNow(StrToInt(Copy(St.Arg, 4, 2)));
         'in on': UI.Rt.SetSimBit(0, 0, True);
       end;
       SaveToFile(FShotDir + 'ipc_check.txt');
@@ -3488,6 +3636,57 @@ begin
         UI.MouseMove(Pt.X, Pt.Y);
       end
       else if S0 = 'f1' then UI.KeyDown(ukF1, #0, [])
+      else if S0 = 'state' then Add(UI.EhState)
+      else if S0 = 'statelen' then Add(Format('Ctrl+A selects %d characters', [Length(UI.EhState)]))
+      else if S0 = 'ctrlc' then UI.KeyDown(ukChar, 'c', [umCtrl])
+      else if S0 = 'ctrla' then UI.KeyDown(ukChar, 'a', [umCtrl])
+      else if S0 = 'clipboard' then
+      begin
+        Pc := SDL_GetClipboardText;
+        if Pc <> nil then
+        begin
+          Add('clipboard: [' + StringReplace(StrPas(Pc), LineEnding, '\n', [rfReplaceAll]) + ']');
+          SDL_free(Pc);
+        end;
+      end
+      else if S0 = 'drag' then
+      begin
+        // drag title|grip x0 y0 dx dy: from the title bar (its left part) / the corner grip, in design units
+        if ExtractWord(1, S1, [' ']) = 'title' then Pt := UI.HitPoint('ehtitle', 0) else Pt := UI.HitPoint('ehgrip', 0);
+        Pp := UI.DesignToPixel(StrToFloat(ExtractWord(4, S1, [' '])), StrToFloat(ExtractWord(5, S1, [' '])));
+        P0 := UI.DesignToPixel(0, 0);
+        UI.MouseClicks := 1;
+        UI.MouseMods := [];
+        UI.MouseMove(Pt.X, Pt.Y);
+        UI.MouseDown(Pt.X, Pt.Y);
+        for P := 1 to 5 do UI.MouseMove(Pt.X + (Pp.X - P0.X) * P / 5, Pt.Y + (Pp.Y - P0.Y) * P / 5);
+        UI.MouseUp(Pt.X + Pp.X - P0.X, Pt.Y + Pp.Y - P0.Y);
+      end
+      else if (S0 = 'select') or (S0 = 'dblclick') or (S0 = 'rclick') then
+      begin
+        // select <text a>|<char>|<text b>|<char>: a drag from line a to line b; dblclick / rclick <text>|<char>
+        Pt := UI.EhRunPoint(UI.EhRunFind(ExtractDelimited(1, S1, ['|'])), StrToInt(ExtractDelimited(2, S1, ['|'])));
+        UI.MouseMods := [];
+        UI.MouseClicks := 1;
+        UI.MouseMove(Pt.X, Pt.Y);
+        if S0 = 'rclick' then UI.MouseRightDown(Pt.X, Pt.Y)
+        else if S0 = 'dblclick' then
+        begin
+          UI.MouseDown(Pt.X, Pt.Y);
+          UI.MouseUp(Pt.X, Pt.Y);
+          UI.MouseClicks := 2;
+          UI.MouseDown(Pt.X, Pt.Y);
+          UI.MouseUp(Pt.X, Pt.Y);
+          UI.MouseClicks := 1;
+        end
+        else
+        begin
+          Pp := UI.EhRunPoint(UI.EhRunFind(ExtractDelimited(3, S1, ['|'])), StrToInt(ExtractDelimited(4, S1, ['|'])));
+          UI.MouseDown(Pt.X, Pt.Y);
+          for P := 1 to 6 do UI.MouseMove(Pt.X + (Pp.X - Pt.X) * P / 6, Pt.Y + (Pp.Y - Pt.Y) * P / 6);
+          UI.MouseUp(Pp.X, Pp.Y);
+        end;
+      end
       else if S0 = 'net' then UI.TestSelNet(StrToInt(S1))
       else if S0 = 'scroll' then UI.TestEhScroll(StrToInt(S1))
       else if S0 = 'esc' then UI.KeyDown(ukEsc, #0, [])
@@ -3522,6 +3721,58 @@ begin
         else Add('--- ' + StringReplace(Copy(S1, 1, 900), LineEnding, ' | ', [rfReplaceAll]));
       end;
       SaveToFile(FShotDir + 'elemhelp_check.txt');
+    finally
+      Free;
+    end;
+  if St.Cmd = 'fb' then
+    with TStringList.Create do
+    try
+      // FBD / CFC: ins <box>, op <operand>, sel <node> <pin> <out>, neg <node> <pin>, wire <n1> <out pin> <n2> <in pin>
+      // (the mouse from pin to pin), move <node> <dx> <dy> (the mouse on the title), dump <what>, msgs
+      if FileExists(FShotDir + 'fbd_check.txt') then LoadFromFile(FShotDir + 'fbd_check.txt');
+      S0 := ExtractWord(1, St.Arg, [' ']);
+      S1 := Trim(Copy(St.Arg, Length(S0) + 2, MaxInt));
+      if S0 = 'ins' then UI.TestFbdIns(S1, '')
+      else if S0 = 'op' then UI.TestFbdOp(S1)
+      else if S0 = 'sel' then
+        UI.FbdTestSelect(StrToInt(ExtractWord(1, S1, [' '])), StrToInt(ExtractWord(2, S1, [' '])), ExtractWord(3, S1, [' ']) = '1')
+      else if S0 = 'neg' then
+      begin
+        UI.FbdTestSelect(StrToInt(ExtractWord(1, S1, [' '])), StrToInt(ExtractWord(2, S1, [' '])), False);
+        UI.TestFbdCtx(3);
+      end
+      else if (S0 = 'wire') or (S0 = 'move') then
+      begin
+        if S0 = 'wire' then
+        begin
+          Pt := UI.FbdHitPoint(StrToInt(ExtractWord(1, S1, [' '])), StrToInt(ExtractWord(2, S1, [' '])), 2);
+          Pp := UI.FbdHitPoint(StrToInt(ExtractWord(3, S1, [' '])), StrToInt(ExtractWord(4, S1, [' '])), 1);
+        end
+        else
+        begin
+          Pt := UI.FbdHitPoint(StrToInt(ExtractWord(1, S1, [' '])), -1, 4);
+          P0 := UI.DesignToPixel(0, 0);
+          Pp := UI.DesignToPixel(StrToFloat(ExtractWord(2, S1, [' '])), StrToFloat(ExtractWord(3, S1, [' '])));
+          Pp := PointF(Pt.X + Pp.X - P0.X, Pt.Y + Pp.Y - P0.Y);
+        end;
+        Add(Format('%s from %.0f,%.0f to %.0f,%.0f', [S0, Pt.X, Pt.Y, Pp.X, Pp.Y]));
+        UI.MouseClicks := 1;
+        UI.MouseMods := [];
+        UI.MouseMove(Pt.X, Pt.Y);
+        UI.MouseDown(Pt.X, Pt.Y);
+        for P := 1 to 8 do UI.MouseMove(Pt.X + (Pp.X - Pt.X) * P / 8, Pt.Y + (Pp.Y - Pt.Y) * P / 8);
+        UI.MouseUp(Pp.X, Pp.Y);
+      end
+      else if S0 = 'msgs' then Add('messages: ' + UI.TestMsgs)
+      else if S0 = 'top' then UI.TestNetTop
+      else if S0 = 'del' then UI.KeyDown(ukDel, #0, [])
+      else if S0 = 'input' then UI.Rt.SetSimBit(UI.Rt.Model.DIByte, StrToInt(S1), True)
+      else
+      begin
+        Add('--- ' + S1);
+        AddText(UI.FbdText);
+      end;
+      SaveToFile(FShotDir + 'fbd_check.txt');
     finally
       Free;
     end;

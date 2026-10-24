@@ -12,7 +12,7 @@ unit uExamples;
 interface
 
 uses
-  Classes, SysUtils, StrUtils, uPlcTypes, uPlcProject;
+  Classes, SysUtils, StrUtils, uPlcTypes, uPlcProject, uFbd;
 
 function ExampleCount: Integer;
 function ExampleFile(I: Integer): string;            // its file name, e.g. 05_Traffic_light_S7-1200.vplc
@@ -22,7 +22,7 @@ procedure WriteExamples(const Dir: string);          // the missing ones
 implementation
 
 const
-  Files: array[0..33] of string = (
+  Files: array[0..34] of string = (
     '01_Motor_start_stop_S7-1200', '02_Motor_start_stop_S7-1500', '03_Motor_start_stop_S7-300',
     '04_Motor_start_stop_S7-400', '05_Traffic_light_S7-1200', '06_Tank_level_control_S7-1200',
     '07_Conveyor_box_counter_S7-1200', '08_Star_delta_starter_S7-300', '09_Pump_duty_standby_S7-1500',
@@ -33,7 +33,7 @@ const
     '23_Timers_LAD_S7-300', '24_Counters_LAD_S7-300', '25_Timers_LAD_S7-400', '26_Counters_LAD_S7-400',
     '27_Data_type_conversion_S7-1200', '28_Data_type_conversion_STL_S7-300', '29_Math_S7-1200',
     '30_Large_FB_motor_control_S7-1500', '31_SCL_elements_S7-1500', '32_SCL_strings_S7-1500',
-    '33_SCL_64_bit_dates_S7-1500', '34_LAD_STL_SCL_functions_S7-1500');
+    '33_SCL_64_bit_dates_S7-1500', '34_LAD_STL_SCL_functions_S7-1500', '35_FBD_CFC_S7-1500');
 
 function ExampleCount: Integer;
 begin
@@ -133,6 +133,66 @@ var
     C: Integer;
   begin
     for C := C0 to C1 do N.SetCell(R, C, NewCell(lkWire, ''));
+  end;
+
+  { FBD / CFC: a network, a box (its index), an input (an operand, negated), a wire, an output }
+  procedure FNet(Kind: TNetKind; const Title, Comment: string);
+  begin
+    N := P.Block(0).AddNet(Kind);
+    N.Title := Title;
+    N.Comment := Comment;
+  end;
+
+  function FBox(Id: Integer; const Box, Inst: string; T: TDataType = dtNone): Integer;
+  begin
+    SetLength(N.Nodes, Length(N.Nodes) + 1);
+    Result := High(N.Nodes);
+    N.Nodes[Result] := NewFbdNode(N, Box, P, Inst);
+    N.Nodes[Result].Id := Id;
+    N.Nodes[Result].Inst := Inst;
+    if T <> dtNone then N.Nodes[Result].DType := T;
+  end;
+
+  function PinOf(K: Integer; const Pin: string; IsOut: Boolean): Integer;
+  var
+    J: Integer;
+  begin
+    Result := 0;
+    if IsOut then
+    begin
+      for J := 0 to High(N.Nodes[K].Outs) do
+        if N.Nodes[K].Outs[J].Name = Pin then Exit(J);
+      Exit;
+    end;
+    // an input the box has not yet: added (IN3 ..)
+    repeat
+      for J := 0 to High(N.Nodes[K].Ins) do
+        if N.Nodes[K].Ins[J].Name = Pin then Exit(J);
+    until not FbdAddInput(N.Nodes[K]);
+  end;
+
+  procedure FIn(K: Integer; const Pin, Op: string; Neg: Boolean = False);
+  var
+    Q: Integer;
+  begin
+    Q := PinOf(K, Pin, False);
+    N.Nodes[K].Ins[Q].Opnd := Op;
+    N.Nodes[K].Ins[Q].Neg := Neg;
+  end;
+
+  procedure FWire(K: Integer; const Pin: string; Src: Integer; const SrcPin: string; Neg: Boolean = False);
+  var
+    Q: Integer;
+  begin
+    Q := PinOf(K, Pin, False);
+    N.Nodes[K].Ins[Q].Src := N.Nodes[Src].Id;
+    N.Nodes[K].Ins[Q].SrcPin := PinOf(Src, SrcPin, True);
+    N.Nodes[K].Ins[Q].Neg := Neg;
+  end;
+
+  procedure FOut(K: Integer; const Pin, Op: string);
+  begin
+    N.Nodes[K].Outs[PinOf(K, Pin, True)].Opnd := Op;
   end;
 
   procedure Push(Bit: Integer; NC: Boolean = False);
@@ -1702,6 +1762,96 @@ begin
         P.AddWatch('"Box".Edges', dfDec);
         P.AddWatch('"Box".LongEt', dfDec);
         P.AddWatch('"Box".StlText', dfDec);
+      end;
+    34: // ---------- FBD and CFC ----------
+      begin
+        Start(13, 'FBD and CFC: motor, start warning, tank level, box counter (S7-1500)',
+          'The same logic as boxes: FBD networks (trees from the left) and CFC charts (free blocks with wires, run in ' +
+          'the order of the data flow). I0.0 starts the motor (a 3 s horn first), I0.1 stops it, I0.2 is the ' +
+          'overload; the AI slider is the tank level; I0.3 counts boxes, 10 make a batch, I0.4 resets. Monitor (F9) ' +
+          'shows the values at the pins.');
+        P.AddTag('Start_PB', 'Bool', '%I0.0', 'start button');
+        P.AddTag('Stop_PB', 'Bool', '%I0.1', 'stop button');
+        P.AddTag('Overload', 'Bool', '%I0.2', 'overload relay');
+        P.AddTag('Box_Sensor', 'Bool', '%I0.3', 'a box passes');
+        P.AddTag('Reset_PB', 'Bool', '%I0.4', 'reset the box counter');
+        P.AddTag('Level_AI', 'Int', '%IW64', 'level sensor 0..10 V');
+        P.AddTag('Motor', 'Bool', '%Q0.0', 'conveyor motor');
+        P.AddTag('Horn', 'Bool', '%Q0.1', 'start warning');
+        P.AddTag('High_Alarm', 'Bool', '%Q0.2', 'level above 80 %');
+        P.AddTag('Low_Alarm', 'Bool', '%Q0.3', 'level below 20 %');
+        P.AddTag('Batch_Done', 'Bool', '%Q0.4', '10 boxes');
+        P.AddTag('Level_pct', 'Real', '%MD10', 'level 0..100 %');
+        P.AddTag('Boxes', 'Int', '%MW20', 'boxes counted');
+        P.AddTag('Edge_M', 'Bool', '%M30.0', 'edge memory of Box_Sensor');
+        Push(0);
+        Push(1);
+        Push(3);
+        Push(4);
+        P.AIch[0].AiValue := 6000;
+        D := P.AddDB(1, 'Ctrl');
+        D.AddVar('Warn', 'IEC_TIMER', '', 'start warning time');
+        D.AddVar('Count', 'IEC_COUNTER', '', 'the boxes of a batch');
+        // FBD: self holding: (Start OR Motor) AND NOT Stop AND NOT Overload
+        FNet(nkFBD, 'Motor: start / stop', 'OR: the start or the motor itself (self holding); AND with the negated stop and overload');
+        K := FBox(1, 'or', '');
+        FIn(K, 'IN1', '"Start_PB"');
+        FIn(K, 'IN2', '"Motor"');
+        K := FBox(2, 'and', '');
+        FWire(K, 'IN1', 0, 'Q');
+        FIn(K, 'IN2', '"Stop_PB"', True);
+        FIn(K, 'IN3', '"Overload"', True);
+        K := FBox(3, 'assign', '"Motor"');
+        FWire(K, 'IN', 1, 'Q');
+        // FBD: a horn while the start button is held, for at most 3 s
+        FNet(nkFBD, 'Start warning', 'TON: the horn sounds while the start button is held, at most 3 s');
+        K := FBox(1, 'ton', '"Ctrl".Warn');
+        FIn(K, 'IN', '"Start_PB"');
+        FIn(K, 'PT', 'T#3S');
+        K := FBox(2, 'and', '');
+        FIn(K, 'IN1', '"Start_PB"');
+        FWire(K, 'IN2', 0, 'Q', True);
+        K := FBox(3, 'assign', '"Horn"');
+        FWire(K, 'IN', 1, 'Q');
+        // CFC: the level scaled, two limits
+        FNet(nkCFC, 'Tank level', 'NORM_X and SCALE_X: 0..27648 to 0..100 %; the alarms at 80 % and 20 %');
+        K := FBox(1, 'normx', '', dtInt);
+        FIn(K, 'MIN', '0');
+        FIn(K, 'VALUE', '"Level_AI"');
+        FIn(K, 'MAX', '27648');
+        K := FBox(2, 'scalex', '', dtReal);
+        FIn(K, 'MIN', '0.0');
+        FWire(K, 'VALUE', 0, 'OUT');
+        FIn(K, 'MAX', '100.0');
+        FOut(K, 'OUT', '"Level_pct"');
+        K := FBox(3, 'cmp', '', dtReal);
+        N.Nodes[K].Cmp := coGE;
+        FWire(K, 'IN1', 1, 'OUT');
+        FIn(K, 'IN2', '80.0');
+        K := FBox(4, 'assign', '"High_Alarm"');
+        FWire(K, 'IN', 2, 'Q');
+        K := FBox(5, 'cmp', '', dtReal);
+        N.Nodes[K].Cmp := coLE;
+        FWire(K, 'IN1', 1, 'OUT');
+        FIn(K, 'IN2', '20.0');
+        K := FBox(6, 'assign', '"Low_Alarm"');
+        FWire(K, 'IN', 4, 'Q');
+        CfcAutoPlace(N);
+        // CFC: the edges of the sensor counted
+        FNet(nkCFC, 'Box counter', 'P: one pulse per box; CTU: 10 boxes make a batch; Reset_PB starts again');
+        K := FBox(1, 'p', '"Edge_M"');
+        FIn(K, 'IN', '"Box_Sensor"');
+        K := FBox(2, 'ctu', '"Ctrl".Count');
+        FWire(K, 'CU', 0, 'Q');
+        FIn(K, 'R', '"Reset_PB"');
+        FIn(K, 'PV', '10');
+        FOut(K, 'CV', '"Boxes"');
+        K := FBox(3, 'assign', '"Batch_Done"');
+        FWire(K, 'IN', 1, 'Q');
+        CfcAutoPlace(N);
+        P.AddWatch('"Level_pct"', dfReal);
+        P.AddWatch('"Boxes"', dfDec);
+        P.AddWatch('"Ctrl".Warn.ET', dfTime);
       end;
   end;
   if I > 3 then

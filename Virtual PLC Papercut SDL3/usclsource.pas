@@ -19,7 +19,7 @@ unit uSclSource;
 interface
 
 uses
-  Classes, SysUtils, StrUtils, Math, uPlcTypes, uPlcProject;
+  Classes, SysUtils, StrUtils, Math, uPlcTypes, uPlcProject, uFbd;
 
 function SclExportBlock(P: TPlcProject; B: TBlock; out Skipped: Integer): string;
 function SclExportDB(P: TPlcProject; D: TDataBlock): string;
@@ -99,6 +99,9 @@ var
   Ret, Ttl: string;
   N: TNetwork;
   Any: Boolean;
+  Nets: array of TNetwork;     // the SCL of every network (FBD / CFC: the SCL they compile to; nil: none)
+  LN: TIntArray;
+  Errs: TStringList;
 
   procedure Section(const Title: string; ASec: TVarSection; Retain: Integer);
   var
@@ -129,14 +132,26 @@ begin
   Temps := TStringList.Create;
   Consts := TStringList.Create;
   Code := TStringList.Create;
+  SetLength(Nets, B.NetCount);
+  Errs := TStringList.Create;
   try
+    for I := 0 to B.NetCount - 1 do
+      if B.Net(I).Kind = nkSCL then Nets[I] := B.Net(I)
+      else if B.Net(I).Kind in [nkFBD, nkCFC] then
+      begin
+        Nets[I] := TNetwork.Create(nkSCL);
+        FbdToScl(B.Net(I), P, Nets[I].Stl, LN, Errs, B, I + 1);
+        Nets[I].Title := B.Net(I).Title;
+        Nets[I].Comment := Trim(B.Net(I).Comment + ' (' + NetLangName(B.Net(I).Kind) + ' as SCL)');
+      end
+      else Nets[I] := nil;
     // the declarations of the networks first: they go into the declaration part
     Scl := 0;
     for I := 0 to B.NetCount - 1 do
-      if B.Net(I).Kind = nkSCL then
+      if Nets[I] <> nil then
       begin
         Inc(Scl);
-        SplitNetwork(B.Net(I), Temps, Consts, Code);
+        SplitNetwork(Nets[I], Temps, Consts, Code);
       end;
     Ret := '';
     for I := 0 to High(B.Iface.Vars) do
@@ -173,9 +188,10 @@ begin
     Any := False;
     for I := 0 to B.NetCount - 1 do
     begin
-      N := B.Net(I);
-      if N.Kind <> nkSCL then
+      N := Nets[I];
+      if N = nil then
       begin
+        N := B.Net(I);
         Inc(Skipped);
         if N.Kind = nkLAD then SL.Add(Format('    // network %d (LAD) has no SCL text: not exported', [I + 1]))
         else SL.Add(Format('    // network %d (STL) has no SCL text: not exported', [I + 1]));
@@ -210,6 +226,9 @@ begin
     Temps.Free;
     Consts.Free;
     Code.Free;
+    Errs.Free;
+    for I := 0 to High(Nets) do
+      if (Nets[I] <> nil) and (Nets[I] <> B.Net(I)) then Nets[I].Free;
   end;
 end;
 

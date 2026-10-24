@@ -12,7 +12,7 @@ unit uXref;
 interface
 
 uses
-  SysUtils, Classes, StrUtils, Math, uPlcTypes, uPlcProject, uPlcCompiler, uSclSig;
+  SysUtils, Classes, StrUtils, Math, uPlcTypes, uPlcProject, uPlcCompiler, uSclSig, uFbd;
 
 type
   TXrefUse = (xuRead, xuWrite, xuReadWrite, xuDecl, xuTable);
@@ -390,6 +390,46 @@ var
     if Hits(S, Ex) then Put(xpCode, BI, NI, ARow, ACol, AUse, AHow, S, LadKindNames[Ce.Kind], Ex);
   end;
 
+  { FBD / CFC: a box (Row: its Id, Col: the input pin, 100 + the output pin, -1 the field above) }
+  procedure Box(const Nd: TFbdNode; ACol: Integer; const S: string; AUse: TXrefUse; const AHow: string);
+  begin
+    if Hits(S, Ex) then Put(xpCode, BI, NI, Nd.Id, ACol, AUse, AHow, S, Format('#%d %s', [Nd.Id, FbdBoxDefOf(Nd.Box).Title]), Ex);
+  end;
+
+  procedure Boxes(N: TNetwork);
+  var
+    Q, I: Integer;
+    Nd: TFbdNode;
+    Bd: TFbdBoxDef;
+  begin
+    for Q := 0 to High(N.Nodes) do
+    begin
+      Nd := N.Nodes[Q];
+      Bd := FbdBoxDefOf(Nd.Box);
+      if Nd.Inst <> '' then
+        case Nd.Box of
+          'assign': Box(Nd, -1, Nd.Inst, xuWrite, '= assignment');
+          'set': Box(Nd, -1, Nd.Inst, xuWrite, 'S set');
+          'reset': Box(Nd, -1, Nd.Inst, xuWrite, 'R reset');
+          'p', 'n': Box(Nd, -1, Nd.Inst, xuReadWrite, 'edge memory bit');
+          'inc', 'dec': Box(Nd, -1, Nd.Inst, xuReadWrite, Bd.Title + ' IN_OUT');
+          'call': Box(Nd, -1, Nd.Inst, xuReadWrite, 'CALL');
+        else
+          Box(Nd, -1, Nd.Inst, xuReadWrite, Bd.Title + ' instance');
+        end;
+      for I := 0 to High(Nd.Ins) do
+        if (Nd.Ins[I].Src = 0) and (Nd.Ins[I].Opnd <> '') then
+        begin
+          if MatchStr(Nd.Box, ['and', 'or', 'xor']) then
+            Box(Nd, I, Nd.Ins[I].Opnd, xuRead, Bd.Title + IfThen(Nd.Ins[I].Neg, ' NOT', '') + ' input ' + Nd.Ins[I].Name)
+          else if Nd.Box = 'cmp' then Box(Nd, I, Nd.Ins[I].Opnd, xuRead, 'CMP compare ' + Nd.Ins[I].Name)
+          else Box(Nd, I, Nd.Ins[I].Opnd, xuRead, Bd.Title + ' ' + Nd.Ins[I].Name);
+        end;
+      for I := 0 to High(Nd.Outs) do
+        if Nd.Outs[I].Opnd <> '' then Box(Nd, 100 + I, Nd.Outs[I].Opnd, xuWrite, Bd.Title + ' output ' + Nd.Outs[I].Name);
+    end;
+  end;
+
   function PinUse(const Nm: string): TXrefUse;
   begin
     if SameText(Nm, 'IN_OUT') then Result := xuReadWrite
@@ -448,6 +488,11 @@ begin
       for NI := 0 to B.NetCount - 1 do
       begin
         N := B.Net(NI);
+        if N.Kind in [nkFBD, nkCFC] then
+        begin
+          Boxes(N);
+          Continue;
+        end;
         if N.Kind = nkLAD then
         begin
           for Row := 0 to N.Rows - 1 do
@@ -729,6 +774,16 @@ begin
       for NI := 0 to B.NetCount - 1 do
       begin
         N := B.Net(NI);
+        if N.Kind in [nkFBD, nkCFC] then
+        begin
+          for Row := 0 to High(N.Nodes) do
+          begin
+            Take(N.Nodes[Row].Inst);
+            for J := 0 to High(N.Nodes[Row].Ins) do Take(N.Nodes[Row].Ins[J].Opnd);
+            for J := 0 to High(N.Nodes[Row].Outs) do Take(N.Nodes[Row].Outs[J].Opnd);
+          end;
+          Continue;
+        end;
         if N.Kind = nkLAD then
         begin
           for Row := 0 to N.Rows - 1 do
@@ -808,7 +863,9 @@ begin
     xpCode:
       begin
         Result := P.Block(X.Blk).Title;
-        if P.Block(X.Blk).Net(X.Net).Kind = nkLAD then
+        if P.Block(X.Blk).Net(X.Net).Kind in [nkFBD, nkCFC] then
+          Result := Result + Format('  nw %d  box #%d', [X.Net + 1, X.Row])
+        else if P.Block(X.Blk).Net(X.Net).Kind = nkLAD then
           Result := Result + Format('  nw %d  row %d col %d', [X.Net + 1, X.Row + 1, X.Col + 1])
         else
           Result := Result + Format('  nw %d  line %d', [X.Net + 1, X.Row + 1]);

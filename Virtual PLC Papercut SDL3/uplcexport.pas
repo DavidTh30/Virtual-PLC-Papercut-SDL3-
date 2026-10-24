@@ -16,7 +16,7 @@ unit uPlcExport;
 interface
 
 uses
-  Classes, SysUtils, StrUtils, fpjson, uPlcTypes, uPlcProject;
+  Classes, SysUtils, StrUtils, fpjson, uPlcTypes, uPlcProject, uFbd;
 
 type
   TLiveFn = function(const Operand: string): string of object;
@@ -212,14 +212,28 @@ begin
   N := B.Net(NI);
   SL := TStringList.Create;
   try
-    case N.Kind of
-      nkSTL: SL.Add(Format('Network %d (STL): %s', [NI + 1, N.Title]));
-      nkSCL: SL.Add(Format('Network %d (SCL): %s', [NI + 1, N.Title]));
-    else
-      SL.Add(Format('Network %d (LAD): %s', [NI + 1, N.Title]));
-    end;
+    SL.Add(Format('Network %d (%s): %s', [NI + 1, NetLangName(N.Kind), N.Title]));
     if N.Comment <> '' then SL.Add('// ' + N.Comment);
-    if N.Kind in [nkSTL, nkSCL] then
+    if N.Kind in [nkFBD, nkCFC] then
+    begin
+      // every box: its inputs (an operand, a wire from box #n), its outputs
+      for K := 0 to High(N.Nodes) do
+        with N.Nodes[K] do
+        begin
+          Row := Format('  #%d %s', [Id, FbdBoxDefOf(Box).Title]);
+          if Box = 'cmp' then Row := Row + ' ' + CmpOpNames[Cmp];
+          if FbdBoxDefOf(Box).HasType then Row := Row + ' ' + DataTypeNames[DType];
+          if Inst <> '' then Row := Row + ' [' + Inst + ']';
+          if N.Kind = nkCFC then Row := Row + Format(' (run %d, at %d,%d)', [Order, X, Y]);
+          for R := 0 to High(Ins) do
+            if Ins[R].Src > 0 then Row := Row + Format('  %s <- #%d', [Ins[R].Name, Ins[R].Src])
+            else if Ins[R].Opnd <> '' then Row := Row + Format('  %s = %s%s', [Ins[R].Name, IfThen(Ins[R].Neg, 'NOT ', ''), Ins[R].Opnd]);
+          for R := 0 to High(Outs) do
+            if Outs[R].Opnd <> '' then Row := Row + Format('  %s -> %s', [Outs[R].Name, Outs[R].Opnd]);
+          SL.Add(Row);
+        end;
+    end
+    else if N.Kind in [nkSTL, nkSCL] then
       for K := 0 to N.Stl.Count - 1 do SL.Add('  ' + N.Stl[K])
     else
       for R := 0 to N.Rows - 1 do

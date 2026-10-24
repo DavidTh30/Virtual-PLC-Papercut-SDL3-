@@ -30,16 +30,42 @@ begin
   SetLength(FEhNets, Length(FEhPage.Blocks));
   for K := 0 to High(FEhPage.Blocks) do
     if FEhPage.Blocks[K].K = hbLad then FEhNets[K] := HelpLadNet(FEhPage.Blocks[K].S)
+    else if FEhPage.Blocks[K].K in [hbFbd, hbCfc] then FEhNets[K] := EhFbdNet(FEhPage.Blocks[K])
     else FEhNets[K] := nil;
   FEhScroll := 0;
+  FEhSel0 := Point(0, 0);
+  FEhSel1 := FEhSel0;
   FEhOn := True;
   FCtxOn := False;
   FElemPress := -1;
 end;
 
+{ the boxes of an FBD / CFC picture: its LAD rung converted (CFC: placed by the data flow) }
+function TPlcUI.EhFbdNet(const Bk: THelpBlock): TNetwork;
+var
+  L: TNetwork;
+  Err: string;
+begin
+  L := HelpLadNet(Bk.S);
+  try
+    Result := LadToFbd(L, Project, Err);
+  finally
+    L.Free;
+  end;
+  if (Result <> nil) and (Bk.K = hbCfc) then
+  begin
+    Result.Kind := nkCFC;
+    Result.ChartW := 0;
+    Result.ChartH := 0;
+    CfcAutoPlace(Result);
+  end;
+end;
+
 procedure TPlcUI.EhClose;
 begin
   FEhOn := False;
+  FEhSel0 := Point(0, 0);
+  FEhSel1 := FEhSel0;
   EhFreeNets;
 end;
 
@@ -77,7 +103,7 @@ var
 begin
   Result := False;
   if CurBlock = nil then Exit;
-  if FEhLang = 'L' then
+  if FEhLang in ['L', 'F', 'K'] then
   begin
     for K := 0 to High(FEhNets) do
       if FEhNets[K] <> nil then Exit(True);
@@ -93,18 +119,23 @@ var
 begin
   if not EhCanInsert then Exit;
   N := CurNet;
-  if FEhLang = 'L' then
+  if FEhLang in ['L', 'F', 'K'] then
   begin
-    // the first rung of the page as a new network below the selected one
+    // the first picture of the page as a new network below the selected one
     for K := 0 to High(FEhNets) do
       if FEhNets[K] <> nil then Break;
-    DoClick(Act(acAddNet, 1), '');
+    case FEhLang of
+      'F': DoClick(Act(acAddNet, 7), '');
+      'K': DoClick(Act(acAddNet, 9), '');
+    else
+      DoClick(Act(acAddNet, 1), '');
+    end;
     N := CurNet;
     if N = nil then Exit;
     N.Assign(FEhNets[K]);
     N.Title := 'Example: ' + FEhPage.Title;
     MarkDirty;
-    Toast('The example is a new LAD network: change the operands to yours');
+    Toast('The example is a new ' + LangTitle(FEhLang) + ' network: change the operands to yours');
   end
   else if (N <> nil) and (((FEhLang = 'S') and (N.Kind = nkSTL)) or ((FEhLang = 'C') and (N.Kind = nkSCL))) then
   begin
@@ -381,12 +412,9 @@ end;
 
 procedure TPlcUI.DrawElemHelp;
 const
-  X = 150;
-  W = 1300;
-  Y = 46;
-  H = 812;
   LadCW = 116;
 var
+  X, Y, W, H: Single;
   K, J, R, C, Nr, Span, NB, NCol: Integer;
   YY, X0, CW, Top, ViewH, BX, TX, SW, VMax, LblW, BoxW, GX, H0, HH, XC: Single;
   Bk: THelpBlock;
@@ -407,19 +435,75 @@ var
     if I < Lines.Count then Result := Lines[I] else Result := '';
   end;
 
+  { a line of text that the mouse can select: it is noted (its place, font, text), the selected part of it
+    gets its gold background, then the text (Code: a // comment in green) }
+  procedure ER(Kind: TFontKind; Size, TX, TY, LH, MaxW: Single; const S: string; Cl: TBGRAPixel; Code: Boolean = False;
+    Cont: Boolean = False);
+  var
+    N, C0, C1, P: Integer;
+    A0, A1: TPoint;
+    X1, X2: Single;
+  begin
+    N := FEhRunN;
+    if N > High(FEhRuns) then SetLength(FEhRuns, N + 64);
+    FEhRuns[N].X := TX;
+    FEhRuns[N].Y := TY;
+    FEhRuns[N].H := LH;
+    FEhRuns[N].Kind := Kind;
+    FEhRuns[N].Size := Size;
+    FEhRuns[N].S := S;
+    FEhRuns[N].Cont := Cont;
+    Inc(FEhRunN);
+    if EhHasSel then
+    begin
+      EhOrdered(A0, A1);
+      if (N >= A0.Y) and (N <= A1.Y) then
+      begin
+        if N = A0.Y then C0 := A0.X else C0 := 0;
+        if N = A1.Y then C1 := A1.X else C1 := UTF8Length(S);
+        X1 := TX + TxtW(Kind, Size, UTF8Copy(S, 1, C0));
+        X2 := TX + TxtW(Kind, Size, UTF8Copy(S, 1, C1));
+        if N < A1.Y then X2 := X2 + 4;
+        if X2 > X1 then Rc(X1, TY - 2, X2 - X1, LH, Alpha(cGold, 140));
+      end;
+    end;
+    P := 0;
+    if Code then P := Pos('//', S);
+    if P > 0 then
+    begin
+      Txt(Kind, Size, TX, TY, Copy(S, 1, P - 1), Cl);
+      Txt(Kind, Size, TX + TxtW(Kind, Size, Copy(S, 1, P - 1)), TY, Copy(S, P, MaxInt), cJade);
+    end
+    else if MaxW > 0 then TxtFit(Kind, Size, TX, TY, MaxW, S, Cl)
+    else Txt(Kind, Size, TX, TY, S, Cl);
+  end;
+
 begin
   if not FEhOn then Exit;
-  // a click beside the window closes it; the window takes its own clicks
+  if FEhW < 100 then
+  begin
+    FEhX := 150;
+    FEhY := 46;
+    FEhW := 1300;
+    FEhWH := 812;
+  end;
+  X := FEhX;
+  Y := FEhY;
+  W := FEhW;
+  H := FEhWH;
+  FEhRunN := 0;
+  // a click beside the window closes it; the window takes its own clicks; its title bar moves it
   Hit(-1000, -1000, DesignW + 2000, DesignH + 2000, Act(acEhClose, 0));
   Hit(X, Y, W, H, Act(acClaudeBg, 0));
+  Hit(X, Y, W, 52, Act(acEhMove, 0), hkDrag);
   D.Layer := lyOverlay;
-  Rc(-1000, -1000, DesignW + 2000, DesignH + 2000, Alpha(cCharcoal, 60));
+  Rc(-1000, -1000, DesignW + 2000, DesignH + 2000, Alpha(cCharcoal, 45));
   Shad(X, Y, W, H, 6, 4, 10, 130);
   RR(X, Y, W, H, 6, cSheet);
   RRL(X + 0.5, Y + 0.5, W - 1, H - 1, 6, 1.4, cGoldDark);
   Rc(X + 1, Y + 1, W - 2, 52, Mixc(cRed, cRedDark, 0.3));
-  TxtFit(fkUIB, 16, X + 18, Y + 7, 560, FEhPage.Title, cSheet);
-  TxtFit(fkUI, 11, X + 18, Y + 31, 560, 'Help  ·  ' + FEhPage.Sub, Alpha(cSheet, 215));
+  TxtFit(fkUIB, 16, X + 18, Y + 7, W - 640, FEhPage.Title, cSheet);
+  TxtFit(fkUI, 11, X + 18, Y + 31, W - 640, 'Help  ·  ' + FEhPage.Sub, Alpha(cSheet, 215));
   BX := X + W - 104;
   Button(BX, Y + 13, 92, 26, 'Close  ×', Act(acEhClose, 0), bsGold, True, 11.5);
   BX := BX - 134;
@@ -437,6 +521,7 @@ begin
   CW := W - 84;
   ClipD(X + 4, Top, W - 26, ViewH);
   Hit(X + 4, Top, W - 26, ViewH, whEh, hkWheel);
+  Hit(X + 4, Top, W - 26, ViewH, Act(acEhText, 0), hkDrag);
   YY := Top + 6 - FEhScroll;
   H0 := YY;
   Nr := 0;
@@ -451,7 +536,7 @@ begin
           begin
             if K > 0 then YY := YY + 10;
             D.Layer := lyOverlay;
-            Txt(fkUIB, 14, X0, YY, Bk.S, cRedDark);
+            ER(fkUIB, 14, X0, YY, 22, 0, Bk.S, cRedDark);
             Ln(X0, YY + 23, X0 + CW, YY + 23, 0.7, Alpha(cGoldDark, 150));
             YY := YY + 32;
             Nr := 0;
@@ -459,7 +544,7 @@ begin
         hbText:
           begin
             Ls := EhWrap(Bk.S, fkUI, 12.5, CW);
-            for J := 0 to High(Ls) do Txt(fkUI, 12.5, X0, YY + J * 19, Ls[J], cInk);
+            for J := 0 to High(Ls) do ER(fkUI, 12.5, X0, YY + J * 19, 19, 0, Ls[J], cInk, False, J > 0);
             YY := YY + Length(Ls) * 19 + 7;
           end;
         hbStep:
@@ -468,19 +553,19 @@ begin
             El(X0 + 10, YY + 9, 10, 10, cRed);
             Txt(fkUIB, 10.5, X0 + 10, YY + 2, IntToStr(Nr), cSheet, 1);
             Ls := EhWrap(Bk.S, fkUI, 12.5, CW - 34);
-            for J := 0 to High(Ls) do Txt(fkUI, 12.5, X0 + 30, YY + J * 19, Ls[J], cInk);
+            for J := 0 to High(Ls) do ER(fkUI, 12.5, X0 + 30, YY + J * 19, 19, 0, Ls[J], cInk, False, J > 0);
             YY := YY + Length(Ls) * 19 + 8;
           end;
         hbBullet, hbNote:
           begin
             El(X0 + 8, YY + 9, 2.8, 2.8, cGoldDark);
             Ls := EhWrap(Bk.S, fkUI, 12.5, CW - 24);
-            for J := 0 to High(Ls) do Txt(fkUI, 12.5, X0 + 22, YY + J * 19, Ls[J], cInk);
+            for J := 0 to High(Ls) do ER(fkUI, 12.5, X0 + 22, YY + J * 19, 19, 0, Ls[J], cInk, False, J > 0);
             YY := YY + Length(Ls) * 19 + 5;
           end;
         hbCaption:
           begin
-            TxtFit(fkUI, 11, X0, YY - 2, CW, Bk.S, cInkSoft);
+            ER(fkUI, 11, X0, YY - 2, 17, CW, Bk.S, cInkSoft);
             YY := YY + 20;
           end;
         hbCode:
@@ -489,19 +574,7 @@ begin
             RR(X0, YY, CW, HH, 5, Mixc(cSheet, cGoldLight, 0.3));
             RRL(X0, YY, CW, HH, 5, 0.8, Alpha(cGoldDark, 150));
             Rc(X0, YY + 3, 3, HH - 6, cRed);
-            for J := 0 to Lines.Count - 1 do
-            begin
-              S := Lines[J];
-              // a comment fainter
-              R := Pos('//', S);
-              if R > 0 then
-              begin
-                Txt(fkMono, 12, X0 + 14, YY + 7 + J * 19, Copy(S, 1, R - 1), cInk);
-                Txt(fkMono, 12, X0 + 14 + TxtW(fkMono, 12, Copy(S, 1, R - 1)), YY + 7 + J * 19, Copy(S, R, MaxInt), cJade);
-              end
-              else
-                Txt(fkMono, 12, X0 + 14, YY + 7 + J * 19, S, cInk);
-            end;
+            for J := 0 to Lines.Count - 1 do ER(fkMono, 12, X0 + 14, YY + 7 + J * 19, 19, 0, Lines[J], cInk, True);
             YY := YY + HH + 9;
           end;
         hbTable:
@@ -540,9 +613,9 @@ begin
               for C := 0 to High(Cells) do
               begin
                 if C > High(ColW) then Break;
-                if J = 0 then TxtFit(fkUIB, 12, TX + 12, YY + J * 25 + 4, ColW[C] - 16, Cells[C], cInk)
-                else if C = 0 then TxtFit(fkMono, 12, TX + 12, YY + J * 25 + 4, ColW[C] - 16, Cells[C], cInk)
-                else TxtFit(fkUI, 12, TX + 12, YY + J * 25 + 4, ColW[C] - 16, Cells[C], cInk);
+                if J = 0 then ER(fkUIB, 12, TX + 12, YY + J * 25 + 4, 21, ColW[C] - 16, Cells[C], cInk)
+                else if C = 0 then ER(fkMono, 12, TX + 12, YY + J * 25 + 4, 21, ColW[C] - 16, Cells[C], cInk)
+                else ER(fkUI, 12, TX + 12, YY + J * 25 + 4, 21, ColW[C] - 16, Cells[C], cInk);
                 TX := TX + ColW[C];
               end;
             end;
@@ -717,6 +790,20 @@ begin
           end;
         hbFlow:
           YY := YY + EhFlow(Bk.S, X0, YY + 4, CW) + 8;
+        hbFbd, hbCfc:
+          begin
+            N := nil;
+            if K <= High(FEhNets) then N := FEhNets[K];
+            if N = nil then Continue;
+            HH := FbdHeight(N);
+            if Bk.K = hbCfc then HH := N.ChartH * CfcGrid;
+            RR(X0, YY, CW, HH + 16, 5, Mixc(cSheet, cSheet2, 0.5));
+            RRL(X0, YY, CW, HH + 16, 5, 0.8, Alpha(cGoldDark, 130));
+            if Bk.K = hbFbd then DrawFbd(-1, N, X0 + 4, YY + 8, CW - 8)
+            else DrawCfc(-1, N, X0 + 4, YY + 8, CW - 8);
+            D.Layer := lyOverlay;
+            YY := YY + HH + 24;
+          end;
       end;
     end;
   finally
@@ -727,6 +814,18 @@ begin
   FEhScroll := EnsureRange(FEhScroll, 0, Max(0, FEhH - ViewH));
   if FEhH > ViewH then VScrollBar(21, X + W - 16, Top, ViewH, FEhH, ViewH, FEhScroll)
   else FVs[21].Range := 0;
+  // the edges and corners size the window (1 left, 2 right, 4 top, 8 bottom)
+  Hit(X - 4, Y + 8, 8, H - 16, Act(acEhSize, 1), hkDrag);
+  Hit(X + W - 4, Y + 8, 8, H - 16, Act(acEhSize, 2), hkDrag);
+  Hit(X + 8, Y - 4, W - 16, 7, Act(acEhSize, 4), hkDrag);
+  Hit(X + 8, Y + H - 4, W - 16, 8, Act(acEhSize, 8), hkDrag);
+  Hit(X - 5, Y - 5, 12, 12, Act(acEhSize, 5), hkDrag);
+  Hit(X + W - 7, Y - 5, 12, 12, Act(acEhSize, 6), hkDrag);
+  Hit(X - 5, Y + H - 7, 12, 12, Act(acEhSize, 9), hkDrag);
+  Hit(X + W - 16, Y + H - 16, 20, 20, Act(acEhSize, 10), hkDrag);
+  D.Layer := lyOverlay;
+  for J := 0 to 2 do
+    Ln(X + W - 5 - J * 4, Y + H - 3, X + W - 3, Y + H - 5 - J * 4, 1.3, EhPick(Hot(X + W - 16, Y + H - 16, 20, 20), cRed, cGoldDark));
 end;
 
 { the test: the help of the element with this caption in the panel shown (False: no such element) }
@@ -741,6 +840,205 @@ begin
       EhOpen(K);
       Exit(True);
     end;
+end;
+
+function TPlcUI.EhHasSel: Boolean;
+begin
+  Result := (FEhSel0.X <> FEhSel1.X) or (FEhSel0.Y <> FEhSel1.Y);
+end;
+
+procedure TPlcUI.EhOrdered(out A, B: TPoint);
+begin
+  if (FEhSel1.Y < FEhSel0.Y) or ((FEhSel1.Y = FEhSel0.Y) and (FEhSel1.X < FEhSel0.X)) then
+  begin
+    A := FEhSel1;
+    B := FEhSel0;
+  end
+  else
+  begin
+    A := FEhSel0;
+    B := FEhSel1;
+  end;
+end;
+
+{ the text position under the mouse: (character, run) of the last frame }
+function TPlcUI.EhPosAt(X, Y: Single): TPoint;
+var
+  K, Best, C, N: Integer;
+  Score, Sc, Dy, Dx, Wd, RX, RY, RH: Single;
+  Kd: TFontKind;
+  Sz: Single;
+  S: string;
+begin
+  Result := Point(0, 0);
+  Best := -1;
+  Score := 1E9;
+  for K := 0 to FEhRunN - 1 do
+  begin
+    RX := FEhRuns[K].X;
+    RY := FEhRuns[K].Y - 2;
+    RH := FEhRuns[K].H;
+    Wd := TxtW(FEhRuns[K].Kind, FEhRuns[K].Size, FEhRuns[K].S);
+    if (Y >= RY) and (Y < RY + RH) then Dy := 0 else Dy := Min(Abs(Y - RY), Abs(Y - RY - RH));
+    if (X >= RX) and (X <= RX + Wd) then Dx := 0 else Dx := Min(Abs(X - RX), Abs(X - RX - Wd));
+    Sc := Dy * 1000 + Dx;
+    if Sc < Score then
+    begin
+      Score := Sc;
+      Best := K;
+    end;
+  end;
+  if Best < 0 then Exit;
+  Kd := FEhRuns[Best].Kind;
+  Sz := FEhRuns[Best].Size;
+  S := FEhRuns[Best].S;
+  RX := FEhRuns[Best].X;
+  N := UTF8Length(S);
+  C := 0;
+  while (C < N) and (RX + (TxtW(Kd, Sz, UTF8Copy(S, 1, C)) + TxtW(Kd, Sz, UTF8Copy(S, 1, C + 1))) / 2 < X) do Inc(C);
+  Result := Point(C, Best);
+end;
+
+function TPlcUI.EhSelText: string;
+var
+  A, B: TPoint;
+  K, C0, C1: Integer;
+begin
+  Result := '';
+  if not EhHasSel then Exit;
+  EhOrdered(A, B);
+  for K := A.Y to Min(B.Y, FEhRunN - 1) do
+  begin
+    if K = A.Y then C0 := A.X else C0 := 0;
+    if K = B.Y then C1 := B.X else C1 := UTF8Length(FEhRuns[K].S);
+    // a cell beside the one before: a tab, else a new line
+    if K > A.Y then
+      if FEhRuns[K].Cont then Result := Result + ' '
+      else if Abs(FEhRuns[K].Y - FEhRuns[K - 1].Y) < 1 then Result := Result + #9
+      else Result := Result + LineEnding;
+    Result := Result + UTF8Copy(FEhRuns[K].S, C0 + 1, C1 - C0);
+  end;
+end;
+
+procedure TPlcUI.EhCopySel;
+begin
+  if not EhHasSel then Exit;
+  ClipboardOut := EhSelText;
+  Toast('Copied');
+end;
+
+procedure TPlcUI.EhSelectAll;
+begin
+  if FEhRunN = 0 then Exit;
+  FEhSel0 := Point(0, 0);
+  FEhSel1 := Point(UTF8Length(FEhRuns[FEhRunN - 1].S), FEhRunN - 1);
+end;
+
+{ a press / a drag on the window: its title bar moves it, an edge sizes it, the text is selected }
+procedure TPlcUI.EhDrag(Id: Integer; X, Y: Single);
+var
+  P: TPoint;
+  S: string;
+  I0, I1, N, Ed: Integer;
+  L, T, R, B: Single;
+begin
+  if FDragPress <> FPressNo then
+  begin
+    FDragPress := FPressNo;
+    FEhGrab := PointF(X, Y);
+    FEhRect0 := RectF(FEhX, FEhY, FEhX + FEhW, FEhY + FEhWH);
+    if Id shr 16 = acEhText then
+    begin
+      P := EhPosAt(X, Y);
+      if (MouseClicks >= 3) and (P.Y < FEhRunN) then
+      begin
+        // a triple click: the line
+        FEhSel0 := Point(0, P.Y);
+        FEhSel1 := Point(UTF8Length(FEhRuns[P.Y].S), P.Y);
+      end
+      else if (MouseClicks = 2) and (P.Y < FEhRunN) then
+      begin
+        // a double click: the word
+        S := FEhRuns[P.Y].S;
+        N := UTF8Length(S);
+        I0 := Min(P.X, N);
+        I1 := I0;
+        while (I0 > 0) and (UTF8Copy(S, I0, 1) <> ' ') do Dec(I0);
+        while (I1 < N) and (UTF8Copy(S, I1 + 1, 1) <> ' ') do Inc(I1);
+        FEhSel0 := Point(I0, P.Y);
+        FEhSel1 := Point(I1, P.Y);
+      end
+      else
+      begin
+        if not (umShift in MouseMods) then FEhSel0 := P;
+        FEhSel1 := P;
+      end;
+      FEhSelDrag := MouseClicks <= 1;
+    end;
+    Exit;
+  end;
+  if Id shr 16 = acEhText then
+  begin
+    if FEhSelDrag then
+    begin
+      FEhSel1 := EhPosAt(X, Y);
+      // past the top / the bottom: the page scrolls
+      if Y < FEhY + 62 then FEhScroll := FEhScroll - 14
+      else if Y > FEhY + FEhWH - 10 then FEhScroll := FEhScroll + 14;
+    end;
+    Exit;
+  end;
+  if Id shr 16 = acEhMove then
+  begin
+    FEhX := EnsureRange(FEhRect0.Left + X - FEhGrab.X, 120 - FEhW, DesignW - 120);
+    FEhY := EnsureRange(FEhRect0.Top + Y - FEhGrab.Y, 0, DesignH - 52);
+    Exit;
+  end;
+  // an edge: the others stay where they are
+  Ed := Id and $FFFF;
+  L := FEhRect0.Left;
+  T := FEhRect0.Top;
+  R := FEhRect0.Right;
+  B := FEhRect0.Bottom;
+  if Ed and 1 <> 0 then L := EnsureRange(L + X - FEhGrab.X, 0, R - EhMinW);
+  if Ed and 2 <> 0 then R := EnsureRange(R + X - FEhGrab.X, L + EhMinW, DesignW);
+  if Ed and 4 <> 0 then T := EnsureRange(T + Y - FEhGrab.Y, 0, B - EhMinH);
+  if Ed and 8 <> 0 then B := EnsureRange(B + Y - FEhGrab.Y, T + EhMinH, DesignH);
+  FEhX := L;
+  FEhY := T;
+  FEhW := R - L;
+  FEhWH := B - T;
+end;
+
+function TPlcUI.EhRunPoint(I, C: Integer): TPointF;
+begin
+  Result := PointF(0, 0);
+  if (I < 0) or (I >= FEhRunN) then Exit;
+  with FEhRuns[I] do
+    Result := DesignToPixel(X + TxtW(Kind, Size, UTF8Copy(S, 1, C)), Y + H / 2 - 2);
+end;
+
+function TPlcUI.EhRunFind(const S: string): Integer;
+var
+  K: Integer;
+begin
+  for K := 0 to FEhRunN - 1 do
+    if Copy(FEhRuns[K].S, 1, Length(S)) = S then Exit(K);
+  Result := -1;
+end;
+
+function TPlcUI.EhState: string;
+begin
+  Result := Format('window %.0f,%.0f %.0fx%.0f  selected: [%s]', [FEhX, FEhY, FEhW, FEhWH,
+    StringReplace(StringReplace(EhSelText, LineEnding, '\n', [rfReplaceAll]), #9, '\t', [rfReplaceAll])]);
+end;
+
+procedure TPlcUI.TestEhRect(AX, AY, AW, AH: Single);
+begin
+  FEhX := AX;
+  FEhY := AY;
+  FEhW := AW;
+  FEhWH := AH;
 end;
 
 procedure TPlcUI.TestSelNet(I: Integer);

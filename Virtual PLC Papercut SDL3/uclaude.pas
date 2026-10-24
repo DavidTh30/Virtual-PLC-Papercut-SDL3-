@@ -18,7 +18,7 @@ interface
 
 uses
   Classes, SysUtils, Math, StrUtils, DateUtils, TypInfo, fpjson, jsonparser, uPlcTypes, uPlcProject, uPlcCompiler, uPlcRuntime,
-  uClaudeHttp;
+  uClaudeHttp, uFbd;
 
 const
   ClaudeModel = 'claude-opus-5-5';
@@ -113,7 +113,8 @@ const
     '{"name":"get_block","description":"One block in full: its interface (Input, Output, InOut, Static, Temp, Return) and every network with its language and code (SCL / STL text, LAD as a cell grid). Call this before you change a block.","input_schema":{"type":"object","properties":{"block":{"type":"string","description":"OB1, FC2, FB1 or the block name"}},"required":["block"]}},' +
     '{"name":"write_network","description":"Writes one network of a block: replaces network n (1-based) or appends a new one when network is 0 or missing. SCL / STL: the whole code in code. LAD: the cells (see the system prompt). Returns the compile messages of the block: fix every error.","input_schema":{"type":"object","properties":{' +
       '"block":{"type":"string"},"network":{"type":"integer","description":"1-based; 0 or missing appends"},' +
-      '"language":{"type":"string","enum":["SCL","STL","LAD"]},"title":{"type":"string"},"comment":{"type":"string"},' +
+      '"language":{"type":"string","enum":["SCL","STL","LAD","FBD","CFC"]},"title":{"type":"string"},"comment":{"type":"string"},' +
+      '"nodes":{"type":"array","description":"FBD / CFC boxes (see the system prompt)","items":{"type":"object"}},' +
       '"code":{"type":"string","description":"SCL or STL code, lines separated by \\n"},' +
       '"cells":{"type":"array","description":"LAD cells","items":{"type":"object","properties":{"r":{"type":"integer"},"c":{"type":"integer"},"e":{"type":"string"},"op":{"type":"string"},"p":{"type":"array","items":{"type":"string"}},"args":{"type":"array","items":{"type":"string"}},"down":{"type":"boolean"},"type":{"type":"string"},"cmp":{"type":"string"},"type2":{"type":"string"}},"required":["r","c","e"]}}},' +
       '"required":["block","language"]}},' +
@@ -232,6 +233,20 @@ begin
     '(p:[IN1, IN2, OUT]), normx scalex (p:[MIN, VALUE, MAX, OUT]); converters conv (p:[IN, OUT], type = IN, type2 = OUT, ' +
     'e.g. Int to Real), round trunc ceil floor (p:[IN, OUT], IN Real, type2 = the integer OUT, e.g. DInt); call (op = FCn / "Fc" or an instance DB "Inst_DB"; args = the operands of its ' +
     'parameters in the order Input, InOut, Output, Return). A box takes two columns when the next cell is empty.' + LineEnding +
+    'FBD and CFC (all families): a network of boxes, write_network with "nodes": [{"id":1,"box":"and","in":[{"pin":"IN1",' +
+    '"op":"\"Start\""},{"pin":"IN2","op":"\"Stop\"","neg":true}]},{"id":2,"box":"assign","inst":"\"Motor\"","in":[{"pin":"IN",' +
+    '"from":"1.Q"}]}]. An input pin has "op" (an operand / a constant) or "from":"<id>.<output pin>" (a wire), "neg":true ' +
+    'negates it; an output pin may have "op" (it writes the operand). "inst": the operand / instance / block above the box. ' +
+    'Boxes and pins: and or xor (IN1, IN2, IN3 .. ; Q), assign set reset (inst = the operand; IN), p n (inst = edge memory ' +
+    'bit; IN; Q), rtrig ftrig (inst; CLK; Q), sr (S1, R; Q1) rs (S, R1; Q1), ton tof tp (inst = IEC_TIMER / TON_TIME ..; IN, PT; ' +
+    'Q, ET), tonr (IN, R, PT), ctu (CU, R, PV; Q, CV) ctd (CD, LD, PV) ctud (CU, CD, R, LD, PV; QU, QD, CV), cmp ("cmp":"==" ' +
+    '"<>" ">" "<" ">=" "<=", "type"; IN1, IN2; Q), inrange outrange (MIN, VAL, MAX; Q), with "type" and an optional EN: add sub ' +
+    'mul div mod expt (IN1, IN2; OUT), neg abs sqr sqrt exp ln sin cos tan asin acos atan frac (IN; OUT), inc dec (inst), ' +
+    'move (IN; OUT1), conv round trunc ceil floor (IN; OUT, "type2" = the OUT type), normx scalex (MIN, VALUE, MAX; OUT), ' +
+    'sel (G, IN0, IN1) mux (K, IN0, IN1 ..) limit (MN, IN, MX) min max (IN1, IN2 ..; OUT), andw orw xorw (IN1, IN2; OUT) ' +
+    'invw (IN) shl shr rol ror (IN, N; OUT), concat len left right mid find smove, call (inst = FC / instance DB; its ' +
+    'parameters as pins). FBD: boxes whose output feeds no box are the roots, drawn from the top. CFC: "x", "y" (grid 10 px) ' +
+    'and "order" (the data flow decides first); without x / y the blocks are placed by the data flow.' + LineEnding +
     'Not available: the S7-1200 has no STL and no S5 timers / counters; the 300/400 have no SInt / USInt / UInt / ' +
     'UDInt and no optimized DBs.';
 end;
@@ -729,12 +744,7 @@ end;
 
 function NetLang(N: TNetwork): string;
 begin
-  case N.Kind of
-    nkSTL: Result := 'STL';
-    nkSCL: Result := 'SCL';
-  else
-    Result := 'LAD';
-  end;
+  Result := NetLangName(N.Kind);
 end;
 
 function CellJson(const Ce: TLadCell; R, C: Integer): TJSONObject;
@@ -792,6 +802,8 @@ var
   JN: TJSONObject;
   Cells: TJSONArray;
   Nets: TJSONArray;
+  Sl, Er: TStringList;
+  LN: TIntArray;
 begin
   Result := TJSONObject.Create(['block', B.Title, 'name', B.Name, 'comment', B.Comment]);
   Result.Add('interface', IfaceJson(B));
@@ -800,7 +812,21 @@ begin
   begin
     N := B.Net(I);
     JN := TJSONObject.Create(['network', I + 1, 'language', NetLang(N), 'title', N.Title, 'comment', N.Comment]);
-    if N.Kind in [nkSTL, nkSCL] then
+    if N.Kind in [nkFBD, nkCFC] then
+    begin
+      // the boxes, and the SCL they compile to (to read them easily)
+      NodesToJson(N, JN);
+      Sl := TStringList.Create;
+      Er := TStringList.Create;
+      try
+        FbdToScl(N, Project, Sl, LN, Er, B, I + 1);
+        JN.Add('as_scl', Sl.Text);
+      finally
+        Sl.Free;
+        Er.Free;
+      end;
+    end
+    else if N.Kind in [nkSTL, nkSCL] then
       JN.Add('code', N.Stl.Text)
     else
     begin
@@ -988,15 +1014,25 @@ begin
         B := BlockArg;
         Lang := UpperCase(Need('language'));
         if (Lang = 'STL') and (Project.Family = cfS71200) then raise Exception.Create('the S7-1200 has no STL: use SCL or LAD');
-        if (Lang <> 'STL') and (Lang <> 'SCL') and (Lang <> 'LAD') then raise Exception.Create('language must be SCL, STL or LAD');
+        if (Lang <> 'STL') and (Lang <> 'SCL') and (Lang <> 'LAD') and (Lang <> 'FBD') and (Lang <> 'CFC') then
+          raise Exception.Create('language must be SCL, STL, LAD, FBD or CFC');
         NI := Inp.Get('network', 0);
         if (NI < 0) or (NI > B.NetCount) then raise Exception.Create(Format('%s has networks 1..%d (0 appends)', [B.Title, B.NetCount]));
         // build the network first: a bad cell changes nothing
         if Lang = 'SCL' then N := TNetwork.Create(nkSCL)
         else if Lang = 'STL' then N := TNetwork.Create(nkSTL)
+        else if Lang = 'FBD' then N := TNetwork.Create(nkFBD)
+        else if Lang = 'CFC' then N := TNetwork.Create(nkCFC)
         else N := TNetwork.Create(nkLAD);
         try
-          if N.Kind in [nkSTL, nkSCL] then
+          if N.Kind in [nkFBD, nkCFC] then
+          begin
+            if not (Inp.Find('nodes') is TJSONArray) then raise Exception.Create(Lang + ' needs nodes (the boxes)');
+            NodesFromJson(N, Inp);
+            S := FbdNormalize(N, Project);
+            if S <> '' then raise Exception.Create(S);
+          end
+          else if N.Kind in [nkSTL, nkSCL] then
             N.Stl.Text := StringReplace(Need('code'), #13#10, #10, [rfReplaceAll])
           else
           begin

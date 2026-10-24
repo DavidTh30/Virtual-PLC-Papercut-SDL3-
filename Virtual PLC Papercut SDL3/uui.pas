@@ -25,7 +25,7 @@ interface
 uses
   Classes, SysUtils, Math, Types, StrUtils, DateUtils, TypInfo, LazUTF8, BGRABitmap, BGRABitmapTypes,
   uPaperDL, uUiBase, uPlcTypes, uPlcProject, uPlcCompiler, uPlcRuntime, uPlcServer, uPlcClient, uTextEdit,
-  uClaude, uClaudeHttp, uPlcExport, Dialogs, fpjson, uLocalIp, uIpcServer, uChatPdf, ShellApi, uHelpForm, uExamples, Clipbrd, uSclElems, uSclSource, uObCatalog, uSclSig, uXref, uElemHelp;
+  uClaude, uClaudeHttp, uPlcExport, Dialogs, fpjson, uLocalIp, uIpcServer, uChatPdf, ShellApi, uHelpForm, uExamples, Clipbrd, uSclElems, uSclSource, uObCatalog, uSclSig, uXref, uElemHelp, uFbd;
 
 type
   TScreen = (scCpu, scProgram, scIO, scWatch, scDB, scTags, scPorts, scProject);
@@ -47,6 +47,15 @@ type
     CanOpen: Boolean;        // an array, a struct, a timer / counter: it opens to its elements / members
   end;
   TVarRows = array of TVarRow;
+
+  { FBD / CFC: a region of the last frame: a box (Kind 0), an input pin (1), an output pin (2), a wire into an
+    input (3), the title of a CFC block (4), the network beside the boxes (5), + (8), the type (9), the
+    comparison (10) }
+  TFbdHitRec = record
+    NI, Node, Pin, Kind: Integer;
+    R: TRectF;
+  end;
+  TSingleArray = array of Single;
 
   { an undo step of the program: the whole project (compact JSON) and where the user was }
   TProgSnap = record
@@ -181,6 +190,18 @@ type
     FArrOpen: TStringList;     // the arrays opened: "DB".Var
     { the cross reference: the operand, its block (#locals), the uses, what is shown }
     FXrefOn, FXrefOk: Boolean;
+    { FBD / CFC: the selection (network, box Id, pin -1 = the box, an output pin; the wire into the input pin),
+      the regions and the fields of the last frame, a press (1 moving a block, 2 drawing a wire, 3 a press on
+      a pin), where a wire starts }
+    FFbdNet, FFbdNode, FFbdPin, FFbdMode: Integer;
+    FFbdPinOut, FFbdWire, FFbdMoved: Boolean;
+    FFbdHits: array of TFbdHitRec;
+    FFbdFlds: array of record NI, Node, Pin, Kind: Integer; end;
+    FFbdGrab: TPointF;
+    FFbdGrab0: TPoint;
+    FFbdFrom: record NI, Node, Pin: Integer; IsOut: Boolean; end;
+    FFbdOutTypes: array of string;
+    FDropFbd, FDropCfcX, FDropCfcY: Integer;
     { the help of an element of the panel (its right button, F1): the page, the networks of its LAD pictures }
     FEhOn: Boolean;
     FEhPage: TElemHelpPage;
@@ -188,6 +209,20 @@ type
     FEhLang: Char;
     FEhScroll, FEhH: Single;
     FEhNets: array of TNetwork;
+    { its place and size (moved by the title bar, sized by the edges); the lines of text of the last frame
+      (the mouse selects in them: Sel0 / Sel1 = character, line) }
+    FEhX, FEhY, FEhW, FEhWH: Single;
+    FEhGrab: TPointF;
+    FEhRect0: TRectF;
+    FEhRuns: array of record
+      X, Y, H, Size: Single;
+      Kind: TFontKind;
+      S: string;
+      Cont: Boolean;         // the wrapped rest of the line before: joined with a space
+    end;
+    FEhRunN: Integer;
+    FEhSel0, FEhSel1: TPoint;
+    FEhSelDrag: Boolean;
     FXrefText, FXrefInfo, FXrefAsk: string;
     FXrefBlk: TBlock;
     FXref: TXrefs;
@@ -428,11 +463,51 @@ type
     procedure EhOpen(I: Integer);
     procedure EhClose;
     procedure EhFreeNets;
+    function EhFbdNet(const Bk: THelpBlock): TNetwork;
     procedure EhInsert;
     function EhCanInsert: Boolean;
     function EhWrap(const S: string; Kind: TFontKind; Size, W: Single): TStringArray;
     function EhFlow(const S: string; X0, Y, W: Single): Single;
     procedure DrawElemHelp;
+    { FBD / CFC }
+    procedure FbdBoxGeo(const Nd: TFbdNode; out BW, BH, InstH: Single);
+    function FbdBoxTitle(const Nd: TFbdNode): string;
+    function FbdTypeText(const Nd: TFbdNode): string;
+    function FbdNodeValue(NI, Id: Integer; out V: Double; out DT: TDataType): Boolean;
+    function FbdHitAdd(NI, Node, Pin, Kind: Integer; X, Y, W, H: Single): Integer;
+    function FbdFieldAdd(NI, Node, Pin, Kind: Integer): Integer;
+    procedure DrawFbdBox(NI: Integer; N: TNetwork; K: Integer; BX, BY: Single; Cfc: Boolean);
+    function FbdOutWired(N: TNetwork; Id, Pin: Integer): Boolean;
+    function FbdPinPt(const Nd: TFbdNode; BX, BY: Single; IsOut: Boolean; Pin: Integer): TPointF;
+    procedure FbdLayout(N: TNetwork; X0, Y0: Single; out BXs, BYs: TSingleArray; out H: Single);
+    procedure FbdWire(A, B: TPointF; On1, Sel: Boolean; Back: Single);
+    function FbdHeight(N: TNetwork): Single;
+    procedure DrawFbd(NI: Integer; N: TNetwork; X, Y, W: Single);
+    procedure DrawCfc(NI: Integer; N: TNetwork; X, Y, W: Single);
+    function FbdSelNode(out N: TNetwork; out K: Integer): Boolean;
+    procedure FbdInsert(const Id, Blk: string; AtX, AtY: Integer);
+    procedure CfcFreePlace(N: TNetwork; var Nd: TFbdNode);
+    procedure FbdPutOperand(const S: string);
+    procedure FbdDelete;
+    procedure FbdSelect(const H: TFbdHitRec);
+    procedure FbdDrag(Id: Integer; X, Y: Single);
+    procedure FbdDragEnd(Id: Integer; X, Y: Single);
+    procedure FbdTypeMenu(Cmp: Boolean);
+    procedure FbdTypeMenu2(const Ch: TStringArray; const Ids: array of Integer; const En: array of Boolean;
+      const Bd: TFbdBoxDef);
+    procedure FbdSetType(Par: Integer);
+    procedure FbdMenu(Hi: Integer);
+    procedure FbdCtx(Par: Integer);
+    procedure FbdHelp(const Box: string);
+    procedure NetConvert(Par: Integer);
+    procedure FbdCommit(Par: Integer; const S: string);
+    function EhHasSel: Boolean;
+    procedure EhOrdered(out A, B: TPoint);
+    function EhPosAt(X, Y: Single): TPoint;
+    function EhSelText: string;
+    procedure EhCopySel;
+    procedure EhSelectAll;
+    procedure EhDrag(Id: Integer; X, Y: Single);
     function XrefAtCaret: string;
     procedure XrefMenu(const S: string);
     function PickHeadItems(I: Integer): string;
@@ -637,8 +712,20 @@ type
     function DbRowText(I: Integer): string;                 // .. a row of the variables table
     function TestElemHelp(const Cap: string): Boolean;     // .. the help of an element of the panel opened
     function ElemHelpShown: string;                         // .. the help page shown as text ('' : none)
+    function FbdText: string;                               // .. the boxes of the FBD / CFC network as text
+    function FbdHitPoint(Node, Pin, Kind: Integer): TPointF;   // .. the pixel of a box / pin of the network
+    procedure FbdTestSelect(Node, Pin: Integer; IsOut: Boolean);   // .. a box / a pin selected
+    procedure TestFbdIns(const Id, Blk: string);            // .. a box inserted (as a double click in the panel)
+    procedure TestFbdOp(const S: string);                   // .. an operand onto the selected pin / box
+    procedure TestFbdCtx(Par: Integer);                     // .. an item of the menu of the selected box
+    procedure TestNetTop;                                   // .. the selected network at the top of the editor
+    function TestMsgs: string;                              // .. the compiler's messages in one line
     procedure TestEhScroll(V: Single);                      // .. the help page scrolled
     procedure TestSelNet(I: Integer);                       // .. network I selected (LAD: its first cell)
+    procedure TestEhRect(AX, AY, AW, AH: Single);           // .. the help window's place and size
+    function EhRunPoint(I, C: Integer): TPointF;            // .. the pixel of character C of text line I
+    function EhRunFind(const S: string): Integer;           // .. the first text line that starts with S
+    function EhState: string;                               // .. the window's place, size, the selection
     function IfRowText(I: Integer): string;                 // .. a row of the editor's interface
     procedure TestIfaceVar(const Sec, AName, AType: string);  // .. a variable added to the interface
     procedure TestProgScroll(V: Single);                    // .. the program editor scrolled
@@ -727,7 +814,14 @@ const
   acMcpWrite = 333; acMcpCopy = 334; acDbJump = 335;
   acIfSub = 336; acIfOpen = 337;
   { the help of an element: open (Par: the element), close, the previous / next element, insert the example, copy }
-  acEhOpen = 338; acEhClose = 339; acEhPrev = 340; acEhNext = 341; acEhIns = 342; acEhCopy = 343; whEh = 30;   // the editor's interface: a member / element row (dragged), the open mark   // an output of the I/O screen (DQ channel, 1000 + AQ): its region for the right button
+  acEhOpen = 338; acEhClose = 339; acEhPrev = 340; acEhNext = 341; acEhIns = 342; acEhCopy = 343; whEh = 30;
+  { the help window: its title bar (move), an edge (Par: 1 left 2 right 4 top 8 bottom), its text, Copy / Select all }
+  acEhMove = 344; acEhSize = 345; acEhText = 346; acEhSelCopy = 347; acEhSelAll = 348;
+  { FBD / CFC: a region (Par: its index in FFbdHits), the chart, the box menu, a field, the type / comparison menus,
+    a network converted, the chart scrolled sideways / sized }
+  acFbdHit = 349; acCfcChart = 350; acFbdCtx = 351; fdFbd = 352; acFbdType = 353; acFbdCmp = 354; acNetConvert = 355;
+  acCfcHS = 356; acCfcSize = 357;
+  EhMinW = 780; EhMinH = 320;   // the editor's interface: a member / element row (dragged), the open mark   // an output of the I/O screen (DQ channel, 1000 + AQ): its region for the right button
   fdObDlgName = 198; fdObDlgNum = 199; acObDlg = 295; acObDlgEv = 296; acObDlgNum = 297; acObDlgLang = 298;
   acObDlgOk = 299; acObDlgCancel = 300; acObEdge = 301; acObTodMode = 302; acObTodPick = 303; acObTodOn = 304;
   acObCopyCall = 305; acObFault = 306; fdObCycle = 307; fdObPhase = 308; fdObTrig = 309; fdObTod = 310;
@@ -797,6 +891,8 @@ begin
   FElemOpen.Add('CProgram control');
   FElemOpen.Add('SBit logic');
   FElemOpen.Add('LBit logic');
+  FElemOpen.Add('FBit logic');
+  FElemOpen.Add('KBit logic');
   FElemHover := -1;
   FElemPress := -1;
   // the example projects: written next to the exe when they are missing (a changed one stays)
@@ -3132,7 +3228,9 @@ var
   R: Integer;
 begin
   Result := 62;
-  if N.Kind in [nkSTL, nkSCL] then
+  if N.Kind in [nkFBD, nkCFC] then
+    Result := Result + FbdHeight(N) + 12
+  else if N.Kind in [nkSTL, nkSCL] then
     Result := Result + Max(1, N.Stl.Count) * 19 + 18
   else
   begin
@@ -4542,6 +4640,8 @@ begin
   case N.Kind of
     nkLAD: Button(X + W - 190, Y + 6, 52, 22, 'LAD', Act(acNetKind, NI), bsToggleOn, En, 11);
     nkSTL: Button(X + W - 190, Y + 6, 52, 22, 'STL', Act(acNetKind, NI), bsGold, En, 11);
+    nkFBD: Button(X + W - 190, Y + 6, 52, 22, 'FBD', Act(acNetKind, NI), bsNormal, En, 11);
+    nkCFC: Button(X + W - 190, Y + 6, 52, 22, 'CFC', Act(acNetKind, NI), bsDanger, En, 11);
   else
     Button(X + W - 190, Y + 6, 52, 22, 'SCL', Act(acNetKind, NI), bsPrimary, En, 11);
   end;
@@ -4552,6 +4652,8 @@ begin
   case N.Kind of
     nkSTL: DrawStl(NI, N, X + 12, Y + 54, W - 20);
     nkSCL: DrawScl(NI, N, X + 12, Y + 54, W - 20);
+    nkFBD: DrawFbd(NI, N, X + 14, Y + 56, W - 28);
+    nkCFC: DrawCfc(NI, N, X + 14, Y + 56, W - 28);
   else
     DrawLad(NI, N, X + 14, Y + 52, W - 24);
   end;
@@ -4883,6 +4985,8 @@ begin
   case Lang of
     'L': FElems := LadElems(Project, CurBlock);
     'S': FElems := StlElems(Project, CurBlock);
+    'F': FElems := FbdElems(Project, CurBlock, False);
+    'K': FElems := FbdElems(Project, CurBlock, True);
   else
     FElems := SclElems(Project, CurBlock);
   end;
@@ -4981,6 +5085,11 @@ begin
       begin
         TxtFit(fkUI, 9.5, X, TY + 18, W, 'Double click: into the selected cell.', cInkFaint);
         TxtFit(fkUI, 9.5, X, TY + 31, W, 'Drag by the grip onto a cell.', cInkFaint);
+      end
+      else if Lang in ['F', 'K'] then
+      begin
+        TxtFit(fkUI, 9.5, X, TY + 18, W, 'Double click: onto the selected pin / box.', cInkFaint);
+        TxtFit(fkUI, 9.5, X, TY + 31, W, 'Drag by the grip onto a pin (CFC: the chart).', cInkFaint);
       end
       else
       begin
@@ -5713,6 +5822,14 @@ begin
   N := CurNet;
   if N = nil then Exit;
   if N.Kind = nkLAD then Exit(Trim(N.Cell(FCellR, FCellC).Opnd));
+  if N.Kind in [nkFBD, nkCFC] then
+  begin
+    // the selected pin (an input wired: nothing), else the field above the box
+    if not FbdSelNode(N, K) then Exit;
+    if FFbdPinOut and (FFbdPin >= 0) then Exit(Trim(N.Nodes[K].Outs[FFbdPin].Opnd));
+    if (FFbdPin >= 0) and (FFbdPin <= High(N.Nodes[K].Ins)) then Exit(Trim(N.Nodes[K].Ins[FFbdPin].Opnd));
+    Exit(Trim(N.Nodes[K].Inst));
+  end;
   if (FStlNet <> FNetSel) or (FStlRow >= N.Stl.Count) then Exit;
   L := N.Stl[FStlRow];
   C := Length(UTF8Copy(L, 1, FStlCol)) + 1;
@@ -5743,7 +5860,17 @@ begin
         FBlockSel := X.Blk;
         FNetSel := X.Net;
         FIfaceShut := False;
-        if Project.Block(X.Blk).Net(X.Net).Kind = nkLAD then
+        if Project.Block(X.Blk).Net(X.Net).Kind in [nkFBD, nkCFC] then
+        begin
+          // the box and its pin
+          FStlNet := -1;
+          FFbdNet := X.Net;
+          FFbdNode := X.Row;
+          FFbdWire := False;
+          FFbdPinOut := X.Col >= 100;
+          if X.Col >= 100 then FFbdPin := X.Col - 100 else FFbdPin := X.Col;
+        end
+        else if Project.Block(X.Blk).Net(X.Net).Kind = nkLAD then
         begin
           FStlNet := -1;
           FCellR := X.Row;
@@ -5796,6 +5923,7 @@ begin
   end;
 end;
 
+{$I ufbdui.inc}
 {$I uelemhelpui.inc}
 
 procedure TPlcUI.DrawXref;
@@ -6696,9 +6824,24 @@ procedure TPlcUI.ElemInsert(K: Integer);
 var
   N: TNetwork;
   Ce: TLadCell;
+  S: string;
 begin
   if (K < 0) or (K > High(FElems)) then Exit;
   N := CurNet;
+  if FElemLang in ['F', 'K'] then
+  begin
+    // a box ('#box:id', '#box:call:"Block"'), or an operand for the selected pin
+    S := FElems[K].Snip;
+    if S = '' then Exit;
+    if Copy(S, 1, Length(FbdBoxSnip)) = FbdBoxSnip then
+    begin
+      S := Copy(S, Length(FbdBoxSnip) + 1, MaxInt);
+      if Copy(S, 1, 5) = 'call:' then FbdInsert('call', Copy(S, 6, MaxInt), -1, -1)
+      else FbdInsert(S, '', -1, -1);
+    end
+    else FbdPutOperand(ElemText(S));
+    Exit;
+  end;
   if (N <> nil) and (N.Kind = nkLAD) and (FElemLang = 'L') then
   begin
     // LAD: an element into the selected cell (a CALL with its block), a name as the operand of the element
@@ -6771,6 +6914,34 @@ begin
   if Y < 160 then FProgScroll := FProgScroll - 12;
   // the place under the mouse: a text line, or a LAD element with an operand
   if (CurBlock = nil) or not HitAt(X, Y, Hd) then Exit;
+  if (Hd.Id shr 16 = acFbdHit) and ((Hd.Id and $FFFF) <= High(FFbdHits)) and (FFbdHits[Hd.Id and $FFFF].Kind in [0, 1, 2, 4]) then
+  begin
+    // FBD / CFC: a box or a pin
+    FDropKind := 6;
+    FDropFbd := Hd.Id and $FFFF;
+    FDropNet := FFbdHits[FDropFbd].NI;
+    FDropX := Hd.R.Left;
+    FDropY := Hd.R.Top;
+    FDropW := Hd.R.Right - Hd.R.Left;
+    FDropH := Hd.R.Bottom - Hd.R.Top;
+    Exit;
+  end;
+  if (Hd.Id shr 16 = acCfcChart) or ((Hd.Id shr 16 = acFbdHit) and ((Hd.Id and $FFFF) <= High(FFbdHits)) and
+    (FFbdHits[Hd.Id and $FFFF].Kind = 5)) then
+  begin
+    // CFC: a free place of the chart (FBD: a new root)
+    FDropKind := 7;
+    if Hd.Id shr 16 = acCfcChart then FDropNet := Hd.Id and $FFFF else FDropNet := FFbdHits[Hd.Id and $FFFF].NI;
+    if FDropNet < CurBlock.NetCount then
+    begin
+      FDropCfcX := Max(0, Round((X - Hd.R.Left + GetHS(CurBlock.Net(FDropNet))) / CfcGrid));
+      FDropCfcY := Max(0, Round((Y - Hd.R.Top) / CfcGrid));
+      if CurBlock.Net(FDropNet).Kind = nkFBD then FDropCfcX := -1;
+    end;
+    FDropX := X;
+    FDropY := Y;
+    Exit;
+  end;
   if Hd.Id shr 16 = acStlLine then
   begin
     CharW := Max(1, TxtW(fkMono, 13, 'M'));
@@ -7025,6 +7196,13 @@ begin
   N := CurNet;
   D.Layer := lyText;
   if N = nil then Exit;
+  if N.Kind in [nkFBD, nkCFC] then
+  begin
+    // FBD / CFC: their boxes and the project's operands
+    if N.Kind = nkFBD then Txt(fkUIB, 12, X, Y, 'FBD elements', cRedDark) else Txt(fkUIB, 12, X, Y, 'CFC elements', cRedDark);
+    if N.Kind = nkFBD then DrawElems(X, Y + 22, W, ElemViewH, 'F') else DrawElems(X, Y + 22, W, ElemViewH, 'K');
+    Exit;
+  end;
   if N.Kind in [nkSCL, nkSTL] then
   begin
     // the language help: text to select, copy and drag into the code
@@ -7412,8 +7590,14 @@ begin
     Rc(FDropX - 1, FDropY, 2.5, 17, cRed);
     El(FDropX, FDropY - 1, 3, 3, cRed);
   end
-  else if FDropKind = 2 then
+  else if (FDropKind = 2) or (FDropKind = 6) then
     RRL(FDropX, FDropY, FDropW, FDropH, 4, 2.4, cRed)
+  else if FDropKind = 7 then
+  begin
+    // a new block here
+    RRL(FDropX - 2, FDropY - 2, 96, 40, 4, 1.6, cRed);
+    El(FDropX, FDropY, 3, 3, cRed);
+  end
   else if FDropKind = 4 then
   begin
     // where the new rows go in the watch table
@@ -7535,6 +7719,14 @@ begin
   // the help of an element: Esc closes it, the arrows / pages scroll it; F1 on an element of the panel opens it
   if FEhOn and not FCtxOn then
   begin
+    if (Key = ukChar) and (umCtrl in Mods) then
+    begin
+      case UpCase(Ch) of
+        'C', #3: EhCopySel;
+        'A', #1: EhSelectAll;
+      end;
+      Exit;
+    end;
     case Key of
       ukEsc: EhClose;
       ukUp: FEhScroll := FEhScroll - 40;
@@ -8217,9 +8409,13 @@ begin
     'ioimport': Id := Act(acIoImport, 0);
     'iohelp': Id := Act(acIoHelp, 0);
     'addscl': Id := Act(acAddMenu, 2);
+    'addfbd': Id := Act(acAddMenu, 3);
+    'addcfc': Id := Act(acAddMenu, 4);
     'redo': Id := Act(acRedo, 0);
     'elem': Id := Act(acElem, Par);
     'ehclose': Id := Act(acEhClose, 0);
+    'ehtitle': Id := Act(acEhMove, 0);
+    'ehgrip': Id := Act(acEhSize, 10);
     'ehnext': Id := Act(acEhNext, 0);
     'ehins': Id := Act(acEhIns, 0);
     'sclsrc': Id := Act(acSclSrcMenu, 0);
@@ -8810,7 +9006,15 @@ begin
         if (Id and $FFFF) <= High(FElems) then
         begin
           FElemPress := Id and $FFFF;
-          if FElemLang = 'L' then
+          if FElemLang in ['F', 'K'] then
+          begin
+            if FElems[Id and $FFFF].Snip <> '' then
+              OpenCtx(FMX, FMY, ['Put onto the selected pin / box', 'Help'#9'F1'], [Act(acElemIns, Id and $FFFF),
+                Act(acEhOpen, Id and $FFFF)], [(CurNet <> nil) and (CurNet.Kind in [nkFBD, nkCFC]), True])
+            else
+              OpenCtx(FMX, FMY, ['Help'#9'F1'], [Act(acEhOpen, Id and $FFFF)], [True]);
+          end
+          else if FElemLang = 'L' then
           begin
             if (FElems[Id and $FFFF].Kind >= 0) or (FElems[Id and $FFFF].Snip <> '') then
               OpenCtx(FMX, FMY, ['Put into the selected cell', 'Help'#9'F1'], [Act(acElemIns, Id and $FFFF),
@@ -8824,6 +9028,28 @@ begin
               [(CurNet <> nil) and (CurNet.Kind in [nkSCL, nkSTL]), True, True])
           else
             OpenCtx(FMX, FMY, ['Help'#9'F1'], [Act(acEhOpen, Id and $FFFF)], [True]);
+          Exit;
+        end;
+      acFbdHit:
+        begin
+          FbdMenu(Id and $FFFF);
+          Exit;
+        end;
+      acCfcChart:
+        begin
+          DoClick(Act(acNetSel, Id and $FFFF), '');
+          FFbdNode := 0;
+          Exit;
+        end;
+      acEhText:
+        begin
+          if not EhHasSel then
+          begin
+            FEhSel0 := EhPosAt(FMX, FMY);
+            FEhSel1 := FEhSel0;
+          end;
+          OpenCtx(FMX, FMY, ['Copy'#9'Ctrl+C', 'Select all'#9'Ctrl+A', 'Copy the page'], [Act(acEhSelCopy, 0),
+            Act(acEhSelAll, 0), Act(acEhCopy, 0)], [EhHasSel, True, True]);
           Exit;
         end;
       acHelp:
@@ -8855,12 +9081,18 @@ begin
         if (CurBlock <> nil) and ((Id and $FFFF) < CurBlock.NetCount) then
         begin
           FNetSel := Id and $FFFF;
+          N := CurBlock.Net(Id and $FFFF);
           OpenCtx(FMX, FMY, ['Add LAD network above', 'Add LAD network below', 'Add STL network above',
-            'Add STL network below', 'Add SCL network above', 'Add SCL network below',
+            'Add STL network below', 'Add SCL network above', 'Add SCL network below', 'Add FBD network above',
+            'Add FBD network below', 'Add CFC network above', 'Add CFC network below',
+            'Convert to FBD', 'Convert to CFC',
             'Export network as text ...', 'Export network as JSON ...'],
             [Act(acAddNet, 0), Act(acAddNet, 1), Act(acAddNet, 2), Act(acAddNet, 3), Act(acAddNet, 4), Act(acAddNet, 5),
+            Act(acAddNet, 6), Act(acAddNet, 7), Act(acAddNet, 8), Act(acAddNet, 9),
+            Act(acNetConvert, (Id and $FFFF) * 4 + 0), Act(acNetConvert, (Id and $FFFF) * 4 + 1),
             Act(acExportPc, 1 * 4096 + 0 * 1024 + (Id and $FFFF)), Act(acExportPc, 1 * 4096 + 1 * 1024 + (Id and $FFFF))],
-            [True, True, HasStl(Project.Family), HasStl(Project.Family), True, True, True, True]);
+            [True, True, HasStl(Project.Family), HasStl(Project.Family), True, True, True, True, True, True,
+            (N.Kind in [nkLAD, nkCFC]) and NetHasCode(N), (N.Kind in [nkLAD, nkFBD]) and NetHasCode(N), True, True]);
           Exit;
         end;
       acStlLine:
@@ -9643,6 +9875,7 @@ var
 begin
   Result := False;
   if N = nil then Exit;
+  if N.Kind in [nkFBD, nkCFC] then Exit(Length(N.Nodes) > 0);
   if N.Kind = nkLAD then
   begin
     for R := 0 to N.Rows - 1 do
@@ -9811,8 +10044,14 @@ var
   N: TNetwork;
   Ce: TLadCell;
   TN, TR, TC, R1, C1, R2, C2: Integer;
+  S: string;
 begin
   FVsDrag := -1;
+  if Id shr 16 = acFbdHit then
+  begin
+    FbdDragEnd(Id, X, Y);
+    Exit;
+  end;
   if Id shr 16 = acCell then
   begin
     if (FLadMode = 2) and LadTarget(TN, TR, TC) then
@@ -9888,6 +10127,34 @@ begin
     end
     else if FDropKind = 4 then
       WatchDrop(FVarDrag, FDropRow)
+    else if (FDropKind = 6) or (FDropKind = 7) then
+    begin
+      // onto a box / a pin of FBD / CFC (6), onto the free chart (7)
+      if FDropKind = 6 then FbdSelect(FFbdHits[FDropFbd])
+      else
+      begin
+        FNetSel := FDropNet;
+        FStlNet := -1;
+        FFbdNet := FDropNet;
+        FFbdNode := 0;
+        FFbdPin := -1;
+      end;
+      if (Id shr 16 = acElem) and (FElemPress >= 0) and (FElemPress <= High(FElems)) then S := FElems[FElemPress].Snip
+      else S := FVarDrag;
+      if Copy(S, 1, Length(FbdBoxSnip)) = FbdBoxSnip then
+      begin
+        S := Copy(S, Length(FbdBoxSnip) + 1, MaxInt);
+        if FDropKind = 7 then
+        begin
+          if Copy(S, 1, 5) = 'call:' then FbdInsert('call', Copy(S, 6, MaxInt), FDropCfcX, FDropCfcY)
+          else FbdInsert(S, '', FDropCfcX, FDropCfcY);
+        end
+        else if Copy(S, 1, 5) = 'call:' then FbdInsert('call', Copy(S, 6, MaxInt), -1, -1)
+        else FbdInsert(S, '', -1, -1);
+      end
+      else if (FDropKind = 6) and (S <> '') then FbdPutOperand(ElemText(S))
+      else if S <> '' then Toast('an operand goes onto a pin of a box', True);
+    end
     else if (FDropKind = 3) and (Id shr 16 = acElem) then
     begin
       // an element of the LAD list into the cell where it was dropped
@@ -9916,6 +10183,8 @@ var
   S, St: string;
   C: TBGRAPixel;
 begin
+  SetLength(FFbdHits, 0);
+  SetLength(FFbdFlds, 0);
   // ---------- blocks: the list and its buttons scroll when they do not fit ----------
   BH := Project.BlockCount * 48 + 8 + 4 * 34 + 28 + 6;
   if Project.FindBlock(bkOB, 1) = nil then BH := BH + 34;
@@ -9978,18 +10247,20 @@ begin
     Exit;
   end;
   // a new network goes above or below the selected one (the menu asks)
-  Button(280, 112, 92, 28, '+ LAD network', Act(acAddMenu, 0), bsNormal, True, 11);
-  Button(376, 112, 92, 28, '+ STL network', Act(acAddMenu, 1), bsNormal, Project.Family <> cfS71200, 11);
-  Button(472, 112, 92, 28, '+ SCL network', Act(acAddMenu, 2), bsNormal, True, 11);
-  if FMonitor then Button(568, 112, 86, 28, 'Monitor: on', Act(acMonitor, 0), bsToggleOn, True, 11)
-  else Button(568, 112, 86, 28, 'Monitor', Act(acMonitor, 0), bsNormal, True, 11);
-  Button(658, 112, 70, 28, 'Compile', Act(acCompile, 0), bsNormal, True, 11);
-  Button(732, 112, 84, 28, 'Download', Act(acDownload, 0), bsPrimary, True, 11);
-  if FClaudeMenu or FChatOpen then Button(820, 112, 60, 28, 'AI ▼', Act(acClaude, 0), bsToggleOn, True, 11)
-  else Button(820, 112, 60, 28, 'AI ▼', Act(acClaude, 0), bsGold, True, 11);
+  Button(280, 112, 54, 28, '+ LAD', Act(acAddMenu, 0), bsNormal, True, 11);
+  Button(338, 112, 54, 28, '+ STL', Act(acAddMenu, 1), bsNormal, Project.Family <> cfS71200, 11);
+  Button(396, 112, 54, 28, '+ SCL', Act(acAddMenu, 2), bsNormal, True, 11);
+  Button(454, 112, 54, 28, '+ FBD', Act(acAddMenu, 3), bsNormal, True, 11);
+  Button(512, 112, 54, 28, '+ CFC', Act(acAddMenu, 4), bsNormal, True, 11);
+  if FMonitor then Button(572, 112, 86, 28, 'Monitor: on', Act(acMonitor, 0), bsToggleOn, True, 11)
+  else Button(572, 112, 86, 28, 'Monitor', Act(acMonitor, 0), bsNormal, True, 11);
+  Button(662, 112, 70, 28, 'Compile', Act(acCompile, 0), bsNormal, True, 11);
+  Button(736, 112, 84, 28, 'Download', Act(acDownload, 0), bsPrimary, True, 11);
+  if FClaudeMenu or FChatOpen then Button(824, 112, 60, 28, 'AI ▼', Act(acClaude, 0), bsToggleOn, True, 11)
+  else Button(824, 112, 60, 28, 'AI ▼', Act(acClaude, 0), bsGold, True, 11);
   // undo / redo of every change (Ctrl+Z, Ctrl+Y)
-  Button(886, 112, 58, 28, 'Undo', Act(acUndo, 0), bsNormal, Length(FPUndo) > 0, 11);
-  Button(948, 112, 58, 28, 'Redo', Act(acRedo, 0), bsNormal, Length(FPRedo) > 0, 11);
+  Button(890, 112, 58, 28, 'Undo', Act(acUndo, 0), bsNormal, Length(FPUndo) > 0, 11);
+  Button(952, 112, 58, 28, 'Redo', Act(acRedo, 0), bsNormal, Length(FPRedo) > 0, 11);
   D.Layer := lyText;
   if FDirty then
   begin
@@ -10105,7 +10376,7 @@ begin
       Txt(fkUI, 11, 1328, 136, 'Select a LAD network to place', cInkSoft);
       Txt(fkUI, 11, 1328, 152, 'contacts, coils and boxes.', cInkSoft);
     end;
-    if (CurNet <> nil) and (CurNet.Kind in [nkSTL, nkSCL]) then DrawProps(1328, 176, 236, 200)
+    if (CurNet <> nil) and (CurNet.Kind in [nkSTL, nkSCL, nkFBD, nkCFC]) then DrawProps(1328, 176, 236, 200)
     else DrawProps(1328, 452, 236, 200);
   end;
   // compile messages
@@ -13426,20 +13697,22 @@ begin
         // no network yet: it is the first; else above / below the selected one
         if CurBlock.NetCount = 0 then DoClick(Act(acAddNet, Par * 2 + 1), '')
         else
-          OpenCtx(280 + Par * 96, 142, [Format('Above network %d', [FNetSel + 1]),
+          OpenCtx(280 + Par * 58, 142, [Format('Above network %d', [FNetSel + 1]),
             Format('Below network %d', [FNetSel + 1])], [Act(acAddNet, Par * 2), Act(acAddNet, Par * 2 + 1)],
             [True, True]);
       end;
     acAddNet:
       if CurBlock <> nil then
       begin
-        // Par: the kind * 2 (0 LAD, 1 STL, 2 SCL) + 1 below the selected network
+        // Par: the kind * 2 (0 LAD, 1 STL, 2 SCL, 3 FBD, 4 CFC) + 1 below the selected network
         B := CurBlock;
         if B.NetCount = 0 then I := 0
         else I := EnsureRange(FNetSel, 0, B.NetCount - 1) + Par mod 2;
         case Par div 2 of
           0: N := B.AddNet(nkLAD);
           1: N := B.AddNet(nkSTL);
+          3: N := B.AddNet(nkFBD);
+          4: N := B.AddNet(nkCFC);
         else
           N := B.AddNet(nkSCL);
         end;
@@ -13448,7 +13721,13 @@ begin
         FCellR := 0;
         FCellC := 0;
         LadCollapse;
-        if N.Kind = nkLAD then FStlNet := -1
+        if N.Kind in [nkLAD, nkFBD, nkCFC] then
+        begin
+          FStlNet := -1;
+          FFbdNet := I;
+          FFbdNode := 0;
+          FFbdPin := -1;
+        end
         else
         begin
           FStlNet := I;
@@ -13498,7 +13777,7 @@ begin
       end;
     acNetKind:
       begin
-        // LAD -> STL -> SCL -> LAD (the S7-1200 has no STL); only an empty network
+        // LAD -> STL -> SCL -> FBD -> CFC -> LAD (the S7-1200 has no STL); only an empty network
         N := CurBlock.Net(Par);
         if NetHasCode(N) then
           Toast('the network has code: its language stays (a new network for another language)', True)
@@ -13507,6 +13786,8 @@ begin
           case N.Kind of
             nkLAD: if HasStl(Project.Family) then N.Kind := nkSTL else N.Kind := nkSCL;
             nkSTL: N.Kind := nkSCL;
+            nkSCL: N.Kind := nkFBD;
+            nkFBD: N.Kind := nkCFC;
           else
             N.Kind := nkLAD;
           end;
@@ -14125,6 +14406,30 @@ begin
         if (I >= 0) and (I <= High(FElems)) then EhOpen(I);
       end;
     acEhIns: EhInsert;
+    acFbdCtx: FbdCtx(Par);
+    acFbdType: FbdSetType(Par);
+    acFbdCmp:
+      if FbdSelNode(N, I) and (Par <= Ord(High(TCmpOp))) then
+      begin
+        N.Nodes[I].Cmp := TCmpOp(Par);
+        MarkDirty;
+      end;
+    acNetConvert: NetConvert(Par);
+    acCfcSize:
+      if (CurBlock <> nil) and (Par div 4 < CurBlock.NetCount) then
+      begin
+        N := CurBlock.Net(Par div 4);
+        case Par mod 4 of
+          0: N.ChartH := Max(20, N.ChartH - 6);
+          1: N.ChartH := Min(200, N.ChartH + 6);
+          2: N.ChartW := Max(40, N.ChartW - 20);
+        else
+          N.ChartW := Min(400, N.ChartW + 20);
+        end;
+        MarkDirty;
+      end;
+    acEhSelCopy: EhCopySel;
+    acEhSelAll: EhSelectAll;
     acEhCopy:
       begin
         ClipboardOut := ElemHelpText(FEhPage);
@@ -14573,6 +14878,16 @@ var
   P: TTextPos;
   Hd: THit;
 begin
+  if (Id shr 16 = acEhMove) or (Id shr 16 = acEhSize) or (Id shr 16 = acEhText) then
+  begin
+    EhDrag(Id, X, Y);
+    Exit;
+  end;
+  if (Id shr 16 = acFbdHit) or (Id shr 16 = acCfcChart) or (Id shr 16 = acCfcHS) then
+  begin
+    FbdDrag(Id, X, Y);
+    Exit;
+  end;
   if Id shr 16 = acHScroll then
   begin
     NI := Id and $FFFF;
@@ -15573,6 +15888,7 @@ var
   S11: string;
   N: TNetwork;
   Ce: TLadCell;
+  I9: Integer;
 begin
   if FXrefOn and (Key = ukEsc) then
   begin
@@ -15649,6 +15965,23 @@ begin
   if (Key = ukChar) and (umCtrl in Mods) and (UpCase(Ch) in ['Z', 'Y']) and ((N = nil) or (N.Kind <> nkLAD)) then
   begin
     ProgUndo((UpCase(Ch) = 'Y') or (umShift in Mods));
+    Exit;
+  end;
+  if (N <> nil) and (N.Kind in [nkFBD, nkCFC]) then
+  begin
+    // FBD / CFC: Del deletes the selected box / wire / operand, F1 the help of the box, Esc no selection
+    case Key of
+      ukDel, ukBack: FbdDelete;
+      ukEsc:
+        begin
+          FFbdNode := 0;
+          FFbdPin := -1;
+          FFbdWire := False;
+        end;
+      ukF1:
+        if FbdSelNode(N, I9) then FbdHelp(N.Nodes[I9].Box)
+        else InfoRequested := True;
+    end;
     Exit;
   end;
   if (N = nil) or (N.Kind <> nkLAD) then Exit;
@@ -15933,6 +16266,7 @@ begin
         if B <> nil then B.Version := Trim(S);
         MarkDirty;
       end;
+    fdFbd: FbdCommit(Par, S);
     fdIfName, fdIfType, fdIfStart, fdIfComment:
       begin
         B := CurBlock;

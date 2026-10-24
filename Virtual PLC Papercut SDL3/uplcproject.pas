@@ -37,7 +37,7 @@ const
   MaxLadRows = 8;
 
 type
-  TNetKind = (nkLAD, nkSTL, nkSCL);
+  TNetKind = (nkLAD, nkSTL, nkSCL, nkFBD, nkCFC);
   TLadKind = (lkEmpty, lkWire, lkNO, lkNC, lkPos, lkNeg, lkNot, lkCoil, lkCoilNeg, lkSet, lkReset,
     lkTON, lkTOF, lkTP, lkTONR, lkSD, lkSE, lkSP, lkSS, lkSF, lkCU, lkCD, lkSC,
     lkCTU, lkCTD, lkCTUD, lkCmp, lkMove, lkAdd, lkSub, lkMul, lkDiv, lkNormX, lkScaleX, lkCall,
@@ -65,6 +65,29 @@ type
     Args: string;     // lkCall: the actual parameters in pin order (CallPins), separated by |
   end;
 
+  { FBD / CFC: a box (node) with its pins. An input pin has an operand / a constant, or a wire from an
+    output pin of another box (Src: its Id, SrcPin: the index of the output); an output pin may write an
+    operand. The box ids are those of uFbd (and, or, ton, add ..) }
+  TFbdPin = record
+    Name: string;
+    Opnd: string;
+    Src, SrcPin: Integer;   // Src = 0: no wire
+    Neg: Boolean;           // an input: negated (the small circle)
+  end;
+  TFbdPins = array of TFbdPin;
+  TFbdNode = record
+    Id: Integer;            // > 0, unique in the network
+    Box: string;
+    Inst: string;           // above the box: the instance (timers, counters, edges), the operand (=, S, R, P, N,
+                            // INC, DEC), the block (CALL)
+    DType, DType2: TDataType;
+    Cmp: TCmpOp;
+    Ins, Outs: TFbdPins;
+    X, Y: Integer;          // CFC: the place on the chart (grid units of 10 px)
+    Order: Integer;         // CFC: the execution order (1 ..)
+  end;
+  TFbdNodes = array of TFbdNode;
+
   { TNetwork }
 
   TNetwork = class
@@ -75,6 +98,10 @@ type
     Cols: Integer;              // LAD: columns (LadCols .. MaxLadCols)
     Cells: array of TLadCell;   // Rows * Cols, row by row
     Stl: TStringList;
+    Nodes: TFbdNodes;           // FBD / CFC: the boxes
+    ChartW, ChartH: Integer;    // CFC: the size of the chart (grid units)
+    function NodeIndex(Id: Integer): Integer;   // -1: none
+    function NewNodeId: Integer;
     constructor Create(AKind: TNetKind);
     destructor Destroy; override;
     function Cell(R, C: Integer): TLadCell;
@@ -330,6 +357,13 @@ function LadParamName(K: TLadKind; I: Integer): string;
 function LadOpndName(K: TLadKind): string;
 function EmptyCell: TLadCell;
 function NewCell(K: TLadKind; const AOpnd: string): TLadCell;
+
+{ FBD / CFC: a copy of the boxes (their pins copied too); the JSON of the boxes (into / from a network
+  object of the project file); the name of a language }
+function CopyNodes(const A: TFbdNodes): TFbdNodes;
+procedure NodesToJson(N: TNetwork; Obj: TJSONObject);
+procedure NodesFromJson(N: TNetwork; Obj: TJSONObject);
+function NetLangName(K: TNetKind): string;
 
 { the pins of a CALL box: the parameters of the block in the order Input, InOut, Output, Return
   (indexes into Blk.Iface.Vars) }
@@ -708,6 +742,8 @@ begin
   Stl := TStringList.Create;
   Cols := LadCols;
   SetRows(1);
+  ChartW := 120;
+  ChartH := 42;
 end;
 
 destructor TNetwork.Destroy;
@@ -807,6 +843,206 @@ begin
   Cols := Src.Cols;
   Cells := Copy(Src.Cells);
   Stl.Assign(Src.Stl);
+  Nodes := CopyNodes(Src.Nodes);
+  ChartW := Src.ChartW;
+  ChartH := Src.ChartH;
+end;
+
+function TNetwork.NodeIndex(Id: Integer): Integer;
+var
+  K: Integer;
+begin
+  for K := 0 to High(Nodes) do
+    if Nodes[K].Id = Id then Exit(K);
+  Result := -1;
+end;
+
+function TNetwork.NewNodeId: Integer;
+var
+  K: Integer;
+begin
+  Result := 1;
+  for K := 0 to High(Nodes) do
+    if Nodes[K].Id >= Result then Result := Nodes[K].Id + 1;
+end;
+
+function CopyNodes(const A: TFbdNodes): TFbdNodes;
+var
+  K: Integer;
+begin
+  // the pins are arrays of their own: copied too (a dynamic array is shared, not copied on a write)
+  Result := Copy(A);
+  for K := 0 to High(Result) do
+  begin
+    Result[K].Ins := Copy(A[K].Ins);
+    Result[K].Outs := Copy(A[K].Outs);
+  end;
+end;
+
+function NetLangName(K: TNetKind): string;
+begin
+  case K of
+    nkSTL: Result := 'STL';
+    nkSCL: Result := 'SCL';
+    nkFBD: Result := 'FBD';
+    nkCFC: Result := 'CFC';
+  else
+    Result := 'LAD';
+  end;
+end;
+
+procedure NodesToJson(N: TNetwork; Obj: TJSONObject);
+var
+  A, AP: TJSONArray;
+  JN, JP: TJSONObject;
+  K, I, S: Integer;
+begin
+  A := TJSONArray.Create;
+  for K := 0 to High(N.Nodes) do
+    with N.Nodes[K] do
+    begin
+      JN := TJSONObject.Create;
+      JN.Add('id', Id);
+      JN.Add('box', Box);
+      if Inst <> '' then JN.Add('inst', Inst);
+      JN.Add('type', DataTypeNames[DType]);
+      if DType2 <> dtNone then JN.Add('type2', DataTypeNames[DType2]);
+      if Box = 'cmp' then JN.Add('cmp', CmpOpNames[Cmp]);
+      if N.Kind = nkCFC then
+      begin
+        JN.Add('x', X);
+        JN.Add('y', Y);
+        JN.Add('order', Order);
+      end;
+      AP := TJSONArray.Create;
+      for I := 0 to High(Ins) do
+      begin
+        JP := TJSONObject.Create;
+        JP.Add('pin', Ins[I].Name);
+        if Ins[I].Opnd <> '' then JP.Add('op', Ins[I].Opnd);
+        S := N.NodeIndex(Ins[I].Src);
+        if (Ins[I].Src > 0) and (S >= 0) and (Ins[I].SrcPin <= High(N.Nodes[S].Outs)) then
+          JP.Add('from', Format('%d.%s', [Ins[I].Src, N.Nodes[S].Outs[Ins[I].SrcPin].Name]));
+        if Ins[I].Neg then JP.Add('neg', True);
+        AP.Add(JP);
+      end;
+      JN.Add('in', AP);
+      AP := TJSONArray.Create;
+      for I := 0 to High(Outs) do
+      begin
+        JP := TJSONObject.Create;
+        JP.Add('pin', Outs[I].Name);
+        if Outs[I].Opnd <> '' then JP.Add('op', Outs[I].Opnd);
+        AP.Add(JP);
+      end;
+      JN.Add('out', AP);
+      A.Add(JN);
+    end;
+  Obj.Add('nodes', A);
+  if N.Kind = nkCFC then
+  begin
+    Obj.Add('chartw', N.ChartW);
+    Obj.Add('charth', N.ChartH);
+  end;
+end;
+
+procedure NodesFromJson(N: TNetwork; Obj: TJSONObject);
+var
+  A, AP: TJSONArray;
+  JN, JP: TJSONObject;
+  K, I, J, Q, S, Lo, Hi: Integer;
+  T: TDataType;
+  F, Txt: string;
+  Co: TCmpOp;
+begin
+  N.Nodes := nil;
+  A := Obj.Get('nodes', TJSONArray(nil));
+  if A <> nil then
+  begin
+    SetLength(N.Nodes, A.Count);
+    for K := 0 to A.Count - 1 do
+    begin
+      JN := A.Objects[K];
+      with N.Nodes[K] do
+      begin
+        Id := JN.Get('id', K + 1);
+        Box := LowerCase(JN.Get('box', 'and'));
+        Inst := JN.Get('inst', '');
+        DType := dtBool;
+        if ParseDataType(JN.Get('type', 'Bool'), T, Lo, Hi) then DType := T;
+        DType2 := dtNone;
+        if ParseDataType(JN.Get('type2', ''), T, Lo, Hi) then DType2 := T;
+        Cmp := coEQ;
+        Txt := JN.Get('cmp', '==');
+        for Co := Low(TCmpOp) to High(TCmpOp) do
+          if CmpOpNames[Co] = Txt then Cmp := Co;
+        X := JN.Get('x', 0);
+        Y := JN.Get('y', 0);
+        Order := JN.Get('order', K + 1);
+        AP := JN.Get('in', TJSONArray(nil));
+        if AP <> nil then
+        begin
+          SetLength(Ins, AP.Count);
+          for I := 0 to AP.Count - 1 do
+          begin
+            JP := AP.Objects[I];
+            Ins[I].Name := JP.Get('pin', '');
+            Ins[I].Opnd := JP.Get('op', '');
+            Ins[I].Neg := JP.Get('neg', False);
+            Ins[I].Src := 0;
+            Ins[I].SrcPin := 0;
+            // "from": "3.Q" (the pin name is matched when every box is read)
+            F := JP.Get('from', '');
+            if F <> '' then
+            begin
+              Q := Pos('.', F);
+              if Q = 0 then Q := Length(F) + 1;
+              Ins[I].Src := StrToIntDef(Copy(F, 1, Q - 1), 0);
+              Ins[I].Opnd := #1 + Copy(F, Q + 1, MaxInt);
+            end;
+          end;
+        end;
+        AP := JN.Get('out', TJSONArray(nil));
+        if AP <> nil then
+        begin
+          SetLength(Outs, AP.Count);
+          for I := 0 to AP.Count - 1 do
+          begin
+            Outs[I].Name := AP.Objects[I].Get('pin', '');
+            Outs[I].Opnd := AP.Objects[I].Get('op', '');
+            Outs[I].Src := 0;
+          end;
+        end;
+      end;
+    end;
+    // the wires: the output pin by its name
+    for K := 0 to High(N.Nodes) do
+      for I := 0 to High(N.Nodes[K].Ins) do
+        if (N.Nodes[K].Ins[I].Src > 0) and (Copy(N.Nodes[K].Ins[I].Opnd, 1, 1) = #1) then
+        begin
+          F := Copy(N.Nodes[K].Ins[I].Opnd, 2, MaxInt);
+          N.Nodes[K].Ins[I].SrcPin := 0;
+          S := N.NodeIndex(N.Nodes[K].Ins[I].Src);
+          if S < 0 then
+          begin
+            N.Nodes[K].Ins[I].Src := 0;
+            N.Nodes[K].Ins[I].Opnd := '';
+          end
+          else
+          begin
+            // the pin by its name; a box written without its outputs: the name stays (#1 name) for uFbd
+            for J := 0 to High(N.Nodes[S].Outs) do
+              if SameText(N.Nodes[S].Outs[J].Name, F) then
+              begin
+                N.Nodes[K].Ins[I].SrcPin := J;
+                N.Nodes[K].Ins[I].Opnd := '';
+              end;
+            if (Length(N.Nodes[S].Outs) > 0) or (F = '') then N.Nodes[K].Ins[I].Opnd := '';
+          end;
+        end;
+  end;
+  N.ChartW := Obj.Get('chartw', 120);
+  N.ChartH := Obj.Get('charth', 42);
 end;
 
 { TBlock }
@@ -1912,7 +2148,12 @@ begin
   Result := TJSONObject.Create;
   Result.Add('title', N.Title);
   Result.Add('comment', N.Comment);
-  if N.Kind in [nkSTL, nkSCL] then
+  if N.Kind in [nkFBD, nkCFC] then
+  begin
+    Result.Add('lang', NetLangName(N.Kind));
+    NodesToJson(N, Result);
+  end
+  else if N.Kind in [nkSTL, nkSCL] then
   begin
     AStl := TJSONArray.Create;
     for K := 0 to N.Stl.Count - 1 do AStl.Add(N.Stl[K]);
@@ -2332,7 +2573,12 @@ begin
           for J := 0 to ANets.Count - 1 do
           begin
             JN := ANets.Objects[J];
-            if (JN.Get('lang', 'LAD') = 'STL') or (JN.Get('lang', 'LAD') = 'SCL') then
+            if (JN.Get('lang', 'LAD') = 'FBD') or (JN.Get('lang', 'LAD') = 'CFC') then
+            begin
+              if JN.Get('lang', 'LAD') = 'FBD' then N := B.AddNet(nkFBD) else N := B.AddNet(nkCFC);
+              NodesFromJson(N, JN);
+            end
+            else if (JN.Get('lang', 'LAD') = 'STL') or (JN.Get('lang', 'LAD') = 'SCL') then
             begin
               if JN.Get('lang', 'LAD') = 'SCL' then
               begin

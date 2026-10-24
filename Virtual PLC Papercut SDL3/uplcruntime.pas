@@ -2344,7 +2344,12 @@ begin
   if (Pc < 0) or (Pc > High(B.Ops)) then Exit;
   Result := Format(' in %s network %d', [B.Title, B.Ops[Pc].Net + 1]);
   if (B.Ops[Pc].Net >= 0) and (B.Ops[Pc].Net <= High(B.Nets)) then
-    if B.Nets[B.Ops[Pc].Net].Kind in [nkSTL, nkSCL] then
+    if B.Nets[B.Ops[Pc].Net].Kind in [nkFBD, nkCFC] then
+    begin
+      if (B.Ops[Pc].Line >= 0) and (B.Ops[Pc].Line <= High(B.Nets[B.Ops[Pc].Net].LineNode)) then
+        Result := Result + Format(' box #%d', [B.Nets[B.Ops[Pc].Net].LineNode[B.Ops[Pc].Line]]);
+    end
+    else if B.Nets[B.Ops[Pc].Net].Kind in [nkSTL, nkSCL] then
       Result := Result + Format(' line %d', [B.Ops[Pc].Line + 1])
     else if B.Ops[Pc].Line >= 0 then
       Result := Result + Format(' row %d column %d', [B.Ops[Pc].Line div Max(1, B.Nets[B.Ops[Pc].Net].Cols) + 1,

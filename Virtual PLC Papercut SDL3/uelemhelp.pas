@@ -20,11 +20,11 @@ unit uElemHelp;
 interface
 
 uses
-  SysUtils, Classes, Math, StrUtils, uPlcTypes, uPlcProject, uSclElems;
+  SysUtils, Classes, Math, StrUtils, uPlcTypes, uPlcProject, uSclElems, uFbd;
 
 type
   THelpBlockKind = (hbHead, hbText, hbStep, hbBullet, hbCode, hbTable, hbLad, hbWave, hbBits, hbFlow,
-    hbCaption, hbNote);
+    hbCaption, hbNote, hbFbd, hbCfc);
   THelpBlock = record
     K: THelpBlockKind;
     S: string;
@@ -60,6 +60,8 @@ begin
   case Lang of
     'L': Result := 'LAD';
     'S': Result := 'STL';
+    'F': Result := 'FBD';
+    'K': Result := 'CFC';
   else
     Result := 'SCL';
   end;
@@ -70,6 +72,60 @@ end;
 function NL(const S: string): string;
 begin
   Result := StringReplace(S, '\', LineEnding, [rfReplaceAll]);
+end;
+
+{ FBD / CFC: the text written for LAD in the words of boxes and pins }
+function Fx(const S: string): string;
+const
+  Pairs: array[0..21, 0..1] of string = (
+    ('EN is the rung on its left, ENO the power out (ENO = EN; FALSE when the result is invalid)',
+     'EN on its left: the box runs while it is TRUE (empty: always)'),
+    ('Put the condition contact (or nothing: the box runs always), then the box on the next cell.',
+     'Select the input pin the box feeds (or nothing: a new box), then double click the box in the list.'),
+    ('Put a contact (the start condition) in front of it, then the box on the next cell; it takes two cells.',
+     'Select the pin it feeds (or nothing: a new box), then double click the box; type or wire its IN.'),
+    ('Put the counting contact (often a P contact or a sensor), then the box on the next cell.',
+     'Double click the box; its CU: an operand (often a sensor) or the output of another box.'),
+    ('Put the signal contact, then the box; type the instance above it', 'Double click the box, type the instance above it'),
+    ('Click the box: type the inputs and the output in the properties panel on the right; choose the data type there.',
+     'Type the operands at its pins (or wire boxes into them); the data type: a click on the type under the title.'),
+    ('Click the box: type the instance above it and the pins in the properties panel.',
+     'Type the instance in the field above the box and the operands at its pins.'),
+    ('Click the box: type the instance above it', 'Type the instance in the field above the box'),
+    ('in the properties panel on the right', 'at its pins'),
+    ('in the properties panel', 'at its pins'),
+    ('Put a coil behind the box: it gets Q.', 'Select the box and double click = : the assignment gets Q.'),
+    ('Put it on the rung like a contact, then the coil.', 'Double click it; select it and double click = for the output.'),
+    ('Put it on the rung like a contact; type MIN, VAL and MAX.', 'Double click it; type MIN, VAL and MAX at its pins.'),
+    ('Put a CALL on the rung, then type the FC name or the instance DB above it', 'Double click CALL, type the FC or the instance DB above it'),
+    ('a box on the rung: ', 'a box: '),
+    ('a box like a contact: IN1 above, IN2 below; the operator and the type in it',
+     'a box: IN1 and IN2 on its left, Q on its right; the operator and the type in its title'),
+    ('is the rung on its left', 'is its first input (an operand, or the output of another box)'),
+    ('the power out on its right', 'the output on its right'),
+    ('the power out', 'the output'),
+    (' (the rung)', ''),
+    ('the rung', 'the input'),
+    ('a P contact in front of it', 'a P box before its EN'));
+  More: array[0..10, 0..1] of string = (
+    ('while EN has power', 'while EN is TRUE'),
+    ('use a P contact in front of it', 'use a P box before EN'),
+    ('while the power is on', 'while EN is TRUE'),
+    ('put a P contact in front', 'put a P box before EN'),
+    ('A contact box: the power goes through when', 'A box: Q is TRUE when'),
+    ('A comparison contact: the power goes through when', 'A comparison box: Q is TRUE when'),
+    ('the power goes on', 'Q is TRUE'),
+    ('the output: the power on the right of the box', 'the output of the box'),
+    ('|power', '|Q'),
+    ('power in|power out', 'IN|Q'),
+    ('Without power the target', 'While EN is FALSE the target'));
+var
+  K: Integer;
+begin
+  Result := S;
+  if not (Lg in ['F', 'K']) then Exit;
+  for K := 0 to High(More) do Result := StringReplace(Result, More[K, 0], More[K, 1], [rfReplaceAll]);
+  for K := 0 to High(Pairs) do Result := StringReplace(Result, Pairs[K, 0], Pairs[K, 1], [rfReplaceAll]);
 end;
 
 procedure Add(K: THelpBlockKind; const S: string);
@@ -89,17 +145,17 @@ end;
 
 procedure Txt(const S: string);
 begin
-  Add(hbText, S);
+  Add(hbText, Fx(S));
 end;
 
 procedure Step(const S: string);
 begin
-  Add(hbStep, S);
+  Add(hbStep, Fx(S));
 end;
 
 procedure Bul(const S: string);
 begin
-  Add(hbBullet, S);
+  Add(hbBullet, Fx(S));
 end;
 
 procedure Note(const S: string);
@@ -114,7 +170,7 @@ end;
 
 procedure Tab(const S: string);
 begin
-  Add(hbTable, NL(S));
+  Add(hbTable, NL(Fx(S)));
 end;
 
 procedure Pic(K: THelpBlockKind; const S, Cap: string);
@@ -125,7 +181,13 @@ end;
 
 procedure Lad(const S, Cap: string);
 begin
-  Pic(hbLad, S, Cap);
+  // FBD / CFC: the same rung as boxes (converted when the page is shown)
+  case Lg of
+    'F': Pic(hbFbd, S, Cap);
+    'K': Pic(hbCfc, S, Cap);
+  else
+    Pic(hbLad, S, Cap);
+  end;
 end;
 
 procedure Wave(const S, Cap: string);
@@ -162,7 +224,7 @@ end;
 procedure Syntax(const S: string);
 begin
   Head('Syntax');
-  Code(S);
+  Code(Fx(S));
 end;
 
 procedure Params(const Rows: string);
@@ -178,6 +240,20 @@ var
 begin
   Head('How to use it');
   case Lg of
+    'F':
+      begin
+        Step('Click a pin of a box in the FBD network (it gets a red frame) where the new box goes: its output feeds that ' +
+          'pin. A box selected (no pin): the new box comes after it and reads its output. Nothing selected: a new box ' +
+          '(a new tree below the others).');
+        Step('Double click the box in this list, or drag it by its grip onto a pin.');
+      end;
+    'K':
+      begin
+        Step('Double click the block in this list: it goes onto the chart (beside the selected block), or drag it by its ' +
+          'grip onto the chart where it goes.');
+        Step('Wire it: drag from an output pin to an input pin of another block. Move it by its title; the number in ' +
+          'its title is its place in the run order (the data flow decides, Run earlier / later between free blocks).');
+      end;
     'L':
       begin
         Step('Click the cell of the LAD network where the element goes (the cell gets a gold frame). A contact goes ' +
@@ -199,7 +275,9 @@ begin
     end;
   end;
   for K := 0 to High(Extra) do Step(Extra[K]);
-  if Lg = 'L' then
+  if Lg in ['F', 'K'] then
+    Step('Compile (F7), download (F8) and RUN (F5). Monitor (F9) shows the value at every pin; a TRUE wire is red.')
+  else if Lg = 'L' then
     Step('Compile (F7), download (F8) and RUN (F5). Monitor (F9) draws the power flow in red and the values at the ' +
       'pins.')
   else
@@ -282,7 +360,7 @@ begin
   if R then Pins := 'IN|Bool|the input: the time runs while it is TRUE\R|Bool|reset: ET := 0, Q := FALSE\'
   else Pins := 'IN|Bool|the start input\';
   case Lg of
-    'L':
+    'L', 'F', 'K':
       begin
         Syntax(Format('a box on the rung: IN is the rung on its left, Q the power out on its right.\' +
           'Above the box: its instance (%s or IEC_TIMER).\PT, %sET: the pins on its left / right.',
@@ -446,7 +524,7 @@ begin
     Summary('Count up and down. A rising edge of CU adds 1, of CD subtracts 1. R sets CV to 0 (it wins), LD loads PV. ' +
       'QU is TRUE while CV >= PV, QD while CV <= 0. Typical: the cars in a parking garage (in / out).');
   case Lg of
-    'L':
+    'L', 'F', 'K':
       begin
         if Name = 'CTU' then
           Syntax('a box: CU is the rung on its left, Q the power out.\Above: the instance (CTU_INT, IEC_COUNTER).\PV, R, CV: ' +
@@ -559,7 +637,7 @@ begin
     Summary('Flip-flop, set dominant. S1 = TRUE sets Q1, R = TRUE resets it; when both are TRUE, S1 wins (Q1 = TRUE). ' +
       'Typical: an alarm memory that must not be lost while the cause is there.');
   case Lg of
-    'L':
+    'L', 'F', 'K':
       begin
         Syntax('a box: ' + IfThen((Name = 'R_TRIG') or (Name = 'F_TRIG'), 'CLK', IfThen(Name = 'RS', 'S', 'S1')) +
           ' is the rung on its left, the power out on its right.\Above it: its instance (' + Name + ').');
@@ -627,7 +705,7 @@ procedure FnPage(const Name, Sum, Pins, SclSyn, SclEx, LadEx, StlEx, ExWhat, Tbl
 begin
   Summary(Sum);
   case Lg of
-    'L':
+    'L', 'F', 'K':
       begin
         Syntax('a box on the rung: EN is the rung on its left, ENO the power out (ENO = EN; FALSE when the result is ' +
           'invalid).\The inputs on its left, the output on its right; the data type in the box.');
@@ -869,9 +947,9 @@ begin
   else if (A = 'REAL') and (B = 'LREAL') then S := 'IN|OUT\0.1|0.100000001490116 (the Real error shows)'
   else if (A = 'LREAL') and (B = 'REAL') then S := 'IN|OUT\3.14159265358979|3.141593'
   else S := '';
-  if Lg = 'L' then
+  if Lg in ['L', 'F', 'K'] then
   begin
-    FnPage(Name, Sum + ' In LAD the CONV box does every conversion: the types of IN and OUT are chosen in the box.',
+    FnPage(Name, Sum + ' The CONV box does every conversion: the types of IN and OUT are chosen in the box.',
       'IN|' + A + '|the value\OUT|' + B + '|the converted value', '', '"Speed_R" := ' + Name + '("Speed_I");',
       'no "Enable";conv@' + A + '>' + B + ' "Speed_I"|"Speed_R";-', '', '', S, '', []);
     Exit;
@@ -1935,6 +2013,30 @@ procedure KeyPage(const E: TSclElem);
 begin
   Summary(E.Descr);
   Head('How to use it');
+  if Lg in ['F', 'K'] then
+  begin
+    if Pos('Del', E.Cap) = 1 then
+    begin
+      Step('Click a box (FBD: and the boxes that feed it go too), a wire (CFC: near its end at the pin) or a pin.');
+      Step('Del: the box / the wire / the operand of the pin goes. Undo (Ctrl+Z) takes it back.');
+    end
+    else if Pos('Ctrl+Z', E.Cap) = 1 then
+      Step('Ctrl+Z undoes the last change (200 steps), Ctrl+Y does it again (also the Undo / Redo buttons).')
+    else if Pos('drag a block', E.Cap) = 1 then
+      Step('Press the mouse on the title of a block and drag it: it moves by the grid of the chart; its wires follow.')
+    else if Pos('drag a pin', E.Cap) = 1 then
+    begin
+      Step('Press the mouse on an output pin (right side of a block) and drag: a red dashed line follows.');
+      Step('Release it on an input pin (left side) of another block: the wire is there; an operand of that pin goes.');
+    end
+    else
+    begin
+      Step('Click a pin of a box: it gets a red frame.');
+      Step('Double click a box in the list: it goes onto that pin and feeds it; the operand of the pin moves onto ' +
+        'its first input.');
+    end;
+    Exit;
+  end;
   case Lg of
     'L':
       begin
@@ -1986,7 +2088,12 @@ begin
   Kind := Copy(E.Cat, Length(ElemProject) + 1, MaxInt);
   Summary(E.Descr);
   Head('How to use it');
-  if Lg = 'L' then
+  if Lg in ['F', 'K'] then
+  begin
+    Step('Select a pin of a box (or a box: the field above it).');
+    Step('Double click this entry, or drag it onto the pin: it becomes the operand (an FC / an instance DB: a CALL box).');
+  end
+  else if Lg = 'L' then
   begin
     Step('Select a cell of the LAD network (a contact, a coil, a box pin).');
     Step('Double click this entry, or drag it onto the element: it becomes the operand (an FC / an instance DB: a CALL box).');
@@ -2008,6 +2115,140 @@ begin
   Txt('The right button on it (in the code) has Cross reference: every place where it is used.');
 end;
 
+{ ---------- FBD / CFC ---------- }
+
+procedure FbdLogicPage(const Id: string);
+var
+  Op: string;
+begin
+  Op := UpperCase(Id);
+  if Id = 'and' then
+    Summary('AND box: Q is TRUE only when every input is TRUE. It is the FBD form of contacts in series. More inputs: ' +
+      'the + in the box (or the right button: Add input); a small circle at an input negates it (NOT).')
+  else if Id = 'or' then
+    Summary('OR box: Q is TRUE when at least one input is TRUE. It is the FBD form of a parallel branch.')
+  else
+    Summary('XOR box: Q is TRUE when an odd number of inputs is TRUE (two inputs: when they differ).');
+  Syntax('a box ' + Op + ': IN1, IN2 (+ IN3 ..) on its left, Q on its right;\the inputs: operands (%I0.0, "Start", #In) or ' +
+    'the outputs of other boxes');
+  Params('IN1, IN2 ..|Bool|the inputs (negated: the circle)\Q|Bool|the result');
+  HowTo(['Type the operands at its inputs (or put boxes onto them); the right button on an input: Negate this input.',
+    'Select the box and double click = : the assignment of Q to an output.']);
+  Head('Truth table');
+  if Id = 'and' then Tab('IN1|IN2|Q\FALSE|FALSE|FALSE\FALSE|TRUE|FALSE\TRUE|FALSE|FALSE\TRUE|TRUE|TRUE')
+  else if Id = 'or' then Tab('IN1|IN2|Q\FALSE|FALSE|FALSE\FALSE|TRUE|TRUE\TRUE|FALSE|TRUE\TRUE|TRUE|TRUE')
+  else Tab('IN1|IN2|Q\FALSE|FALSE|FALSE\FALSE|TRUE|TRUE\TRUE|FALSE|TRUE\TRUE|TRUE|FALSE');
+  Head('Picture');
+  if Id = 'and' then Lad('no "Start";nc "Stop";coil "Motor"', '"Motor" := "Start" AND NOT "Stop"')
+  else if Id = 'or' then Lad('no "Start"!;coil "Lamp"\no "Test"', '"Lamp" := "Start" OR "Test"')
+  else Lad('no "A";-;coil "Q"', '');
+  Txt('The same in SCL:');
+  if Id = 'and' then Code('"Motor" := "Start" AND NOT "Stop";')
+  else if Id = 'or' then Code('"Lamp" := "Start" OR "Test";')
+  else Code('"Changed" := "A" XOR "B";');
+  Notes(['A box with more inputs is one box: AND of 4 inputs needs no AND chain.',
+    'In LAD the same is contacts in series (AND) or a branch (OR); Convert to FBD (the right button on a LAD network) ' +
+    'turns a rung into these boxes.']);
+end;
+
+procedure FbdCoilPage(const Id: string);
+begin
+  if Id = 'assign' then
+    Summary('Assignment box =: the operand above it gets the value of IN in every cycle (TRUE or FALSE). It is the FBD ' +
+      'form of the coil.')
+  else if Id = 'set' then
+    Summary('Set box S: while IN is TRUE the operand above becomes TRUE; it stays TRUE when IN goes FALSE.')
+  else
+    Summary('Reset box R: while IN is TRUE the operand above becomes FALSE (also a timer / counter instance).');
+  Syntax('a box ' + IfThen(Id = 'assign', '=', UpperCase(Copy(Id, 1, 1))) + ': the operand above it, IN on its left');
+  Params('operand|Bool|above the box: the output, the memory bit ..\IN|Bool|the condition: an operand or a box');
+  HowTo(['Select the box whose result it takes (AND, OR, a timer ..) and double click ' +
+    IfThen(Id = 'assign', '=', UpperCase(Copy(Id, 1, 1))) + ': it comes after it.',
+    'Type the operand in the field above it.']);
+  Head('Picture');
+  if Id = 'assign' then Lad('no "Start";nc "Stop";coil "Motor"', '')
+  else Lad('no "Start";set "Motor"\no "Stop";reset "Motor"', 'S and R of the same operand: the later one wins');
+  if Id <> 'assign' then
+  begin
+    Head('Timing diagram');
+    Wave('Start=0110000001100000\Stop=0000011000000110\Motor=0111100001111000', '');
+  end;
+  Txt('The same in SCL:');
+  if Id = 'assign' then Code('"Motor" := "Start" AND NOT "Stop";')
+  else Code('IF "Start" THEN "Motor" := TRUE; END_IF;\IF "Stop" THEN "Motor" := FALSE; END_IF;');
+end;
+
+procedure FbdEdgePage(const Id: string);
+begin
+  if Id = 'p' then
+    Summary('P box (rising edge): Q is TRUE for one cycle when IN goes from FALSE to TRUE. The memory bit above the ' +
+      'box keeps the value of the last cycle (a bit used for nothing else).')
+  else
+    Summary('N box (falling edge): Q is TRUE for one cycle when IN goes from TRUE to FALSE.');
+  Syntax('a box ' + UpperCase(Id) + ': the edge memory bit above it, IN on its left, Q on its right');
+  Params('memory bit|Bool|above the box: %M10.0, "Edge_M", a Static\IN|Bool|the signal\Q|Bool|the edge: one cycle');
+  HowTo(['Double click the box, type the memory bit above it and the signal at IN.',
+    'Its Q goes on: select the box and double click = (or a counter, a box with EN).']);
+  Head('Picture');
+  Lad(Id + ' "Button"|"Edge_M";coil "Pulse"', '');
+  Head('Timing diagram');
+  if Id = 'p' then Wave('IN=0011110001100000\Q=0010000001000000', '')
+  else Wave('IN=0011110001100000\Q=0000001000010000', '');
+  Txt('The same in SCL:');
+  if Id = 'p' then Code('"Pulse" := "Button" AND NOT "Edge_M";\"Edge_M" := "Button";')
+  else Code('"Pulse" := NOT "Button" AND "Edge_M";\"Edge_M" := "Button";');
+  Notes(['Every edge needs its own memory bit. R_TRIG / F_TRIG do the same with an instance.']);
+end;
+
+procedure FbdBoxPage(const E: TSclElem);
+var
+  Id: string;
+  Ce: TSclElem;
+begin
+  Id := Copy(E.Snip, Length(FbdBoxSnip) + 1, MaxInt);
+  if Copy(Id, 1, 5) = 'call:' then Id := 'call';
+  Ce := E;
+  case Id of
+    'and', 'or', 'xor': FbdLogicPage(Id);
+    'assign', 'set', 'reset': FbdCoilPage(Id);
+    'p', 'n': FbdEdgePage(Id);
+    'rtrig': EdgePage('R_TRIG');
+    'ftrig': EdgePage('F_TRIG');
+    'rs': EdgePage('RS');
+    'sr': EdgePage('SR');
+    'ton', 'tof', 'tp', 'tonr': TimerPage(UpperCase(Id));
+    'ctu', 'ctd', 'ctud': CounterPage(UpperCase(Id));
+    'cmp': LadCmp(5);
+    'inrange': LadMisc(lkInRange);
+    'outrange': LadMisc(lkOutRange);
+    'add': LadArith(lkAdd);
+    'sub': LadArith(lkSub);
+    'mul': LadArith(lkMul);
+    'div': LadArith(lkDiv);
+    'mod': LadArith(lkMod);
+    'expt': LadArith(lkExpt);
+    'neg': LadMisc(lkNegate);
+    'inc': LadMisc(lkInc);
+    'dec': LadMisc(lkDec);
+    'move': LadMisc(lkMove);
+    'conv': LadMisc(lkConv);
+    'round', 'trunc', 'ceil', 'floor': RoundPage(UpperCase(Id));
+    'normx': ScalePage('NORM_X');
+    'scalex': ScalePage('SCALE_X');
+    'sel', 'mux', 'limit', 'min', 'max': SelectPage(UpperCase(Id));
+    'andw': LadMisc(lkAndW);
+    'orw': LadMisc(lkOrW);
+    'xorw': LadMisc(lkXorW);
+    'invw': LadMisc(lkInvW);
+    'shl', 'shr', 'rol', 'ror': ShiftPage(UpperCase(Id));
+    'concat', 'len', 'left', 'right', 'mid', 'find': StringPage(UpperCase(Id));
+    'smove': StringPage('S_MOVE');
+    'call': LadMisc(lkCall);
+    'abs', 'sqr', 'sqrt', 'exp', 'ln', 'sin', 'cos', 'tan', 'asin', 'acos', 'atan', 'frac': MathPage(UpperCase(Id));
+  end;
+  if Ce.Cap = '' then ;
+end;
+
 { ---------- the page ---------- }
 
 function ElemHelpPage(Lang: Char; const E: TSclElem; Fam: TCpuFamily): TElemHelpPage;
@@ -2023,6 +2264,7 @@ begin
   Cat := E.Cat;
   if Copy(Cat, 1, Length(ElemProject)) = ElemProject then ProjectPage(E)
   else if Cat = 'Editor keys' then KeyPage(E)
+  else if Lang in ['F', 'K'] then FbdBoxPage(E)
   else if Lang = 'L' then
   begin
     if E.Kind >= 0 then LadPage(E);
@@ -2065,7 +2307,7 @@ begin
     if ElemText(E.Snip) <> '' then Syntax(ElemText(E.Snip));
     HowTo([]);
   end;
-  if (Pg.Example = '') and (Lang <> 'L') and (ElemText(E.Snip) <> '') then Pg.Example := ElemText(E.Snip);
+  if (Pg.Example = '') and not (Lang in ['L', 'F', 'K']) and (ElemText(E.Snip) <> '') then Pg.Example := ElemText(E.Snip);
   Result := Pg;
 end;
 
@@ -2195,6 +2437,8 @@ begin
       hbTable: Result := Result + '  ' + StringReplace(StringReplace(S, '|', ' | ', [rfReplaceAll]), LineEnding, LineEnding + '  ',
         [rfReplaceAll]) + LineEnding;
       hbLad: Result := Result + '  [LAD] ' + StringReplace(S, LineEnding, ' / ', [rfReplaceAll]) + LineEnding;
+      hbFbd: Result := Result + '  [FBD] ' + StringReplace(S, LineEnding, ' / ', [rfReplaceAll]) + LineEnding;
+      hbCfc: Result := Result + '  [CFC] ' + StringReplace(S, LineEnding, ' / ', [rfReplaceAll]) + LineEnding;
       hbWave: Result := Result + '  [timing] ' + StringReplace(S, LineEnding, ' / ', [rfReplaceAll]) + LineEnding;
       hbBits: Result := Result + '  [bits] ' + StringReplace(S, LineEnding, ' / ', [rfReplaceAll]) + LineEnding;
       hbFlow: Result := Result + '  [flowchart] ' + S + LineEnding;

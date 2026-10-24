@@ -22,7 +22,7 @@ unit uPlcCompiler;
 interface
 
 uses
-  Classes, SysUtils, Math, StrUtils, uPlcTypes, uPlcProject, uObCatalog;
+  Classes, SysUtils, Math, StrUtils, uPlcTypes, uPlcProject, uObCatalog, uFbd;
 
 type
   TOpCode = (
@@ -123,6 +123,10 @@ type
     FirstOp: Integer;
     { LAD: resolved operands of each cell, for the monitor (Opnd, P0..P4) }
     CellOps: array of array[0..5] of TOperand;
+    { FBD / CFC: the SCL they were compiled as, the box (its Id) of every line (the monitor: the value of a box
+      is the one of its first line with :=) }
+    Scl: array of string;
+    LineNode: TIntArray;
   end;
 
   { TCBlock }
@@ -2605,8 +2609,24 @@ end;
 
 procedure TCompiler.CompileBlock(B: TBlock; Index: Integer);
 var
-  I, J, K, Slots, T: Integer;
-  N: TNetwork;
+  I, J, K, Slots, T, M0: Integer;
+  N, Sn: TNetwork;
+  Gen: array of TStringList;
+  Errs: TStringList;
+  LN: TIntArray;
+  Bx: string;
+
+  { the box of a line of an FBD / CFC network: its number for a message }
+  function BoxOf(NI, L: Integer): string;
+  var
+    Q: Integer;
+  begin
+    Result := '';
+    if (L < 0) or (L > High(FBlock.Nets[NI].LineNode)) or (FBlock.Nets[NI].LineNode[L] = 0) then Exit;
+    Q := B.Net(NI).NodeIndex(FBlock.Nets[NI].LineNode[L]);
+    if Q >= 0 then Result := Format('box #%d %s: ', [FBlock.Nets[NI].LineNode[L], FbdBoxDefOf(B.Net(NI).Nodes[Q].Box).Title]);
+  end;
+
 begin
   FSrc := B;
   FBlock := FProg.Blocks[Index];
@@ -2657,6 +2677,29 @@ begin
   if B.Iface.TempSize > 256 then Msg(Format('%s: more than 256 bytes of local data (Temp, FC parameters)', [B.Title]));
   SetLength(FBlock.Nets, B.NetCount);
   Slots := 0;
+  // FBD / CFC: their SCL first (its lines are the monitor slots)
+  SetLength(Gen, B.NetCount);
+  Errs := TStringList.Create;
+  for I := 0 to B.NetCount - 1 do
+    if B.Net(I).Kind in [nkFBD, nkCFC] then
+    begin
+      Gen[I] := TStringList.Create;
+      Errs.Clear;
+      FbdToScl(B.Net(I), FProject, Gen[I], LN, Errs, B, I + 1);
+      FBlock.Nets[I].LineNode := LN;
+      SetLength(FBlock.Nets[I].Scl, Gen[I].Count);
+      for J := 0 to Gen[I].Count - 1 do FBlock.Nets[I].Scl[J] := Gen[I][J];
+      FNet := I;
+      FLine := -1;
+      for J := 0 to Errs.Count - 1 do
+      begin
+        Bx := Copy(Errs[J], 1, Pos('|', Errs[J]) - 1);
+        Msg(Format('box #%s: %s', [Bx, Copy(Errs[J], Pos('|', Errs[J]) + 1, MaxInt)]));
+      end;
+      if (B.Net(I).Kind = nkFBD) or (Length(B.Net(I).Nodes) = 0) then ;
+    end
+    else Gen[I] := nil;
+  Errs.Free;
   for I := 0 to B.NetCount - 1 do
   begin
     N := B.Net(I);
@@ -2664,7 +2707,12 @@ begin
     FBlock.Nets[I].MonBase := Slots;
     FBlock.Nets[I].Rows := N.Rows;
     FBlock.Nets[I].Cols := N.Cols;
-    if N.Kind in [nkSTL, nkSCL] then
+    if N.Kind in [nkFBD, nkCFC] then
+    begin
+      FBlock.Nets[I].Lines := Gen[I].Count;
+      Inc(Slots, Gen[I].Count);
+    end
+    else if N.Kind in [nkSTL, nkSCL] then
     begin
       FBlock.Nets[I].Lines := N.Stl.Count;
       Inc(Slots, N.Stl.Count);
@@ -2684,10 +2732,26 @@ begin
     case N.Kind of
       nkSTL: CompileStl(N);
       nkSCL: CompileScl(N);
+      nkFBD, nkCFC:
+        begin
+          // the SCL of the boxes; its messages name the box of the line
+          Sn := TNetwork.Create(nkSCL);
+          try
+            Sn.Stl.Assign(Gen[I]);
+            M0 := Length(FProg.Msgs);
+            CompileScl(Sn);
+            for J := M0 to High(FProg.Msgs) do
+              if FProg.Msgs[J].Net = I + 1 then
+                FProg.Msgs[J].Text := BoxOf(I, FProg.Msgs[J].Line - 1) + FProg.Msgs[J].Text;
+          finally
+            Sn.Free;
+          end;
+        end;
     else
       CompileLad(N);
     end;
   end;
+  for I := 0 to High(Gen) do Gen[I].Free;
   FNet := B.NetCount - 1;
   FLine := -1;
   // the block end
