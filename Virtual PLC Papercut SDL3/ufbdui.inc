@@ -9,6 +9,7 @@
   blocks). The regions of the last frame (FFbdHits) tell the mouse what is under it. }
 
 const
+  FbdViewW = 974;   // the width of an FBD / CFC network in the editor (the network 1002 less its frame)
   FbdPinH = 20;
   FbdHeadH = 24;
   FbdOpW = 124;
@@ -130,7 +131,7 @@ begin
   D.Layer := lyControls;
   Shad(BX, BY, BW, BH, 4, 1.5, 3, 50);
   RR(BX, BY, BW, BH, 4, FbdPick(FbdBoxIndex(Nd.Box) >= 0, Mixc(cSheet, cGoldLight, 0.32), Alpha(cRed, 40)));
-  if Sel and (FFbdPin < 0) then RRL(BX - 1, BY - 1, BW + 2, BH + 2, 5, 2.2, cRed)
+  if (Sel and (FFbdPin < 0)) or (Ed and (FFbdNet = NI) and FbdInMulti(Nd.Id)) then RRL(BX - 1, BY - 1, BW + 2, BH + 2, 5, 2.2, cRed)
   else if Mon and HasV and (Bd.Outs <> nil) and (Length(Nd.Outs) > 0) and (DT = dtBool) and (V <> 0) then
     RRL(BX, BY, BW, BH, 4, 2, cRed)
   else RRL(BX, BY, BW, BH, 4, 1.1, cInk);
@@ -397,18 +398,46 @@ begin
   if N.Kind = nkCFC then Exit(N.ChartH * CfcGrid + 20);
   FbdLayout(N, 0, 0, BXs, BYs, Result);
   Result := Max(Result, 60) + 8;
+  // wider than the editor: the scroll bar under the boxes
+  if FbdContentW(N) > FbdViewW then Result := Result + 16;
+end;
+
+{ the width of the boxes: FBD the trees with their fields, CFC the chart }
+function TPlcUI.FbdContentW(N: TNetwork): Single;
+var
+  BXs, BYs: TSingleArray;
+  H, BW, BH, IH: Single;
+  K: Integer;
+begin
+  if N.Kind = nkCFC then Exit(N.ChartW * CfcGrid);
+  FbdLayout(N, 8, 0, BXs, BYs, H);
+  Result := 0;
+  for K := 0 to High(N.Nodes) do
+  begin
+    FbdBoxGeo(N.Nodes[K], BW, BH, IH);
+    Result := Max(Result, BXs[K] + BW + FbdOpW + 24);
+  end;
 end;
 
 procedure TPlcUI.DrawFbd(NI: Integer; N: TNetwork; X, Y, W: Single);
 var
   BXs, BYs: TSingleArray;
-  H, AY: Single;
+  H, AY, HS, CW, TW, TX0: Single;
   K, I, S: Integer;
   A, B: TPointF;
   V: Double;
   DT: TDataType;
 begin
-  FbdLayout(N, X + 8, Y + 8, BXs, BYs, H);
+  // wider than the editor: it scrolls sideways (the bar below, Shift+wheel)
+  HS := 0;
+  CW := 0;
+  if NI >= 0 then
+  begin
+    CW := FbdContentW(N);
+    HS := EnsureRange(GetHS(N), 0, Max(0, CW - W));
+    SetHS(N, HS);
+  end;
+  FbdLayout(N, X + 8 - HS, Y + 8, BXs, BYs, H);
   if Length(N.Nodes) = 0 then
   begin
     D.Layer := lyText;
@@ -435,7 +464,18 @@ begin
           (N.Nodes[K].Ins[I].SrcPin = 0), False, AY);
       end;
   for K := 0 to High(N.Nodes) do DrawFbdBox(NI, N, K, BXs[K], BYs[K], False);
-  if NI >= 0 then UnclipD;
+  if NI < 0 then Exit;
+  UnclipD;
+  Hit(X, Y, W, H, whLad + NI, hkWheel);
+  if CW > W then
+  begin
+    D.Layer := lyControls;
+    TW := Max(30, W * W / CW);
+    TX0 := X + HS / (CW - W) * (W - TW);
+    RR(X, Y + H + 4, W, 8, 4, Alpha(cSheetDark, 200));
+    RR(TX0, Y + H + 4, TW, 8, 4, cRed);
+    Hit(X, Y + H, W, 16, Act(acCfcHS, NI), hkDrag);
+  end;
 end;
 
 procedure TPlcUI.DrawCfc(NI: Integer; N: TNetwork; X, Y, W: Single);
@@ -480,7 +520,15 @@ begin
     Inc(K);
   end;
   RRL(X, Y, VisW, CH, 4, 0.8, Alpha(cGoldDark, 150));
-  if NI >= 0 then Hit(X, Y, VisW, CH, Act(acCfcChart, NI), hkDrag);
+  if NI >= 0 then
+  begin
+    Hit(X, Y, VisW, CH, Act(acCfcChart, NI), hkDrag);
+    Hit(X, Y, VisW, CH, whLad + NI, hkWheel);
+    if NI >= Length(FCfcOrg) then SetLength(FCfcOrg, NI + 1);
+    FCfcOrg[NI].X := X;
+    FCfcOrg[NI].Y := Y;
+    FCfcOrg[NI].HS := HS;
+  end;
   if Length(N.Nodes) = 0 then
   begin
     D.Layer := lyText;
@@ -509,6 +557,13 @@ begin
         FbdHitAdd(NI, N.Nodes[K].Id, I, 3, B.X - 26, B.Y - 4, 14, 8);
       end;
   for K := 0 to High(N.Nodes) do DrawFbdBox(NI, N, K, NX(K), NY(K), True);
+  // a rubber band being drawn
+  if (FFbdMode = 4) and (FFbdNet = NI) then
+  begin
+    D.Layer := lyOverlay;
+    Rc(Min(FFbdBand.X, FMX), Min(FFbdBand.Y, FMY), Abs(FMX - FFbdBand.X), Abs(FMY - FFbdBand.Y), Alpha(cGold, 50));
+    RRL(Min(FFbdBand.X, FMX), Min(FFbdBand.Y, FMY), Abs(FMX - FFbdBand.X), Abs(FMY - FFbdBand.Y), 2, 1.2, cRedDark);
+  end;
   // a wire being drawn
   if (FFbdMode = 2) and (FFbdFrom.NI = NI) then
   begin
@@ -720,6 +775,16 @@ var
   K: Integer;
 begin
   if not FbdSelNode(N, K) then Exit;
+  if (Length(FFbdMulti) > 1) and (FFbdPin < 0) and not FFbdWire then
+  begin
+    // the selected boxes
+    for K := 0 to High(FFbdMulti) do FbdDeleteNode(N, FFbdMulti[K], False);
+    if N.Kind = nkCFC then CfcRenumber(N);
+    FFbdMulti := nil;
+    FFbdNode := 0;
+    MarkDirty;
+    Exit;
+  end;
   if FFbdWire and (FFbdPin >= 0) and (FFbdPin <= High(N.Nodes[K].Ins)) then
   begin
     N.Nodes[K].Ins[FFbdPin].Src := 0;
@@ -750,6 +815,7 @@ end;
 
 procedure TPlcUI.FbdSelect(const H: TFbdHitRec);
 begin
+  FHelpFocus := False;
   FNetSel := H.NI;
   FStlNet := -1;
   FFbdNet := H.NI;
@@ -777,7 +843,7 @@ end;
 { a press / a drag / the release on a box, a pin or the chart }
 procedure TPlcUI.FbdDrag(Id: Integer; X, Y: Single);
 var
-  Hi: Integer;
+  Hi, I: Integer;
   H: TFbdHitRec;
   N: TNetwork;
   K: Integer;
@@ -787,13 +853,17 @@ begin
     if FDragPress <> FPressNo then
     begin
       FDragPress := FPressNo;
-      // the empty chart: the network, no box
+      // the empty chart: the network, no box; a drag: a rubber band selects the blocks in it
       FNetSel := Id and $FFFF;
       FStlNet := -1;
+      FHelpFocus := False;
       FFbdNet := FNetSel;
       FFbdNode := 0;
       FFbdPin := -1;
       FFbdWire := False;
+      if not (umShift in MouseMods) then FFbdMulti := nil;
+      FFbdBand := PointF(X, Y);
+      FFbdMode := 4;
     end;
     Exit;
   end;
@@ -806,7 +876,8 @@ begin
       FDragPress := FPressNo;
       FFbdGrab := PointF(X, GetHS(N));
     end;
-    SetHS(N, Max(0, FFbdGrab.Y + (X - FFbdGrab.X) * N.ChartW * CfcGrid / 900));
+    if N.Kind = nkCFC then SetHS(N, Max(0, FFbdGrab.Y + (X - FFbdGrab.X) * FbdContentW(N) / (FbdViewW - 300)))
+    else SetHS(N, Max(0, FFbdGrab.Y + (X - FFbdGrab.X) * FbdContentW(N) / FbdViewW));
     Exit;
   end;
   Hi := Id and $FFFF;
@@ -819,6 +890,46 @@ begin
     FDragPress := FPressNo;
     FFbdMode := 0;
     FFbdGrab := PointF(X, Y);
+    FHelpFocus := False;
+    // Shift+click on a box: it joins the selection (or leaves it)
+    if (umShift in MouseMods) and (H.Kind in [0, 4]) and (H.Node > 0) then
+    begin
+      if FbdInMulti(H.Node) then
+      begin
+        for K := 0 to High(FFbdMulti) do
+          if FFbdMulti[K] = H.Node then
+          begin
+            FFbdMulti[K] := FFbdMulti[High(FFbdMulti)];
+            SetLength(FFbdMulti, Length(FFbdMulti) - 1);
+            Break;
+          end;
+      end
+      else
+      begin
+        if (FFbdNet = H.NI) and (FFbdNode > 0) and not FbdInMulti(FFbdNode) then
+        begin
+          SetLength(FFbdMulti, Length(FFbdMulti) + 1);
+          FFbdMulti[High(FFbdMulti)] := FFbdNode;
+        end;
+        SetLength(FFbdMulti, Length(FFbdMulti) + 1);
+        FFbdMulti[High(FFbdMulti)] := H.Node;
+      end;
+      FNetSel := H.NI;
+      FFbdNet := H.NI;
+      FFbdNode := H.Node;
+      FFbdPin := -1;
+      Exit;
+    end;
+    // a block of the selection: they move together; another box: it alone
+    if not ((H.Kind in [0, 4]) and FbdInMulti(H.Node) and (FFbdNet = H.NI)) then
+    begin
+      if H.Node > 0 then
+      begin
+        SetLength(FFbdMulti, 1);
+        FFbdMulti[0] := H.Node;
+      end
+      else FFbdMulti := nil;
+    end;
     case H.Kind of
       5:
         begin
@@ -847,6 +958,10 @@ begin
     if (N.Kind = nkCFC) and (K >= 0) then
     begin
       FFbdGrab0 := Point(N.Nodes[K].X, N.Nodes[K].Y);
+      SetLength(FFbdMove0, Length(FFbdMulti));
+      for I := 0 to High(FFbdMulti) do
+        if N.NodeIndex(FFbdMulti[I]) >= 0 then
+          FFbdMove0[I] := Point(N.Nodes[N.NodeIndex(FFbdMulti[I])].X, N.Nodes[N.NodeIndex(FFbdMulti[I])].Y);
       if H.Kind in [0, 4] then FFbdMode := 1
       else if H.Kind in [1, 2] then
       begin
@@ -863,7 +978,21 @@ begin
   K := N.NodeIndex(FFbdFrom.Node);
   if FFbdMode = 1 then
   begin
-    // the block moves by the grid
+    // the block (the selected blocks) move by the grid
+    if Length(FFbdMulti) > 1 then
+    begin
+      for I := 0 to Min(High(FFbdMulti), High(FFbdMove0)) do
+      begin
+        K := N.NodeIndex(FFbdMulti[I]);
+        if K < 0 then Continue;
+        N.Nodes[K].X := Max(0, FFbdMove0[I].X + Round((X - FFbdGrab.X) / CfcGrid));
+        N.Nodes[K].Y := Max(0, FFbdMove0[I].Y + Round((Y - FFbdGrab.Y) / CfcGrid));
+        N.ChartW := Max(N.ChartW, N.Nodes[K].X + 30);
+        N.ChartH := Max(N.ChartH, N.Nodes[K].Y + 4 + Max(Length(N.Nodes[K].Ins), Length(N.Nodes[K].Outs)) * 2 + 4);
+      end;
+      FFbdMoved := True;
+      Exit;
+    end;
     K := N.NodeIndex(H.Node);
     if K < 0 then Exit;
     N.Nodes[K].X := Max(0, FFbdGrab0.X + Round((X - FFbdGrab.X) / CfcGrid));
@@ -882,7 +1011,31 @@ var
   N: TNetwork;
   Ka, Kb: Integer;
   OutN, OutP, InN, InP: Integer;
+  R: TRectF;
+  BW, BH, IH, BX, BY: Single;
 begin
+  if FFbdMode = 4 then
+  begin
+    // the rubber band: the blocks it touches
+    FFbdMode := 0;
+    if (CurBlock = nil) or (FFbdNet >= CurBlock.NetCount) or (FFbdNet >= Length(FCfcOrg)) then Exit;
+    if Abs(X - FFbdBand.X) + Abs(Y - FFbdBand.Y) < 5 then Exit;
+    N := CurBlock.Net(FFbdNet);
+    R := RectF(Min(X, FFbdBand.X), Min(Y, FFbdBand.Y), Max(X, FFbdBand.X), Max(Y, FFbdBand.Y));
+    for Ka := 0 to High(N.Nodes) do
+    begin
+      FbdBoxGeo(N.Nodes[Ka], BW, BH, IH);
+      BX := FCfcOrg[FFbdNet].X + N.Nodes[Ka].X * CfcGrid - FCfcOrg[FFbdNet].HS;
+      BY := FCfcOrg[FFbdNet].Y + N.Nodes[Ka].Y * CfcGrid;
+      if (BX < R.Right) and (BX + BW > R.Left) and (BY < R.Bottom) and (BY + BH > R.Top) and not FbdInMulti(N.Nodes[Ka].Id) then
+      begin
+        SetLength(FFbdMulti, Length(FFbdMulti) + 1);
+        FFbdMulti[High(FFbdMulti)] := N.Nodes[Ka].Id;
+      end;
+    end;
+    if Length(FFbdMulti) > 0 then FFbdNode := FFbdMulti[0];
+    Exit;
+  end;
   if FFbdMode = 1 then
   begin
     if FFbdMoved then MarkDirty;
@@ -1230,6 +1383,265 @@ begin
   MarkDirty;
 end;
 
+{ a box with pins of its own (a dynamic array is shared, not copied on a write) }
+function CopyOneNode(const Nd: TFbdNode): TFbdNode;
+begin
+  Result := Nd;
+  Result.Ins := Copy(Nd.Ins);
+  Result.Outs := Copy(Nd.Outs);
+end;
+
+function TPlcUI.FbdInMulti(Id: Integer): Boolean;
+var
+  K: Integer;
+begin
+  Result := False;
+  for K := 0 to High(FFbdMulti) do
+    if FFbdMulti[K] = Id then Exit(True);
+end;
+
+{ the boxes to copy / cut: the selected ones (more than one), else the selected box (FBD: with the boxes that feed it) }
+function TPlcUI.FbdSelIds(N: TNetwork): TIntArray;
+var
+  K: Integer;
+
+  procedure Take(Id: Integer);
+  var
+    Q, P: Integer;
+  begin
+    for P := 0 to High(Result) do
+      if Result[P] = Id then Exit;
+    Q := N.NodeIndex(Id);
+    if Q < 0 then Exit;
+    SetLength(Result, Length(Result) + 1);
+    Result[High(Result)] := Id;
+    if N.Kind = nkFBD then
+      for P := 0 to High(N.Nodes[Q].Ins) do
+        if N.Nodes[Q].Ins[P].Src > 0 then Take(N.Nodes[Q].Ins[P].Src);
+  end;
+
+begin
+  Result := nil;
+  if Length(FFbdMulti) > 1 then
+  begin
+    for K := 0 to High(FFbdMulti) do
+      if N.NodeIndex(FFbdMulti[K]) >= 0 then
+      begin
+        SetLength(Result, Length(Result) + 1);
+        Result[High(Result)] := FFbdMulti[K];
+      end;
+  end
+  else if N.NodeIndex(FFbdNode) >= 0 then Take(FFbdNode);
+end;
+
+{ Ctrl+C / Ctrl+X: the boxes into the clipboard of the editor (the wires between them stay, the others are cut) }
+procedure TPlcUI.FbdCopy(Cut: Boolean);
+var
+  N: TNetwork;
+  Ids: TIntArray;
+  K, I, J, C: Integer;
+  Inside: Boolean;
+begin
+  N := CurNet;
+  if (N = nil) or not (N.Kind in [nkFBD, nkCFC]) or (FFbdNet <> FNetSel) then Exit;
+  Ids := FbdSelIds(N);
+  if Length(Ids) = 0 then
+  begin
+    Toast('select a box first (CFC: a rubber band selects several)', True);
+    Exit;
+  end;
+  FFbdClip := nil;
+  for K := 0 to High(N.Nodes) do
+  begin
+    Inside := False;
+    for J := 0 to High(Ids) do
+      if Ids[J] = N.Nodes[K].Id then Inside := True;
+    if not Inside then Continue;
+    C := Length(FFbdClip);
+    SetLength(FFbdClip, C + 1);
+    FFbdClip[C] := CopyOneNode(N.Nodes[K]);
+  end;
+  for K := 0 to High(FFbdClip) do
+    for I := 0 to High(FFbdClip[K].Ins) do
+      if FFbdClip[K].Ins[I].Src > 0 then
+      begin
+        Inside := False;
+        for J := 0 to High(Ids) do
+          if Ids[J] = FFbdClip[K].Ins[I].Src then Inside := True;
+        if not Inside then FFbdClip[K].Ins[I].Src := 0;
+      end;
+  FFbdClipCfc := N.Kind = nkCFC;
+  if Cut then
+  begin
+    for K := 0 to High(Ids) do FbdDeleteNode(N, Ids[K], False);
+    if N.Kind = nkCFC then CfcRenumber(N);
+    FFbdMulti := nil;
+    FFbdNode := 0;
+    FFbdPin := -1;
+    MarkDirty;
+    Toast(Format('%d boxes cut', [Length(FFbdClip)]));
+  end
+  else Toast(Format('%d boxes copied', [Length(FFbdClip)]));
+end;
+
+{ Ctrl+V: the copied boxes with new Ids (their wires too); FBD: a root onto the selected input pin, else new trees;
+  CFC: beside the copied ones (from FBD: placed by the data flow below the chart) }
+procedure TPlcUI.FbdPaste;
+var
+  N, T: TNetwork;
+  Map: array of TPoint;   // X old Id, Y new Id
+  K, I, J, NewId, Base, Bot, Root, Pin, GroupH, Top: Integer;
+  Nd: TFbdNode;
+  BW, BH, IH: Single;
+
+  function NewOf(Old: Integer): Integer;
+  var
+    Q: Integer;
+  begin
+    for Q := 0 to High(Map) do
+      if Map[Q].X = Old then Exit(Map[Q].Y);
+    Result := 0;
+  end;
+
+begin
+  N := CurNet;
+  if (N = nil) or not (N.Kind in [nkFBD, nkCFC]) then Exit;
+  if Length(FFbdClip) = 0 then
+  begin
+    Toast('nothing copied: select boxes and Ctrl+C first', True);
+    Exit;
+  end;
+  NewId := N.NewNodeId;
+  SetLength(Map, Length(FFbdClip));
+  for K := 0 to High(FFbdClip) do
+  begin
+    Map[K] := Point(FFbdClip[K].Id, NewId);
+    Inc(NewId);
+  end;
+  // CFC from FBD: placed by the data flow, below the blocks there are
+  T := nil;
+  if (N.Kind = nkCFC) and not FFbdClipCfc then
+  begin
+    T := TNetwork.Create(nkCFC);
+    T.Nodes := CopyNodes(FFbdClip);
+    T.ChartW := 0;
+    T.ChartH := 0;
+    CfcAutoPlace(T);
+  end;
+  Bot := 0;
+  for K := 0 to High(N.Nodes) do
+  begin
+    FbdBoxGeo(N.Nodes[K], BW, BH, IH);
+    Bot := Max(Bot, N.Nodes[K].Y + Ceil(BH / CfcGrid));
+  end;
+  // the height of the copied group (CFC): from its top block to the bottom of its lowest one
+  GroupH := 0;
+  if Length(FFbdClip) > 0 then
+  begin
+    Top := FFbdClip[0].Y;
+    for K := 0 to High(FFbdClip) do
+    begin
+      FbdBoxGeo(FFbdClip[K], BW, BH, IH);
+      Top := Min(Top, FFbdClip[K].Y - Ceil(IH / CfcGrid));
+      GroupH := Max(GroupH, FFbdClip[K].Y + Ceil(BH / CfcGrid));
+    end;
+    GroupH := GroupH - Top;
+  end;
+  Base := Length(N.Nodes);
+  FFbdMulti := nil;
+  for K := 0 to High(FFbdClip) do
+  begin
+    Nd := CopyOneNode(FFbdClip[K]);
+    Nd.Id := Map[K].Y;
+    for I := 0 to High(Nd.Ins) do
+      if Nd.Ins[I].Src > 0 then Nd.Ins[I].Src := NewOf(Nd.Ins[I].Src);
+    if N.Kind = nkCFC then
+    begin
+      if T <> nil then
+      begin
+        Nd.X := T.Nodes[K].X;
+        Nd.Y := T.Nodes[K].Y + Bot + 2;
+      end
+      else
+      begin
+        // below the copied blocks (their height and 3 grid steps)
+        Nd.X := FFbdClip[K].X;
+        Nd.Y := FFbdClip[K].Y + GroupH + 3;
+      end;
+      Nd.Order := Base + K + 1;
+      N.ChartW := Max(N.ChartW, Nd.X + 30);
+      N.ChartH := Max(N.ChartH, Nd.Y + 4 + Max(Length(Nd.Ins), Length(Nd.Outs)) * 2 + 4);
+    end;
+    SetLength(N.Nodes, Length(N.Nodes) + 1);
+    N.Nodes[High(N.Nodes)] := Nd;
+    SetLength(FFbdMulti, Length(FFbdMulti) + 1);
+    FFbdMulti[High(FFbdMulti)] := Nd.Id;
+  end;
+  T.Free;
+  // FBD: one root with an output and an input pin selected: it feeds that pin
+  if (N.Kind = nkFBD) and (FFbdNet = FNetSel) and (FFbdPin >= 0) and not FFbdPinOut then
+  begin
+    Root := 0;
+    J := 0;
+    for K := Base to High(N.Nodes) do
+    begin
+      I := 0;
+      for Pin := Base to High(N.Nodes) do
+        for J := 0 to High(N.Nodes[Pin].Ins) do
+          if N.Nodes[Pin].Ins[J].Src = N.Nodes[K].Id then I := 1;
+      if (I = 0) and (Length(N.Nodes[K].Outs) > 0) then
+      begin
+        if Root = 0 then Root := N.Nodes[K].Id else Root := -1;
+      end;
+    end;
+    K := N.NodeIndex(FFbdNode);
+    if (Root > 0) and (K >= 0) and (K < Base) and (FFbdPin <= High(N.Nodes[K].Ins)) then
+    begin
+      N.Nodes[K].Ins[FFbdPin].Src := Root;
+      N.Nodes[K].Ins[FFbdPin].SrcPin := 0;
+      N.Nodes[K].Ins[FFbdPin].Opnd := '';
+    end;
+  end;
+  if N.Kind = nkCFC then CfcRenumber(N);
+  FFbdNet := FNetSel;
+  if Length(FFbdMulti) > 0 then FFbdNode := FFbdMulti[0];
+  FFbdPin := -1;
+  FFbdWire := False;
+  FStlNet := -1;
+  MarkDirty;
+  Toast(Format('%d boxes pasted', [Length(FFbdClip)]));
+end;
+
+procedure TPlcUI.FbdSelectAll;
+var
+  N: TNetwork;
+  K: Integer;
+begin
+  N := CurNet;
+  if (N = nil) or not (N.Kind in [nkFBD, nkCFC]) then Exit;
+  SetLength(FFbdMulti, Length(N.Nodes));
+  for K := 0 to High(N.Nodes) do FFbdMulti[K] := N.Nodes[K].Id;
+  FFbdNet := FNetSel;
+  if Length(N.Nodes) > 0 then FFbdNode := N.Nodes[0].Id;
+  FFbdPin := -1;
+  FFbdWire := False;
+end;
+
+function TPlcUI.FbdHsText: string;
+begin
+  if (CurNet = nil) or not (CurNet.Kind in [nkFBD, nkCFC]) then Exit('');
+  Result := Format('content %.0f px, view %d px, scrolled %.0f px', [FbdContentW(CurNet), FbdViewW, GetHS(CurNet)]);
+end;
+
+function TPlcUI.FbdMultiText: string;
+var
+  K: Integer;
+begin
+  Result := '';
+  for K := 0 to High(FFbdMulti) do Result := Result + Format(' #%d', [FFbdMulti[K]]);
+  Result := Trim(Result);
+end;
+
 { the test: a box of the current FBD / CFC network as text; a hit region by its kind (the pixel) }
 function TPlcUI.FbdText: string;
 var
@@ -1303,6 +1715,15 @@ end;
 
 procedure TPlcUI.FbdTestSelect(Node, Pin: Integer; IsOut: Boolean);
 begin
+  // as a click on it: the keys go to the boxes, the box alone is selected
+  FHelpFocus := False;
+  FStlNet := -1;
+  if Node > 0 then
+  begin
+    SetLength(FFbdMulti, 1);
+    FFbdMulti[0] := Node;
+  end
+  else FFbdMulti := nil;
   FFbdNet := FNetSel;
   FFbdNode := Node;
   FFbdPin := Pin;

@@ -290,6 +290,22 @@ begin
   Add(L, C_ADDR, 'FC call', '"' + CUR + 'Name"(In := , Out => );', 'An FC: named (:= inputs, => outputs) or positional.');
   Add(L, C_ADDR, 'FB call', '"' + CUR + 'Inst_DB"(In := , Out => );', 'An FB with its instance DB, or #multi(..).');
 
+  { ---- the PLC clock ---- }
+  Add(L, 'Date and time (clock)', 'RD_LOC_T', '#Ret := RD_LOC_T(OUT => ' + CUR + '#Now);',
+    'Reads the local time of the PLC clock into a DTL (also a DT or an LDT). S7-1200/1500.');
+  Add(L, 'Date and time (clock)', 'RD_SYS_T', '#Ret := RD_SYS_T(OUT => ' + CUR + '#Utc);',
+    'Reads the system time (UTC) into a DTL (or an LDT). S7-1200/1500.');
+  Add(L, 'Date and time (clock)', 'WR_LOC_T', '#Ret := WR_LOC_T(LOCTIME := ' + CUR + '#SetTo, DST := FALSE);',
+    'Sets the PLC clock to a local time (a DTL, DT or LDT). S7-1200/1500.');
+  Add(L, 'Date and time (clock)', 'WR_SYS_T', '#Ret := WR_SYS_T(IN := ' + CUR + '#SetTo);',
+    'Sets the PLC clock to a system time (UTC: a DTL or an LDT). S7-1200/1500.');
+  Add(L, 'Date and time (clock)', 'TIME_TCK', CUR + '#Tick := TIME_TCK();',
+    'The milliseconds since the CPU started (a Time; for measuring times).');
+  Add(L, 'Date and time (clock)', 'READ_CLK', '#Ret := READ_CLK(CDT => ' + CUR + '#Dt);',
+    'Reads the PLC clock into a Date_And_Time (SFC1 of the S7-300/400; also on the 1500).');
+  Add(L, 'Date and time (clock)', 'SET_CLK', '#Ret := SET_CLK(PDT := ' + CUR + '#Dt);',
+    'Sets the PLC clock from a Date_And_Time (SFC0 of the S7-300/400).');
+
   { ---- the keys of the editor ---- }
   Add(L, C_KEYS, 'Ctrl+Z / Ctrl+Y', '', 'Undo / redo.');
   Add(L, C_KEYS, 'Ctrl+D', '', 'Duplicate the line.');
@@ -556,6 +572,10 @@ begin
   Fn('FIND', 'IN1, IN2, RET_VAL', 'The position of IN2 in IN1.');
   Fn('S_MOVE', 'IN, RET_VAL', 'A string into another one.');
   Fn('INT_TO_REAL', 'IN, RET_VAL', 'Every X_TO_Y conversion of SCL: CALL REAL_TO_INT, DINT_TO_INT ...');
+  Fn('READ_CLK', 'CDT, RET_VAL', 'The PLC clock into a Date_And_Time (SFC1).');
+  Fn('SET_CLK', 'PDT, RET_VAL', 'The PLC clock set from a Date_And_Time (SFC0).');
+  Fn('RD_LOC_T', 'OUT, RET_VAL', 'The local time into a DTL (S7-1500).');
+  Fn('TIME_TCK', 'RET_VAL', 'The ms since the start of the CPU.');
   Add(L, C_SYS, 'CALL a TON_TIME', 'CALL #' + CUR + 'Delay' + NL + '  IN := ' + NL + '  PT := T#1S' + NL + '  Q := ',
     'A Static (or DB variable) of TON_TIME / TOF_TIME / TP_TIME / TONR_TIME / TON_LTIME: IN, PT, Q, ET.');
   Add(L, C_SYS, 'CALL a CTU_INT', 'CALL #' + CUR + 'Count' + NL + '  CU := ' + NL + '  R := ' + NL + '  PV := 10' + NL +

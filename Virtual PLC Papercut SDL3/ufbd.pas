@@ -145,6 +145,8 @@ const
   C_EDGE = 'Edges / flip-flops';
   C_TIMER = 'Timers';
   C_CNT = 'Counters';
+  C_S5T = 'Timers (S5)';
+  C_S5C = 'Counters (S5)';
   C_CMP = 'Comparison';
   C_MATH = 'Math functions';
   C_MOVE = 'Move / conversion';
@@ -152,6 +154,7 @@ const
   C_WORD = 'Shift / word logic';
   C_STR = 'String';
   C_PRG = 'Program control';
+  C_CLK = 'Date and time (clock)';
   Fns: array[0..11] of string = ('abs', 'sqr', 'sqrt', 'exp', 'ln', 'sin', 'cos', 'tan', 'asin', 'acos', 'atan', 'frac');
 var
   K: Integer;
@@ -188,6 +191,23 @@ begin
     'Pulse: Q is TRUE for PT from a rising edge of IN.');
   Def('tonr', 'TONR', C_TIMER, fiInstance, 'instance (TONR_TIME / IEC_TIMER)', 'IN:B,R:B,PT:T', 'Q:B,ET:T', False, '', dtBool,
     dtNone, 'Retentive on delay: the time adds up while IN is TRUE, R resets it (S7-1200/1500).');
+  // the S5 timers / counters (S7-300/400/1500): the timer / counter above the box
+  Def('sodt', 'S_ODT', C_S5T, fiOperand, 'timer (T1)', 'S:B,TV:W,R:B?', 'Q:B,BI:I', False, '', dtBool, dtNone,
+    'S5 on delay: Q after S was TRUE for TV (S5T#..); R resets. BI: the time left (binary).');
+  Def('sodts', 'S_ODTS', C_S5T, fiOperand, 'timer (T1)', 'S:B,TV:W,R:B?', 'Q:B,BI:I', False, '', dtBool, dtNone,
+    'S5 retentive on delay: a rising edge of S starts it, Q stays until R.');
+  Def('spulse', 'S_PULSE', C_S5T, fiOperand, 'timer (T1)', 'S:B,TV:W,R:B?', 'Q:B,BI:I', False, '', dtBool, dtNone,
+    'S5 pulse: Q while S is TRUE, at most TV.');
+  Def('spext', 'S_PEXT', C_S5T, fiOperand, 'timer (T1)', 'S:B,TV:W,R:B?', 'Q:B,BI:I', False, '', dtBool, dtNone,
+    'S5 extended pulse: a rising edge of S gives a pulse of TV, also when S goes FALSE.');
+  Def('soffdt', 'S_OFFDT', C_S5T, fiOperand, 'timer (T1)', 'S:B,TV:W,R:B?', 'Q:B,BI:I', False, '', dtBool, dtNone,
+    'S5 off delay: Q with S, and TV longer after S went FALSE.');
+  Def('scu', 'S_CU', C_S5C, fiOperand, 'counter (C1)', 'CU:B,S:B?,PV:W?,R:B?', 'Q:B,CV:I', False, '', dtBool, dtNone,
+    'S5 count up on the rising edges of CU (0 .. 999); S loads PV (C#..), R resets; Q while the value is not 0.');
+  Def('scd', 'S_CD', C_S5C, fiOperand, 'counter (C1)', 'CD:B,S:B?,PV:W?,R:B?', 'Q:B,CV:I', False, '', dtBool, dtNone,
+    'S5 count down on the rising edges of CD; S loads PV, R resets.');
+  Def('scud', 'S_CUD', C_S5C, fiOperand, 'counter (C1)', 'CU:B,CD:B,S:B?,PV:W?,R:B?', 'Q:B,CV:I', False, '', dtBool, dtNone,
+    'S5 count up (CU) and down (CD); S loads PV, R resets.');
   Def('ctu', 'CTU', C_CNT, fiInstance, 'instance (CTU_INT / IEC_COUNTER)', 'CU:B,R:B,PV:I', 'Q:B,CV:I', False, '', dtBool, dtNone,
     'Count up on the rising edges of CU; R resets; Q at CV >= PV.');
   Def('ctd', 'CTD', C_CNT, fiInstance, 'instance (CTD_INT / IEC_COUNTER)', 'CD:B,LD:B,PV:I', 'Q:B,CV:I', False, '', dtBool, dtNone,
@@ -253,6 +273,20 @@ begin
   Def('find', 'FIND', C_STR, fiNone, '', 'EN:B?,IN1:S,IN2:S', 'OUT:I', False, '', dtString, dtNone,
     'OUT := the position of IN2 in IN1 (0: not there).');
   Def('smove', 'S_MOVE', C_STR, fiNone, '', 'EN:B?,IN:S', 'OUT:S', False, '', dtString, dtNone, 'OUT := IN (a string).');
+  Def('rdloct', 'RD_LOC_T', C_CLK, fiNone, '', 'EN:B?', 'OUT:X,RET_VAL:I', False, '', dtBool, dtNone,
+    'The local time of the PLC clock into OUT: a DTL (DT, LDT) variable. S7-1200/1500.');
+  Def('rdsyst', 'RD_SYS_T', C_CLK, fiNone, '', 'EN:B?', 'OUT:X,RET_VAL:I', False, '', dtBool, dtNone,
+    'The system time (UTC) into OUT: a DTL (LDT) variable. S7-1200/1500.');
+  Def('wrloct', 'WR_LOC_T', C_CLK, fiNone, '', 'EN:B?,LOCTIME:X', 'RET_VAL:I', False, '', dtBool, dtNone,
+    'Sets the PLC clock to LOCTIME (a local DTL / DT / LDT). S7-1200/1500. Put a P edge before EN.');
+  Def('wrsyst', 'WR_SYS_T', C_CLK, fiNone, '', 'EN:B?,IN:X', 'RET_VAL:I', False, '', dtBool, dtNone,
+    'Sets the PLC clock to IN (a UTC DTL / LDT). S7-1200/1500.');
+  Def('timetck', 'TIME_TCK', C_CLK, fiNone, '', 'EN:B?', 'RET_VAL:T', False, '', dtBool, dtNone,
+    'RET_VAL: the ms since the CPU started (a Time).');
+  Def('readclk', 'READ_CLK', C_CLK, fiNone, '', 'EN:B?', 'CDT:X,RET_VAL:I', False, '', dtBool, dtNone,
+    'The PLC clock into CDT: a Date_And_Time variable (SFC1).');
+  Def('setclk', 'SET_CLK', C_CLK, fiNone, '', 'EN:B?,PDT:X', 'RET_VAL:I', False, '', dtBool, dtNone,
+    'Sets the PLC clock from PDT: a Date_And_Time (SFC0). Put a P edge before EN.');
   Def('call', 'CALL', C_PRG, fiBlock, 'block (FC) / instance DB (FB)', 'EN:B?', '', False, '', dtBool, dtNone,
     'Calls an FC or an FB (its instance DB above the box); the pins are its parameters.');
 end;
@@ -460,6 +494,7 @@ begin
     'I': Result := 'Int';
     'R': Result := 'Real';
     'S': Result := 'String';
+    'W': Result := 'Word';
   else
     Result := '';
   end;
@@ -884,6 +919,43 @@ var
     end;
   end;
 
+  { an S5 timer / counter: S_ODT(T_NO := T1, S := .., TV := .., R := .., Q => .., BI => ..) }
+  procedure S5Box;
+  var
+    Q, Oi: Integer;
+    S, A, Fn: string;
+  begin
+    if Trim(Nd.Inst) = '' then
+    begin
+      Err(Nd.Id, D.Title + ': the ' + D.InstName + ' above the box is empty');
+      Exit;
+    end;
+    Fn := D.Title;
+    if Copy(Fn, 1, 3) = 'S_C' then S := 'C_NO := ' + Trim(Nd.Inst) else S := 'T_NO := ' + Trim(Nd.Inst);
+    for Q := 0 to High(Nd.Ins) do
+    begin
+      A := InExpr(Q);
+      if A = '' then
+      begin
+        if not D.Ins[Min(Q, High(D.Ins))].Opt then
+        begin
+          Err(Nd.Id, Format('%s: the input %s is empty', [D.Title, Nd.Ins[Q].Name]));
+          A := 'FALSE';
+        end
+        else Continue;
+      end;
+      S := S + ', ' + Nd.Ins[Q].Name + ' := ' + A;
+    end;
+    // Q: into its temp (wired, the monitor) or its operand; BI / CV: an operand or its temp
+    for Oi := 0 to High(Nd.Outs) do
+      if Wired[K][Oi] or MonTemp(K, Oi) then S := S + ', ' + Nd.Outs[Oi].Name + ' => ' + Temp(Nd.Id, Nd.Outs[Oi].Name)
+      else if Trim(Nd.Outs[Oi].Opnd) <> '' then S := S + ', ' + Nd.Outs[Oi].Name + ' => ' + Trim(Nd.Outs[Oi].Opnd);
+    Line(Fn + '(' + S + ');');
+    for Oi := 0 to High(Nd.Outs) do
+      if Wired[K][Oi] and (Trim(Nd.Outs[Oi].Opnd) <> '') then
+        Line(Trim(Nd.Outs[Oi].Opnd) + ' := ' + Temp(Nd.Id, Nd.Outs[Oi].Name) + ';');
+  end;
+
   { an FB box (timers, counters, edges): its call with the inputs, its outputs }
   procedure FbCall(const Pins: array of string);
   var
@@ -991,6 +1063,7 @@ begin
         'rs': FbCall(['S', 'R1']);
         'ton', 'tof', 'tp': FbCall(['IN', 'PT']);
         'tonr': FbCall(['IN', 'R', 'PT']);
+        'sodt', 'sodts', 'spulse', 'spext', 'soffdt', 'scu', 'scd', 'scud': S5Box;
         'ctu': FbCall(['CU', 'R', 'PV']);
         'ctd': FbCall(['CD', 'LD', 'PV']);
         'ctud': FbCall(['CU', 'CD', 'R', 'LD', 'PV']);
@@ -1056,6 +1129,25 @@ begin
         'left', 'right': Output(0, Format('%s(IN := %s, L := %s)', [UpperCase(Nd.Box), Need('IN'), Need('L')]));
         'mid': Output(0, Format('MID(IN := %s, L := %s, P := %s)', [Need('IN'), Need('L'), Need('P')]));
         'find': Output(0, Format('FIND(IN1 := %s, IN2 := %s)', [Need('IN1'), Need('IN2')]));
+        'rdloct', 'rdsyst', 'readclk':
+          begin
+            // the time goes into the variable of the first output (a DTL / DT / LDT); RET_VAL as an Int
+            X := Trim(Nd.Outs[0].Opnd);
+            if X = '' then
+            begin
+              Err(Nd.Id, Format('%s: %s needs a variable (a DTL, DT or LDT)', [D.Title, Nd.Outs[0].Name]));
+              X := '?';
+            end;
+            if Wired[K][0] then Err(Nd.Id, D.Title + ': its time output is a variable, not a wire');
+            X := Format('%s(%s => %s)', [D.Title, Nd.Outs[0].Name, X]);
+            if Wired[K][1] or (Trim(Nd.Outs[1].Opnd) <> '') then Output(1, X) else Line(X + ';');
+          end;
+        'wrloct', 'wrsyst', 'setclk':
+          begin
+            X := Format('%s(%s := %s)', [D.Title, Nd.Ins[1].Name, Need(Nd.Ins[1].Name)]);
+            if Wired[K][0] or (Trim(Nd.Outs[0].Opnd) <> '') then Output(0, X) else Line(X + ';');
+          end;
+        'timetck': Output(0, 'TIME_TCK()');
         'call':
           begin
             if Trim(Nd.Inst) = '' then Err(Nd.Id, 'CALL: the block above the box is empty');
@@ -1427,9 +1519,35 @@ begin
           end;
         lkSD, lkSE, lkSP, lkSS, lkSF, lkCU, lkCD, lkSC:
           begin
-            Err := Format('row %d column %d: the S5 timers / counters have no FBD box here (use TON / CTU ..)', [R + 1, C + 1]);
-            F.Free;
-            Exit;
+            // an S5 coil: its box (the timer / counter above it), the rung into S / CU / CD
+            case Ce.Kind of
+              lkSD: Nd := Box('sodt');
+              lkSE: Nd := Box('spext');
+              lkSP: Nd := Box('spulse');
+              lkSS: Nd := Box('sodts');
+              lkSF: Nd := Box('soffdt');
+              lkCD: Nd := Box('scd');
+            else
+              Nd := Box('scu');
+            end;
+            Nd.Inst := Ce.Opnd;
+            if Sg.Kind = 0 then Sg := Term('FALSE', False);
+            case Ce.Kind of
+              lkCU: Put(Nd.Ins[OldOfIdx(Nd.Ins, 'CU')], Sg);
+              lkCD: Put(Nd.Ins[OldOfIdx(Nd.Ins, 'CD')], Sg);
+              lkSC:
+                begin
+                  Nd.Ins[OldOfIdx(Nd.Ins, 'CU')].Opnd := 'FALSE';
+                  Put(Nd.Ins[OldOfIdx(Nd.Ins, 'S')], Sg);
+                  Nd.Ins[OldOfIdx(Nd.Ins, 'PV')].Opnd := Ce.P[0];
+                end;
+            else
+              begin
+                Put(Nd.Ins[OldOfIdx(Nd.Ins, 'S')], Sg);
+                Nd.Ins[OldOfIdx(Nd.Ins, 'TV')].Opnd := Ce.P[0];
+              end;
+            end;
+            Add(Nd);
           end;
       else
         begin
@@ -1517,7 +1635,9 @@ begin
   Result := nil;
   FbdBoxes;
   for K := 0 to High(Defs) do
-    if Defs[K].Id <> 'call' then Add(Defs[K].Cat, Defs[K].Title + IfThen(Defs[K].Cat = 'Shift / word logic', ' (word)', ''),
+    if (P <> nil) and (P.Family = cfS71200) and ((Defs[K].Cat = 'Timers (S5)') or (Defs[K].Cat = 'Counters (S5)')) then
+      Continue
+    else if Defs[K].Id <> 'call' then Add(Defs[K].Cat, Defs[K].Title + IfThen(Defs[K].Cat = 'Shift / word logic', ' (word)', ''),
       FbdBoxSnip + Defs[K].Id, Defs[K].Descr)
     else Add(Defs[K].Cat, 'CALL', FbdBoxSnip + 'call', Defs[K].Descr);
   if Cfc then

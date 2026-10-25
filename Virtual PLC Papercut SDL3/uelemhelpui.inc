@@ -18,14 +18,20 @@ begin
 end;
 
 procedure TPlcUI.EhOpen(I: Integer);
+begin
+  if (I < 0) or (I > High(FElems)) then Exit;
+  EhOpenPage(ElemHelpPage(FElemLang, FElems[I], Project.Family), FElemLang, I);
+end;
+
+{ a page in the help window (Lang 'D': a page that is no element: no Previous / Next) }
+procedure TPlcUI.EhOpenPage(const Page: TElemHelpPage; Lang: Char; Idx: Integer);
 var
   K: Integer;
 begin
-  if (I < 0) or (I > High(FElems)) then Exit;
   EhFreeNets;
-  FEhIdx := I;
-  FEhLang := FElemLang;
-  FEhPage := ElemHelpPage(FEhLang, FElems[I], Project.Family);
+  FEhIdx := Idx;
+  FEhLang := Lang;
+  FEhPage := Page;
   // the networks of the LAD pictures (nil for the other blocks)
   SetLength(FEhNets, Length(FEhPage.Blocks));
   for K := 0 to High(FEhPage.Blocks) do
@@ -790,6 +796,65 @@ begin
           end;
         hbFlow:
           YY := YY + EhFlow(Bk.S, X0, YY + 4, CW) + 8;
+        hbMem:
+          begin
+            // a row of bytes per line: a box per variable, as wide as its bytes, its offset under it
+            LblW := 0;
+            NB := 1;
+            for J := 0 to Lines.Count - 1 do
+            begin
+              R := Pos('=', Line(J));
+              LblW := Max(LblW, TxtW(fkMonoB, 11.5, Copy(Line(J), 1, R - 1)) + 20);
+              Cells := Copy(Line(J), R + 1, MaxInt).Split('|');
+              A := 0;
+              for C := 0 to High(Cells) do
+              begin
+                Vals := Cells[C].Split(':');
+                if Length(Vals) > 1 then A := A + StrToIntDef(Vals[1], 1);
+              end;
+              NB := Max(NB, A);
+            end;
+            BoxW := Min(64, (CW - LblW - 10) / NB);
+            for J := 0 to Lines.Count - 1 do
+            begin
+              R := Pos('=', Line(J));
+              Lb := Copy(Line(J), 1, R - 1);
+              On1 := (Lb <> '') and (Lb[1] = '!');
+              if On1 then Delete(Lb, 1, 1);
+              TxtFit(fkMonoB, 11.5, X0, YY + 9, LblW - 10, Lb, cInk);
+              Cells := Copy(Line(J), R + 1, MaxInt).Split('|');
+              A := 0;
+              for C := 0 to High(Cells) do
+              begin
+                Vals := Cells[C].Split(':');
+                if Length(Vals) < 3 then Continue;
+                B := StrToIntDef(Vals[1], 1);
+                GX := X0 + LblW + A * BoxW;
+                if Vals[2] = 'p' then
+                begin
+                  RR(GX + 1, YY, B * BoxW - 3, 30, 3, Alpha(cInkFaint, 40));
+                  RRL(GX + 1, YY, B * BoxW - 3, 30, 3, 0.8, Alpha(cInkFaint, 120));
+                end
+                else if Vals[2] = 'b' then
+                begin
+                  RR(GX + 1, YY, B * BoxW - 3, 30, 3, Alpha(cJade, 60));
+                  RRL(GX + 1, YY, B * BoxW - 3, 30, 3, 0.8, cJade);
+                end
+                else
+                begin
+                  RR(GX + 1, YY, B * BoxW - 3, 30, 3, Alpha(cGold, 150));
+                  RRL(GX + 1, YY, B * BoxW - 3, 30, 3, 0.8, cGoldDark);
+                end;
+                TxtFit(fkMonoB, 10.5, GX + (B * BoxW - 2) / 2, YY + 8, B * BoxW - 8, Vals[0],
+                  EhPick(Vals[2] = 'p', cInkSoft, cInk), 1);
+                if On1 then Txt(fkMono, 9, GX + 2, YY + 33, '-', cInkFaint)
+                else Txt(fkMono, 9, GX + 2, YY + 33, IntToStr(A) + '.0', cInkSoft);
+                A := A + B;
+              end;
+              YY := YY + 52;
+            end;
+            YY := YY + 2;
+          end;
         hbFbd, hbCfc:
           begin
             N := nil;
@@ -1047,7 +1112,7 @@ begin
   FNetSel := I;
   FCellR := 0;
   FCellC := 0;
-  if CurBlock.Net(I).Kind = nkLAD then FStlNet := -1 else FStlNet := I;
+  if CurBlock.Net(I).Kind in [nkLAD, nkFBD, nkCFC] then FStlNet := -1 else FStlNet := I;
   FEdNet := nil;
   FScrollToCaret := True;
 end;

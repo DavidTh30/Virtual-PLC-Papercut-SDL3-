@@ -29,7 +29,7 @@ interface
 uses
   Classes, SysUtils, StrUtils, Math, TypInfo, Forms, Controls, Clipbrd, SDL3, BGRABitmap, BGRABitmapTypes,
   uRenderPool, uPaperDL, uFrame, uUiBase, uUi, uPlcRuntime, uPlcTypes, uPlcProject, uExport, uClaude, uClaudeHttp,
-  uClaudeChat, uPlcServer, uHelpForm;
+  uClaudeChat, uMiniWatch, uSplash, uPlcServer, uHelpForm;
 
 const
   HistLen = 300;
@@ -38,6 +38,18 @@ type
   TShotStep = record
     Wait: Integer;     // frames before the step
     Cmd, Arg: string;
+  end;
+
+  { the first build of the program in a thread of its own while the window shows the loading picture: it makes
+    the fonts of the glyph cache (the main thread does not touch the UI meanwhile) }
+  TWarmThread = class(TThread)
+  protected
+    procedure Execute; override;
+  public
+    UI: TPlcUI;
+    S, D: TDisplayList;
+    Done: Boolean;
+    Ms: Double;
   end;
 
   { TSDLView }
@@ -72,6 +84,35 @@ type
     FCFlip, FCShown, FCSized: Boolean;
     FCStatic, FCDyn: TDisplayList;
     FCRenderer: TFrameRenderer;
+    { the Mini Watch window }
+    FMWin: PSDL_Window;
+    FMRen: PSDL_Renderer;
+    FMTex: PSDL_Texture;
+    FMTexW, FMTexH: Integer;
+    FMFlip, FMShown, FMSized, FMOnTop: Boolean;
+    FMStatic, FMDyn: TDisplayList;
+    FMRenderer: TFrameRenderer;
+    FMExt: Boolean;            // the main window shows where a row of the Mini Watch would go
+    { the loading picture }
+    FSplash: Boolean;
+    FSplashTex: array of PSDL_Texture;
+    FSplashW, FSplashH: Integer;
+    FSplashFlip: Boolean;
+    FSplashT0, FSplashDoneT: Double;
+    FSplashQuit: Boolean;
+    FWarm: TWarmThread;
+    FSplashFirstMs, FSplashFramesMs: Double;   // the first frame shown, all frames made (since the start)
+    function MouseOver(Win: PSDL_Window; out LX, LY: Single): Boolean;
+    procedure DragAcross(Win: PSDL_Window);
+    procedure DropMainOnMini;
+    function DropMiniOnMain(LX, LY: Single): Boolean;
+    procedure StartSplash(Test: Boolean);
+    function SplashTex(B: TBGRABitmap): PSDL_Texture;
+    procedure SplashPresent(Index: Integer; A: Integer);
+    procedure SplashFrame;
+    procedure CreateMiniWindow;
+    procedure MiniFrame(DT: Double);
+    procedure SaveMiniShot(const AFile: string);
     procedure CloseRequest;
     procedure CreateChatWindow;
     procedure ChatFrame(DT: Double);
@@ -98,6 +139,7 @@ type
     Glyphs: TGlyphCache;
     UI: TPlcUI;
     Chat: TClaudeChatUI;
+    Mini: TMiniWatchUI;
     Renderer: TFrameRenderer;
     { timing history }
     IntervalHist, RenderHist, CpuHist, BuildHist, UploadHist, SwapHist: array[0..HistLen - 1] of Single;
@@ -133,7 +175,13 @@ var
 implementation
 
 uses
-  uInfoForm;
+  uInfoForm, uAppIcon;
+
+{ the icon of the program on an SDL window (the title bar, the task bar, Alt+Tab) }
+procedure SetAppIcon(Win: PSDL_Window);
+begin
+  SetWindowAppIcon(SDL_GetPointerProperty(SDL_GetWindowProperties(Win), SDL_PROP_WINDOW_WIN32_HWND_POINTER, nil));
+end;
 
 function SDLErr: string;
 begin
@@ -149,9 +197,10 @@ begin
   inherited Create;
   if not SDL_Init(SDL_INIT_VIDEO) then
     raise Exception.Create('SDL_Init failed: ' + SDLErr);
-  FWin := SDL_CreateWindow('Virtual PLC - S7-300 / S7-400 / S7-1200 (papercut, SDL3 + BGRABitmap all cores)',
+  FWin := SDL_CreateWindow('Virtual PLC (papercut, SDL3 + BGRABitmap all cores)',
     1440, 810, SDL_WINDOW_RESIZABLE or SDL_WINDOW_HIGH_PIXEL_DENSITY);
   if FWin = nil then raise Exception.Create('SDL_CreateWindow failed: ' + SDLErr);
+  SetAppIcon(FWin);
   if SDL_GetDisplayUsableBounds(SDL_GetPrimaryDisplay, @R) then
     SDL_SetWindowPosition(FWin, R.x + 20, R.y + 40);
   FRen := SDL_CreateRenderer(FWin, nil);
@@ -195,6 +244,9 @@ begin
   if FShotDir <> '' then RunScript;
   // the start-up project goes to the CPU at once (the script loads its own)
   if FShotDir = '' then UI.Download;
+  // the loading picture while the first frame is made (not for the scripted shots, the export, the bench)
+  if ((FShotDir = '') and (FExportArgs = 0) and (FBenchSecs = 0)) or (GetEnvironmentVariable('VPLC_SPLASH_TEST') <> '') then
+    StartSplash(FShotDir <> '');
   if FExportArgs > 0 then
   begin
     UI.LoadSampleFor(7);
@@ -203,6 +255,159 @@ begin
     UI.Rt.SetSimBit(0, 1, True);
   end;
   Application.AddOnIdleHandler(@AppIdle);
+end;
+
+procedure TWarmThread.Execute;
+var
+  T0: Double;
+begin
+  T0 := HiResMs;
+  try
+    UI.Build(S, D);
+  except
+  end;
+  Ms := HiResMs - T0;
+  Done := True;
+end;
+
+{ ---------- the loading picture ---------- }
+
+function TSDLView.SplashTex(B: TBGRABitmap): PSDL_Texture;
+var
+  Fmt: LongInt;
+begin
+  if TBGRAPixel_RGBAOrder then Fmt := SDL_PIXELFORMAT_ABGR8888 else Fmt := SDL_PIXELFORMAT_ARGB8888;
+  Result := SDL_CreateTexture(FRen, Fmt, SDL_TEXTUREACCESS_STATIC, B.Width, B.Height);
+  if Result = nil then Exit;
+  SDL_UpdateTexture(Result, nil, B.Data, B.Width * 4);
+  SDL_SetTextureBlendMode(Result, SDL_BLENDMODE_BLEND);
+  FSplashFlip := B.LineOrder = riloBottomToTop;
+end;
+
+{ frame Index of the card in the middle of the window, A its opacity (a fade at the end) }
+procedure TSDLView.SplashPresent(Index: Integer; A: Integer);
+var
+  W, H: LongInt;
+  Dst: TSDL_FRect;
+begin
+  SDL_SetRenderDrawColor(FRen, cPaper.red, cPaper.green, cPaper.blue, 255);
+  SDL_RenderClear(FRen);
+  if (Index >= 0) and (Index <= High(FSplashTex)) and (FSplashTex[Index] <> nil) then
+  begin
+    W := 0;
+    H := 0;
+    SDL_GetCurrentRenderOutputSize(FRen, @W, @H);
+    Dst.w := FSplashW;
+    Dst.h := FSplashH;
+    Dst.x := Round((W - FSplashW) / 2);
+    Dst.y := Round((H - FSplashH) / 2);
+    SDL_SetTextureAlphaMod(FSplashTex[Index], EnsureRange(A, 0, 255));
+    if FSplashFlip then SDL_RenderTextureRotated(FRen, FSplashTex[Index], nil, @Dst, 0, nil, SDL_FLIP_VERTICAL)
+    else SDL_RenderTexture(FRen, FSplashTex[Index], nil, @Dst);
+  end;
+  SDL_RenderPresent(FRen);
+end;
+
+{ the frames first (the glyph cache is used by this thread only), the first one at once, then the first build
+  in its thread; Test: the scripted shots keep three frames as PNG }
+procedure TSDLView.StartSplash(Test: Boolean);
+var
+  Sp: TSplashUI;
+  L: TList;
+  K, W, H: Integer;
+  Dens: Single;
+  B: TBGRABitmap;
+begin
+  FSplashT0 := HiResMs;
+  W := 0;
+  H := 0;
+  SDL_GetWindowSizeInPixels(FWin, @W, @H);
+  if (W < 16) or (H < 16) then Exit;
+  // the size of the window now: the fonts are made for it
+  Renderer.SetSize(W, H);
+  UI.SetSize(W, H);
+  UI.InvalidateStatic;
+  Dens := SDL_GetWindowDisplayScale(FWin);
+  if Dens < 0.5 then Dens := 1;
+  SetLength(FSplashTex, SplashFrames);
+  Sp := TSplashUI.Create(Glyphs);
+  try
+    for K := 0 to SplashFrames - 1 do
+    begin
+      L := Sp.MakeFrames(Dens * SplashScale, K, 1);
+      try
+        B := TBGRABitmap(L[0]);
+        FSplashW := B.Width;
+        FSplashH := B.Height;
+        if Test and (K mod 10 = 0) then B.SaveToFile(FShotDir + Format('splash_%.2d.png', [K]));
+        FSplashTex[K] := SplashTex(B);
+        B.Free;
+      finally
+        L.Free;
+      end;
+      if K = 0 then
+      begin
+        SplashPresent(0, 255);
+        FSplashFirstMs := HiResMs - FSplashT0;
+      end;
+    end;
+    FSplashFramesMs := HiResMs - FSplashT0;
+  finally
+    Sp.Free;
+  end;
+  // the fonts of the system are listed here, not in the thread
+  if Screen.Fonts.Count = 0 then ;
+  FWarm := TWarmThread.Create(True);
+  FWarm.UI := UI;
+  FWarm.S := TDisplayList.Create(Glyphs);
+  FWarm.D := TDisplayList.Create(Glyphs);
+  FWarm.FreeOnTerminate := False;
+  FWarm.Start;
+  FSplash := True;
+  FSplashDoneT := 0;
+end;
+
+{ a frame of the loading picture; at the end (the first build done, at least 1.2 s shown) a fade, then the
+  program }
+procedure TSDLView.SplashFrame;
+var
+  E: TSDL_Event;
+  T, Fade: Double;
+  K: Integer;
+begin
+  while SDL_PollEvent(@E) do
+    if (E._type = SDL_EVENT_QUIT) or (E._type = SDL_EVENT_WINDOW_CLOSE_REQUESTED) then FSplashQuit := True;
+  T := HiResMs - FSplashT0;
+  if FWarm.Done and (FSplashDoneT = 0) and (T >= 1200) then FSplashDoneT := HiResMs;
+  Fade := 255;
+  if FSplashDoneT > 0 then Fade := 255 * (1 - (HiResMs - FSplashDoneT) / 250);
+  SplashPresent(Trunc(T / (1000 / 30)) mod SplashFrames, Round(Fade));
+  if (FSplashDoneT > 0) and (HiResMs - FSplashDoneT >= 250) then
+  begin
+    // the program: its first build made the fonts; its own display lists build again
+    FWarm.WaitFor;
+    if FShotDir <> '' then
+      with TStringList.Create do
+      try
+        Add(Format('loading picture: %d frames of %d x %d px, the first shown after %.0f ms, all made after %.0f ms, ' +
+          'first build %.0f ms in its thread, shown %.0f ms', [Length(FSplashTex), FSplashW, FSplashH, FSplashFirstMs,
+          FSplashFramesMs, FWarm.Ms, HiResMs - FSplashT0]));
+        SaveToFile(FShotDir + 'splash_check.txt');
+      finally
+        Free;
+      end;
+    FWarm.S.Free;
+    FWarm.D.Free;
+    FreeAndNil(FWarm);
+    for K := 0 to High(FSplashTex) do
+      if FSplashTex[K] <> nil then SDL_DestroyTexture(FSplashTex[K]);
+    SetLength(FSplashTex, 0);
+    FSplash := False;
+    UI.InvalidateStatic;
+    if FSplashQuit then CloseRequest;
+    Exit;
+  end;
+  Sleep(10);
 end;
 
 procedure TSDLView.LogEvent(const S: string);
@@ -223,6 +428,13 @@ begin
   FreeAndNil(Chat);
   FreeAndNil(FCStatic);
   FreeAndNil(FCDyn);
+  FreeAndNil(FMRenderer);
+  FreeAndNil(Mini);
+  FreeAndNil(FMStatic);
+  FreeAndNil(FMDyn);
+  if FMTex <> nil then SDL_DestroyTexture(FMTex);
+  if FMRen <> nil then SDL_DestroyRenderer(FMRen);
+  if FMWin <> nil then SDL_DestroyWindow(FMWin);
   if FCTex <> nil then SDL_DestroyTexture(FCTex);
   if FCRen <> nil then SDL_DestroyRenderer(FCRen);
   if FCWin <> nil then SDL_DestroyWindow(FCWin);
@@ -335,6 +547,66 @@ begin
   Target.KeyDown(K, Ch, M);
 end;
 
+{ the mouse over a window (points of that window), from where the mouse is on the screen }
+function TSDLView.MouseOver(Win: PSDL_Window; out LX, LY: Single): Boolean;
+var
+  GX, GY: Single;
+  WX, WY, W, H: LongInt;
+begin
+  Result := False;
+  LX := 0;
+  LY := 0;
+  if Win = nil then Exit;
+  GX := 0; GY := 0; WX := 0; WY := 0; W := 0; H := 0;
+  SDL_GetGlobalMouseState(@GX, @GY);
+  SDL_GetWindowPosition(Win, @WX, @WY);
+  SDL_GetWindowSize(Win, @W, @H);
+  LX := GX - WX;
+  LY := GY - WY;
+  Result := (LX >= 0) and (LY >= 0) and (LX < W) and (LY < H);
+end;
+
+{ the button went up in Win: a drag that ends over the other window drops there (a variable of the main window
+  into the Mini Watch, a row of the Mini Watch into the main window) }
+procedure TSDLView.DragAcross(Win: PSDL_Window);
+var
+  LX, LY: Single;
+begin
+  if (Win = FWin) and FMShown and (UI.VarDragText <> '') and MouseOver(FMWin, LX, LY) then DropMainOnMini
+  else if (Win = FMWin) and (Mini <> nil) and Mini.Dragging and MouseOver(FWin, LX, LY) then
+    if DropMiniOnMain(LX, LY) then SDL_RaiseWindow(FWin);
+end;
+
+{ what the main window drags (one variable, or the rows of a group / DB) into the Mini Watch }
+procedure TSDLView.DropMainOnMini;
+var
+  S: string;
+  K: Integer;
+begin
+  S := UI.VarDragText;
+  UI.VarDragCancel;
+  with TStringList.Create do
+  try
+    Text := StringReplace(S, #10, LineEnding, [rfReplaceAll]);
+    for K := 0 to Count - 1 do
+      if Trim(Strings[K]) <> '' then UI.MiniAdd(Trim(Strings[K]));
+  finally
+    Free;
+  end;
+  if Mini <> nil then Mini.DropHover := False;
+end;
+
+{ the row the Mini Watch drags onto the main window at (LX, LY), points of the main window }
+function TSDLView.DropMiniOnMain(LX, LY: Single): Boolean;
+var
+  X, Y: Single;
+begin
+  MousePos(LX, LY, X, Y, FWin);
+  Mini.DragOut := True;   // not a move inside the Mini Watch
+  FMExt := False;
+  Result := UI.ExtDrop(Mini.DragText, X, Y);
+end;
+
 function TSDLView.IsChatEvent(const E: TSDL_Event): Boolean;
 begin
   // window, key, text and mouse events all start with type, reserved, timestamp, windowID
@@ -355,6 +627,11 @@ begin
       T := Chat;
       Win := FCWin;
     end
+    else if (FMWin <> nil) and (Mini <> nil) and (E.window.windowID = SDL_GetWindowID(FMWin)) then
+    begin
+      T := Mini;
+      Win := FMWin;
+    end
     else
     begin
       T := UI;
@@ -366,6 +643,8 @@ begin
       SDL_EVENT_WINDOW_CLOSE_REQUESTED:
         if Win = FCWin then
           UI.ChatOpen := False   // the chat only hides; ChatFrame does it
+        else if Win = FMWin then
+          UI.MiniOpen := False   // the Mini Watch too
         else if not Exporting then CloseRequest;
       SDL_EVENT_KEY_DOWN:
         begin
@@ -396,6 +675,7 @@ begin
         begin
           MousePos(E.button.x, E.button.y, X, Y, Win);
           LogEvent(Format('up %.1f %.1f', [E.button.x, E.button.y]));
+          DragAcross(Win);
           T.MouseUp(X, Y);
         end;
       SDL_EVENT_MOUSE_MOTION:
@@ -435,6 +715,11 @@ begin
   begin
     SDL_SetClipboardText(PAnsiChar(Chat.ClipboardOut));
     Chat.ClipboardOut := '';
+  end;
+  if (Mini <> nil) and (Mini.ClipboardOut <> '') then
+  begin
+    SDL_SetClipboardText(PAnsiChar(Mini.ClipboardOut));
+    Mini.ClipboardOut := '';
   end;
 end;
 
@@ -541,6 +826,7 @@ begin
   FCWin := SDL_CreateWindow('Claude chat - Virtual PLC', 540, 780,
     SDL_WINDOW_RESIZABLE or SDL_WINDOW_HIGH_PIXEL_DENSITY or SDL_WINDOW_HIDDEN);
   if FCWin = nil then raise Exception.Create('SDL_CreateWindow (chat) failed: ' + SDLErr);
+  SetAppIcon(FCWin);
   // beside the main window, inside the screen
   X := 0; Y := 0; W := 0; H := 0;
   SDL_GetWindowPosition(FWin, @X, @Y);
@@ -615,6 +901,127 @@ begin
   PresentTex(FCRen, FCTex, FCFlip);
 end;
 
+{ ---------- the Mini Watch window ---------- }
+
+procedure TSDLView.CreateMiniWindow;
+var
+  X, Y, W, H: LongInt;
+  R: TSDL_Rect;
+begin
+  FMWin := SDL_CreateWindow('Mini Watch - Virtual PLC', 520, 300,
+    SDL_WINDOW_RESIZABLE or SDL_WINDOW_HIGH_PIXEL_DENSITY or SDL_WINDOW_HIDDEN);
+  if FMWin = nil then raise Exception.Create('SDL_CreateWindow (Mini Watch) failed: ' + SDLErr);
+  SetAppIcon(FMWin);
+  SDL_SetWindowMinimumSize(FMWin, 300, 140);
+  // at the lower right of the main window, inside the screen
+  X := 0; Y := 0; W := 0; H := 0;
+  SDL_GetWindowPosition(FWin, @X, @Y);
+  SDL_GetWindowSize(FWin, @W, @H);
+  X := X + W - 540;
+  Y := Y + H - 330;
+  if SDL_GetDisplayUsableBounds(SDL_GetDisplayForWindow(FWin), @R) then
+  begin
+    X := EnsureRange(X, R.x, R.x + R.w - 530);
+    Y := EnsureRange(Y, R.y + 30, R.y + R.h - 320);
+  end;
+  SDL_SetWindowPosition(FMWin, X, Y);
+  FMRen := SDL_CreateRenderer(FMWin, nil);
+  if FMRen = nil then raise Exception.Create('SDL_CreateRenderer (Mini Watch) failed: ' + SDLErr);
+  SDL_SetRenderVSync(FMRen, 0);
+  SDL_StartTextInput(FMWin);
+  FMStatic := TDisplayList.Create(Glyphs);
+  FMDyn := TDisplayList.Create(Glyphs);
+  FMRenderer := TFrameRenderer.Create(EnsureRange(PhysicalCores div 4, 1, 2), 1);
+  Mini := TMiniWatchUI.Create(Glyphs, UI);
+end;
+
+{ like the chat: called while the workers of the main window are idle }
+procedure TSDLView.MiniFrame(DT: Double);
+var
+  W, H: LongInt;
+  LX, LY, X, Y: Single;
+begin
+  if UI.MainRaiseRequested then
+  begin
+    UI.MainRaiseRequested := False;
+    SDL_RaiseWindow(FWin);
+  end;
+  if UI.MiniOpen and not FMShown then
+  begin
+    if FMWin = nil then CreateMiniWindow;
+    SDL_ShowWindow(FMWin);
+    FMShown := True;
+    UI.MiniRaiseRequested := True;
+  end;
+  if not UI.MiniOpen and FMShown then
+  begin
+    SDL_HideWindow(FMWin);
+    FMShown := False;
+  end;
+  if not FMShown then Exit;
+  if UI.MiniRaiseRequested then
+  begin
+    UI.MiniRaiseRequested := False;
+    SDL_RaiseWindow(FMWin);
+  end;
+  if Mini.OnTop <> FMOnTop then
+  begin
+    FMOnTop := Mini.OnTop;
+    SDL_SetWindowAlwaysOnTop(FMWin, FMOnTop);
+  end;
+  // a drag between the windows: the main window drags over the Mini Watch, a row of the Mini Watch over the
+  // main window (the main window shows where it would go)
+  Mini.DropHover := (UI.VarDragText <> '') and not FMExt and MouseOver(FMWin, LX, LY);
+  if Mini.Dragging and MouseOver(FWin, LX, LY) then
+  begin
+    MousePos(LX, LY, X, Y, FWin);
+    UI.ExtDragMove(Mini.DragText, X, Y);
+    Mini.DragOut := True;
+    FMExt := True;
+  end
+  else
+  begin
+    Mini.DragOut := False;
+    if FMExt then UI.ExtDragLeave;
+    FMExt := False;
+  end;
+  if (SDL_GetWindowFlags(FMWin) and SDL_WINDOW_MINIMIZED) <> 0 then Exit;
+  W := 0;
+  H := 0;
+  SDL_GetWindowSizeInPixels(FMWin, @W, @H);
+  if (W < 16) or (H < 16) then Exit;
+  Mini.SetDensity(SDL_GetWindowDisplayScale(FMWin));
+  if (W <> FMRenderer.Width) or (H <> FMRenderer.Height) then
+  begin
+    FMRenderer.SetSize(W, H);
+    Mini.SetSize(W, H);
+    FMSized := False;
+  end;
+  Mini.Update(DT);
+  FMDyn.Clear;
+  Mini.Build(FMDyn);
+  if not FMSized then FMStatic.Clear;
+  FMRenderer.Start(FMStatic, FMDyn, not FMSized);
+  FMSized := True;
+  FMRenderer.Wait;
+  UploadBands(FMRen, FMRenderer, FMTex, FMTexW, FMTexH, FMFlip);
+  PresentTex(FMRen, FMTex, FMFlip);
+end;
+
+procedure TSDLView.SaveMiniShot(const AFile: string);
+var
+  B: TBGRABitmap;
+begin
+  if (FMRenderer = nil) or not FMShown then Exit;
+  B := TBGRABitmap.Create(1, 1);
+  try
+    FMRenderer.Assemble(B);
+    B.SaveToFile(AFile);
+  finally
+    B.Free;
+  end;
+end;
+
 procedure TSDLView.SaveChatShot(const AFile: string);
 var
   B: TBGRABitmap;
@@ -686,6 +1093,11 @@ begin
     Done := True;
     Exit;
   end;
+  if FSplash then
+  begin
+    SplashFrame;
+    Exit;
+  end;
   PollEvents;
   if not FRunning then Exit;
   if (SDL_GetWindowFlags(FWin) and SDL_WINDOW_MINIMIZED) <> 0 then
@@ -748,6 +1160,7 @@ begin
   UI.InfoOnTop := (InfoForm <> nil) and (InfoForm.FormStyle = fsStayOnTop);
   UI.Update(DT);
   ChatFrame(DT);
+  MiniFrame(DT);
   FStaticChanged := UI.Build(FStatic, FDyn);
   LastBuildMs := HiResMs - T0;
   Renderer.Start(FStatic, FDyn, FStaticChanged);
@@ -902,6 +1315,7 @@ var
   Pt, Pp, P0: TPointF;
   Pc: PChar;
   S0, S1, S2, S3: string;
+  P2: TPlcProject;
   Blk: TBlock;
   Ok: Boolean;
 begin
@@ -1087,6 +1501,8 @@ begin
     Add(5, 'mk', 'saveas');
     Add(10, 'shot', 'batch_7_saveas');
     Add(5, 'mk', 'saveas2');
+    Add(5, 'mk', 'fname');
+    Add(10, 'shot', 'batch_7b_file_name');
     Add(5, 'mk', 'rmfiles');
     Add(5, 'screen', '6');
     Add(10, 'mk', 'ip');
@@ -1345,6 +1761,143 @@ begin
     FShotWait := FShots[0].Wait;
     Exit;
   end;
+  if (Length(FShots) = 0) and (GetEnvironmentVariable('VPLC_WARR_TEST') <> '') then
+  begin
+    // the watch table with arrays: an element of an open array modified (Modify now), added as a row of its own
+    // (the right button), dragged from the Tags / DBs panel (the array opens to its elements); the Mini Watch:
+    // rows with an array opened, kept in the project
+    DeleteFile(FShotDir + 'watchstruct_check.txt');
+    DeleteFile(FShotDir + 'watchdrag_check.txt');
+    DeleteFile(FShotDir + 'miniwatch_check.txt');
+    Add(10, 'ipc', 'ex 33');
+    Add(5, 'ws', 'dbvar Box Arr Array[0..3] of Int');
+    Add(5, 'ws', 'dbvar Box Flags Array[0..7] of Bool');
+    Add(10, 'fkey', '8');
+    Add(30, 'fkey', '5');
+    Add(5, 'ws', 'add "Box".Arr');
+    Add(5, 'ws', 'open "Box".Arr');
+    Add(5, 'screen', '3');
+    Add(5, 'mw', 'submod "Box".Arr[1] 77');
+    Add(5, 'mw', 'submod "Box".Arr[3] -5');
+    Add(10, 'uiclick2', 'modifynow:0');
+    Add(30, 'shot', 'warr_1_modified');
+    Add(5, 'ws', 'dump');
+    Add(5, 'uirclick', 'watchsub:8');
+    Add(5, 'mw', 'ctx');
+    Add(5, 'uiclick2', 'ctx:2');
+    Add(10, 'wd', 'dump');
+    Add(5, 'uiclick2', 'watchright:1');
+    Add(5, 'uiclick2', 'picksrc:1');
+    Add(5, 'uiclick2', 'pickhead:0');
+    Add(5, 'wd', 'filter Arr');
+    Add(20, 'shot', 'warr_2_picker');
+    Add(5, 'wd', 'dragins "Box".Arr[2]');
+    Add(10, 'wd', 'dump');
+    // the Mini Watch
+    Add(5, 'mw', 'add "Box".Picked');
+    Add(5, 'mw', 'add "Box".Arr');
+    Add(5, 'mw', 'add %MW12');
+    Add(5, 'mw', 'add "Box".Text');
+    Add(20, 'mw', 'tomini "Box".Arr[3]');
+    Add(20, 'mw', 'tomain 0 600 640');
+    Add(20, 'mw', 'gripmini watchgrip 1');
+    Add(20, 'mw', 'gripmini watchsubgrip 9');
+    Add(20, 'mw', 'gripmove 0 520');
+    Add(20, 'shot', 'warr_5_dropped_from_mini');
+    Add(20, 'mw', 'open "Box".Arr');
+    Add(20, 'mw', 'dump');
+    Add(5, 'mwshot', 'warr_3_miniwatch');
+    Add(5, 'mw', 'xref "Box".Arr[1]');
+    Add(20, 'shot', 'warr_4_xref_from_mini');
+    Add(5, 'mw', 'saveload');
+    Add(5, 'quit');
+    FShotPos := 0;
+    FShotWait := FShots[0].Wait;
+    Exit;
+  end;
+  if (Length(FShots) = 0) and (GetEnvironmentVariable('VPLC_OPTDB_TEST') <> '') then
+  begin
+    // the button Optimized DB of Data blocks: the right button: Help: Optimized DB; the project settings with the
+    // check boxes of the clock and the system memory byte (S7-1500, then an S7-300)
+    DeleteFile(FShotDir + 'elemhelp_check.txt');
+    Add(10, 'ipc', 'ex 33');
+    Add(5, 'screen', '4');
+    Add(10, 'uiclick2', 'db:0');
+    Add(10, 'uirclick', 'dbopt:0');
+    Add(10, 'shot', 'optdb_1_menu');
+    Add(5, 'eh', 'menu');
+    Add(5, 'uiclick2', 'ctx:0');
+    Add(20, 'shot', 'optdb_2_help');
+    Add(5, 'eh', 'dump');
+    Add(5, 'eh', 'scroll 380');
+    Add(20, 'shot', 'optdb_3_memory');
+    Add(5, 'eh', 'esc');
+    Add(10, 'ipc', 'ex 2');
+    Add(5, 'screen', '7');
+    Add(20, 'shot', 'optdb_5_settings_300');
+    Add(10, 'ipc', 'ex 33');
+    Add(5, 'screen', '7');
+    Add(10, 'uiclick2', 'syson:0');
+    Add(20, 'shot', 'optdb_4_settings_1500');
+    Add(5, 'quit');
+    FShotPos := 0;
+    FShotWait := FShots[0].Wait;
+    Exit;
+  end;
+  if (Length(FShots) = 0) and (GetEnvironmentVariable('VPLC_RETAIN_TEST') <> '') then
+  begin
+    // the Retain column of Data blocks: the right button on a cell / on the head: Help: Retain; the project screen
+    // with Save as (its dialog) and no file name field
+    DeleteFile(FShotDir + 'elemhelp_check.txt');
+    Add(10, 'ipc', 'ex 33');
+    Add(5, 'screen', '4');
+    Add(10, 'uiclick2', 'db:0');
+    Add(10, 'uirclick', 'retaincell:1');
+    Add(10, 'shot', 'retain_1_menu');
+    Add(5, 'eh', 'menu');
+    Add(5, 'uiclick2', 'ctx:0');
+    Add(20, 'shot', 'retain_2_help');
+    Add(5, 'eh', 'dump');
+    Add(5, 'eh', 'scroll 330');
+    Add(20, 'shot', 'retain_3_timing');
+    Add(5, 'eh', 'esc');
+    Add(10, 'uirclick', 'retainhead:0');
+    Add(5, 'uiclick2', 'ctx:0');
+    Add(10, 'eh', 'dump');
+    Add(5, 'eh', 'esc');
+    Add(5, 'screen', '7');
+    Add(20, 'shot', 'retain_4_project_save_as');
+    Add(5, 'quit');
+    FShotPos := 0;
+    FShotWait := FShots[0].Wait;
+    Exit;
+  end;
+  if (Length(FShots) = 0) and (GetEnvironmentVariable('VPLC_SIGCLK_TEST') <> '') then
+  begin
+    // the signal table drives a memory word / bit too (the program wins where it writes: gold), the CPU runs it
+    // while the window does nothing (minimized); the PLC clock on the CPU screen set and back to the PC
+    DeleteFile(FShotDir + 'sigclk_check.txt');
+    Add(10, 'ipc', 'ex 34');
+    Add(10, 'fkey', '8');
+    Add(30, 'fkey', '5');
+    Add(5, 'sc', 'rows');
+    Add(5, 'screen', '2');
+    Add(5, 'uiclick2', 'ioview:2');
+    Add(60, 'shot', 'sigclk_1_signals');
+    Add(5, 'sc', 'freeze');
+    Add(5, 'sc', 'dump');
+    Add(5, 'screen', '0');
+    Add(20, 'shot', 'sigclk_2_clock');
+    Add(5, 'sc', 'clock 2030-01-02 03:04:05');
+    Add(20, 'shot', 'sigclk_3_clock_set');
+    Add(5, 'sc', 'dump clock');
+    Add(5, 'uiclick2', 'clkpc:0');
+    Add(10, 'sc', 'dump clock');
+    Add(5, 'quit');
+    FShotPos := 0;
+    FShotWait := FShots[0].Wait;
+    Exit;
+  end;
   if (Length(FShots) = 0) and (GetEnvironmentVariable('VPLC_FBDEX_TEST') <> '') then
   begin
     // the example of FBD and CFC in RUN with the monitor: the motor started, a box counted
@@ -1448,6 +2001,43 @@ begin
     Add(20, 'shot', 'fbd_8_help_cfc_and');
     Add(5, 'uiclick2', 'ehins:0');
     Add(10, 'fb', 'dump inserted from the help');
+    Add(5, 'eh', 'esc');
+    // CFC: a rubber band over both blocks, they move together, Ctrl+C / Ctrl+V
+    Add(5, 'eh', 'net 2');
+    Add(10, 'fb', 'top');
+    Add(10, 'fb', 'band 1 -70 -6 3 140 70');
+    Add(5, 'fb', 'multi after the band');
+    Add(5, 'fb', 'move 1 60 0');
+    Add(5, 'fb', 'dump both moved');
+    Add(5, 'fb', 'key c');
+    Add(5, 'fb', 'key v');
+    Add(10, 'fb', 'dump CFC pasted');
+    Add(20, 'shot', 'fbd_9_cfc_band_paste');
+    // FBD: a box with the box that feeds it copied and pasted (the wire kept, new Ids), then cut
+    Add(5, 'eh', 'net 1');
+    Add(10, 'fb', 'top');
+    Add(5, 'fb', 'sel 2 -1 0');
+    Add(5, 'fb', 'key c');
+    Add(5, 'fb', 'sel 0 -1 0');
+    Add(5, 'fb', 'key v');
+    Add(10, 'fb', 'dump FBD pasted');
+    Add(5, 'fb', 'sel 7 -1 0');
+    Add(5, 'fb', 'key x');
+    Add(10, 'fb', 'dump FBD after the cut');
+    // FBD wider than the editor: the scroll bar, Shift+wheel
+    Add(5, 'fb', 'sel 1 0 0');
+    Add(5, 'fb', 'ins or');
+    Add(5, 'fb', 'sel 6 0 0');
+    Add(5, 'fb', 'ins and');
+    Add(5, 'fb', 'sel 7 0 0');
+    Add(5, 'fb', 'ins or');
+    Add(5, 'fb', 'sel 8 0 0');
+    Add(5, 'fb', 'ins and');
+    Add(10, 'fb', 'hs');
+    Add(20, 'shot', 'fbd_10_wide');
+    Add(5, 'fb', 'wheel 9');
+    Add(10, 'fb', 'hs');
+    Add(20, 'shot', 'fbd_11_wide_scrolled');
     Add(5, 'quit');
     FShotPos := 0;
     FShotWait := FShots[0].Wait;
@@ -2505,6 +3095,16 @@ begin
     FShotWait := FShots[0].Wait;
     Exit;
   end;
+  if (Length(FShots) = 0) and (GetEnvironmentVariable('VPLC_SPLASH_TEST') <> '') then
+  begin
+    // the loading picture alone (the last test: with another test it only shows before it): its frames as PNG,
+    // splash_check.txt, then the first screen of the program
+    Add(10, 'shot', 'splash_9_program');
+    Add(5, 'quit');
+    FShotPos := 0;
+    FShotWait := FShots[0].Wait;
+    Exit;
+  end;
   if Length(FShots) = 0 then
   begin
     ForceDirectories(FShotDir);
@@ -2640,6 +3240,7 @@ begin
     'esc': UI.KeyDown(ukEsc, #0, []);
     'shot': SaveShot(FShotDir + St.Arg + '.png');
     'chatshot': SaveChatShot(FShotDir + St.Arg + '.png');
+    'mwshot': SaveMiniShot(FShotDir + St.Arg + '.png');
     'quit':
       begin
         FRunning := False;
@@ -2955,8 +3556,30 @@ begin
             UI.Project.FileName := '';
             UI.RefreshProjectFiles;
           end;
+        'fname':
+          begin
+            // the file name field: a new name, Enter, then Save writes that file into Projects
+            Pt := UI.HitPoint('saveas', 0);
+            UI.MouseClicks := 1;
+            UI.MouseMods := [];
+            UI.MouseMove(Pt.X, Pt.Y);
+            UI.MouseDown(Pt.X, Pt.Y);
+            UI.MouseUp(Pt.X, Pt.Y);
+            UI.KeyDown(ukChar, 'a', [umCtrl]);
+            UI.TextInput('zz_fname_test');
+            UI.KeyDown(ukEnter, #0, []);
+            Add('file name field: [' + UI.SaveAsText + ']');
+            DeleteFile(S1 + 'zz_fname_test.vplc');
+            Pt := UI.HitPoint('savebtn', 0);
+            UI.MouseMove(Pt.X, Pt.Y);
+            UI.MouseDown(Pt.X, Pt.Y);
+            UI.MouseUp(Pt.X, Pt.Y);
+            Add(Format('Save with the name: the file is there %s, the project file %s, the field [%s]',
+              [BoolToStr(FileExists(S1 + 'zz_fname_test.vplc'), True), ExtractFileName(UI.Project.FileName), UI.SaveAsText]));
+          end;
         'rmfiles':
           begin
+            DeleteFile(S1 + 'zz_fname_test.vplc');
             for P := 0 to 15 do DeleteFile(S1 + Format('zz_scroll_test_%.2d.vplc', [P]));
             UI.RefreshProjectFiles;
           end;
@@ -2970,7 +3593,8 @@ begin
             UI.MouseMove(Pt.X, Pt.Y);
             UI.MouseDown(Pt.X, Pt.Y);
             UI.MouseUp(Pt.X, Pt.Y);
-            UI.TextInput('hello world');
+            UI.KeyDown(ukEnd, #0, []);
+            UI.TextInput(' hello world');
             UI.KeyDown(ukLeft, #0, [umCtrl, umShift]);
             UI.TextInput('there');
             UI.KeyDown(ukChar, 'a', [umCtrl]);
@@ -2993,10 +3617,10 @@ begin
             Pt := UI.HitPoint('saveas', 0);
             UI.MouseClicks := 1;
             UI.MouseMods := [];
-            UI.MouseMove(Pt.X - 134, Pt.Y);
-            UI.MouseDown(Pt.X - 134, Pt.Y);
-            UI.MouseMove(Pt.X + 125, Pt.Y);
-            UI.MouseUp(Pt.X + 125, Pt.Y);
+            UI.MouseMove(Pt.X - 127, Pt.Y);
+            UI.MouseDown(Pt.X - 127, Pt.Y);
+            UI.MouseMove(Pt.X + 118, Pt.Y);
+            UI.MouseUp(Pt.X + 118, Pt.Y);
             UI.TextInput('my_line_2');
             UI.KeyDown(ukEnter, #0, []);
             Add('save as field after a mouse drag over all and typing: [' + UI.SaveAsText + ']');
@@ -3765,6 +4389,33 @@ begin
       end
       else if S0 = 'msgs' then Add('messages: ' + UI.TestMsgs)
       else if S0 = 'top' then UI.TestNetTop
+      else if S0 = 'key' then UI.KeyDown(ukChar, S1[1], [umCtrl])
+      else if S0 = 'multi' then Add('selected: ' + UI.FbdMultiText)
+      else if S0 = 'hs' then Add(UI.FbdHsText)
+      else if S0 = 'wheel' then
+      begin
+        // Shift+wheel over the box: sideways
+        Pt := UI.FbdHitPoint(StrToInt(S1), -1, 0);
+        UI.MouseMove(Pt.X, Pt.Y);
+        UI.WheelShift := True;
+        UI.Wheel(-3);
+        UI.WheelShift := False;
+      end
+      else if S0 = 'band' then
+      begin
+        // band <node> <dx> <dy> <node> <dx> <dy>: from beside the title of a block to beside another (pixels)
+        Pt := UI.FbdHitPoint(StrToInt(ExtractWord(1, S1, [' '])), -1, 4);
+        Pt := PointF(Pt.X + StrToFloat(ExtractWord(2, S1, [' '])), Pt.Y + StrToFloat(ExtractWord(3, S1, [' '])));
+        Pp := UI.FbdHitPoint(StrToInt(ExtractWord(4, S1, [' '])), -1, 4);
+        Pp := PointF(Pp.X + StrToFloat(ExtractWord(5, S1, [' '])), Pp.Y + StrToFloat(ExtractWord(6, S1, [' '])));
+        Add(Format('band from %.0f,%.0f to %.0f,%.0f', [Pt.X, Pt.Y, Pp.X, Pp.Y]));
+        UI.MouseClicks := 1;
+        UI.MouseMods := [];
+        UI.MouseMove(Pt.X, Pt.Y);
+        UI.MouseDown(Pt.X, Pt.Y);
+        for P := 1 to 8 do UI.MouseMove(Pt.X + (Pp.X - Pt.X) * P / 8, Pt.Y + (Pp.Y - Pt.Y) * P / 8);
+        UI.MouseUp(Pp.X, Pp.Y);
+      end
       else if S0 = 'del' then UI.KeyDown(ukDel, #0, [])
       else if S0 = 'input' then UI.Rt.SetSimBit(UI.Rt.Model.DIByte, StrToInt(S1), True)
       else
@@ -3839,11 +4490,159 @@ begin
     finally
       Free;
     end;
+  if St.Cmd = 'mw' then
+    with TStringList.Create do
+    try
+      // the Mini Watch and the member / element rows of the watch table
+      if FileExists(FShotDir + 'miniwatch_check.txt') then LoadFromFile(FShotDir + 'miniwatch_check.txt');
+      S0 := ExtractWord(1, St.Arg, [' ']);
+      S1 := Trim(Copy(St.Arg, Length(S0) + 2, MaxInt));
+      if S0 = 'submod' then
+        UI.SetSubMod(Copy(S1, 1, RPos(' ', S1) - 1), Copy(S1, RPos(' ', S1) + 1, MaxInt), True)
+      else if S0 = 'ctx' then
+        Add(Format('menu of an element row: Add to Mini Watch %d, Add as a row of the table %d',
+          [UI.CtxIndex('Add to Mini Watch'), UI.CtxIndex('Add as a row')]))
+      else if S0 = 'add' then UI.MiniAdd(S1)
+      else if (S0 = 'open') and (Mini <> nil) then Mini.TestOpen(S1)
+      else if S0 = 'tomini' then
+      begin
+        // a drag of the Tags / DBs panel (its row that inserts S1) that ends over the Mini Watch
+        P := -1;
+        for V := 0 to UI.PickCount - 1 do
+          if UI.PickIns(V) = S1 then P := V;
+        Pt := UI.HitPoint('varpick', P);
+        UI.MouseClicks := 1;
+        UI.MouseMods := [];
+        UI.MouseMove(Pt.X, Pt.Y);
+        UI.MouseDown(Pt.X, Pt.Y);
+        UI.MouseMove(Pt.X - 60, Pt.Y + 20);
+        UI.MouseMove(Pt.X - 120, Pt.Y + 40);
+        Add(Format('main window drags [%s] (panel row %d) onto the Mini Watch', [UI.VarDragText, P]));
+        DropMainOnMini;
+        UI.MouseUp(Pt.X - 120, Pt.Y + 40);
+        Add(Format('Mini Watch: %d rows, the last %s', [Length(UI.Project.MiniWatch),
+          UI.Project.MiniWatch[High(UI.Project.MiniWatch)].Address]));
+      end
+      else if (S0 = 'gripmini') or (S0 = 'gripmove') then
+      begin
+        // the grip of a watch row (gripmini <hit> <row>: onto the Mini Watch; gripmove <row> <design y>: in the table)
+        if S0 = 'gripmini' then Pt := UI.HitPoint(ExtractWord(1, S1, [' ']), StrToInt(ExtractWord(2, S1, [' '])))
+        else Pt := UI.HitPoint('watchgrip', StrToInt(ExtractWord(1, S1, [' '])));
+        UI.MouseClicks := 1;
+        UI.MouseMods := [];
+        UI.MouseMove(Pt.X, Pt.Y);
+        UI.MouseDown(Pt.X, Pt.Y);
+        UI.MouseMove(Pt.X + 30, Pt.Y + 10);
+        if S0 = 'gripmini' then
+        begin
+          UI.MouseMove(Pt.X + 90, Pt.Y + 30);
+          Add(Format('the grip %s drags [%s] onto the Mini Watch', [S1, UI.VarDragText]));
+          DropMainOnMini;
+          UI.MouseUp(Pt.X + 90, Pt.Y + 30);
+          Add(Format('Mini Watch: %d rows, the last %s', [Length(UI.Project.MiniWatch),
+            UI.Project.MiniWatch[High(UI.Project.MiniWatch)].Address]));
+        end
+        else
+        begin
+          Pp := UI.DesignToPixel(600, StrToFloat(ExtractWord(2, S1, [' '])));
+          UI.MouseMove(Pp.X, Pp.Y);
+          UI.MouseUp(Pp.X, Pp.Y);
+          S2 := '';
+          for V := 0 to High(UI.Project.Watch) do S2 := S2 + UI.Project.Watch[V].Address + ' ';
+          Add(Format('row %s moved: %s', [S1, S2]));
+        end;
+      end
+      else if (S0 = 'tomain') and (Mini <> nil) then
+      begin
+        // a row of the Mini Watch (shown row N) dragged onto the main window at design X Y
+        Pt := Mini.HitCenter(mwRow + StrToInt(ExtractWord(1, S1, [' '])));
+        Mini.MouseClicks := 1;
+        Mini.MouseMods := [];
+        Mini.MouseMove(Pt.X, Pt.Y);
+        Mini.MouseDown(Pt.X, Pt.Y);
+        Mini.MouseMove(Pt.X + 20, Pt.Y + 10);
+        Mini.MouseMove(Pt.X + 60, Pt.Y + 30);
+        Pp := UI.DesignToPixel(StrToFloat(ExtractWord(2, S1, [' '])), StrToFloat(ExtractWord(3, S1, [' '])));
+        S2 := Mini.DragText;
+        // the main window in points: its pixels back through the density
+        MousePos(1, 1, P0.X, P0.Y, FWin);
+        Add(Format('Mini Watch drags [%s] onto the main window: dropped %s', [S2,
+          BoolToStr(DropMiniOnMain(Pp.X / Max(0.01, P0.X), Pp.Y / Max(0.01, P0.Y)), True)]));
+        Mini.MouseUp(Pt.X + 60, Pt.Y + 30);
+        S2 := '';
+        for V := 0 to High(UI.Project.Watch) do S2 := S2 + UI.Project.Watch[V].Address + ' ';
+        Add(Format('watch: %d rows: %s', [Length(UI.Project.Watch), S2]));
+      end
+      else if S0 = 'xref' then
+      begin
+        UI.MiniXref(S1);
+        Add(Format('Cross reference from the Mini Watch: %s, open %s, %d uses', [UI.XrefTarget,
+          BoolToStr(UI.XrefOn, True), UI.XrefCount]));
+      end
+      else if S0 = 'saveload' then
+      begin
+        S1 := ExtractFilePath(ParamStr(0)) + 'projects' + PathDelim + 'zz_miniwatch_test.vplc';
+        UI.Project.MiniShown := UI.MiniOpen;
+        UI.Project.SaveToFile(S1);
+        P2 := TPlcProject.Create;
+        try
+          P2.LoadFromFile(S1);
+          S2 := '';
+          for V := 0 to High(P2.MiniWatch) do
+            S2 := S2 + P2.MiniWatch[V].Address + ' ' + DispFmtNames[P2.MiniWatch[V].Fmt] + '; ';
+          Add(Format('saved and loaded: %d Mini Watch rows, shown %s: %s', [Length(P2.MiniWatch),
+            BoolToStr(P2.MiniShown, True), S2]));
+        finally
+          P2.Free;
+        end;
+        DeleteFile(S1);
+      end
+      else if Mini <> nil then
+      begin
+        Add(Format('Mini Watch: open %s, %d rows', [BoolToStr(UI.MiniOpen, True), Length(UI.Project.MiniWatch)]));
+        Add(Mini.RowsText);
+      end;
+      SaveToFile(FShotDir + 'miniwatch_check.txt');
+    finally
+      Free;
+    end;
   if St.Cmd = 'wd' then
     with TStringList.Create do
     try
       if FileExists(FShotDir + 'watchdrag_check.txt') then LoadFromFile(FShotDir + 'watchdrag_check.txt');
-      if Copy(St.Arg, 1, 5) = 'drag ' then
+      if Copy(St.Arg, 1, 7) = 'filter ' then
+      begin
+        // the filter of the panel, its list to the end
+        UI.TestPickFilter(Copy(St.Arg, 8, MaxInt));
+        UI.SetVsPosPublic(18, 100000);
+        UI.SetVsPosPublic(5, 0);
+      end
+      else if (Copy(St.Arg, 1, 5) = 'head ') or (Copy(St.Arg, 1, 8) = 'dragins ') then
+      begin
+        // a row of the Tags / DBs panel by what it inserts: open it (head) or drag it to the end of the table
+        S1 := Trim(Copy(St.Arg, Pos(' ', St.Arg) + 1, MaxInt));
+        P := -1;
+        for V := 0 to UI.PickCount - 1 do
+          if UI.PickIns(V) = S1 then
+          begin
+            P := V;
+            Break;
+          end;
+        Add(Format('%s: row %d of the panel', [St.Arg, P]));
+        if (P >= 0) and (Copy(St.Arg, 1, 5) = 'head ') then
+        begin
+          Pt := UI.HitPoint('pickhead', P);
+          UI.MouseClicks := 1;
+          UI.MouseMods := [];
+          UI.MouseMove(Pt.X, Pt.Y);
+          UI.MouseDown(Pt.X, Pt.Y);
+          UI.MouseUp(Pt.X, Pt.Y);
+        end
+        else if P >= 0 then UI.TestWatchDrag(P, 99);
+        if Copy(St.Arg, 1, 5) = 'head ' then
+          for V := P to Min(UI.PickCount - 1, P + 5) do Add('  ' + UI.PickIns(V));
+      end
+      else if Copy(St.Arg, 1, 5) = 'drag ' then
       begin
         Add('drag: ' + StringReplace(UI.PickIns(StrToInt(ExtractWord(2, St.Arg, [' ']))), #10, ' ', [rfReplaceAll]));
         UI.TestWatchDrag(StrToInt(ExtractWord(2, St.Arg, [' '])), StrToInt(ExtractWord(3, St.Arg, [' '])));
@@ -4085,6 +4884,41 @@ begin
     finally
       Free;
     end;
+  if St.Cmd = 'sc' then
+    with TStringList.Create do
+    try
+      // the signal table on memory and outputs, the CPU running it while the window sleeps, the PLC clock
+      if FileExists(FShotDir + 'sigclk_check.txt') then LoadFromFile(FShotDir + 'sigclk_check.txt');
+      if St.Arg = 'rows' then
+      begin
+        UI.Project.AddSignal('%MW100', sgSine, 0, 1000, 2000, 50);
+        UI.Project.AddSignal('%M50.0', sgSquare, 0, 1, 400, 50);
+        UI.Project.AddSignal('"Motor"', sgSquare, 0, 1, 1000, 50);
+        UI.Project.AddSignal('"Level_pct"', sgRamp, 0, 100, 3000, 50);
+        for V := 0 to High(UI.Project.Signals) do UI.Project.Signals[V].On := True;
+      end
+      else if St.Arg = 'freeze' then
+      begin
+        // the window does nothing for 0.8 s (as minimized): only the CPU can change the memory word
+        P := SmallInt(UI.LiveOfPublicInt('%MW100'));
+        Sleep(800);
+        V := SmallInt(UI.LiveOfPublicInt('%MW100'));
+        Add(Format('while the window slept 0.8 s: MW100 %d -> %d (%s)', [P, V, IfThen(P <> V, 'the CPU runs the signal', 'NOT running')]));
+      end
+      else if Copy(St.Arg, 1, 6) = 'clock ' then UI.TestClockSet(Copy(St.Arg, 7, MaxInt))
+      else if St.Arg = 'dump clock' then
+        Add('PLC clock: ' + FormatDateTime('yyyy-mm-dd hh:nn:ss', UI.Rt.ClockLocal) + '  PC: ' + FormatDateTime('yyyy-mm-dd hh:nn:ss', Now))
+      else
+      begin
+        Add('signals:');
+        for V := 0 to High(UI.Project.Signals) do
+          Add(Format('  %s on=%s value %s  %s', [UI.Project.Signals[V].Address, BoolToStr(UI.Project.Signals[V].On, True),
+            UI.LiveOfPublic(UI.Project.Signals[V].Address), UI.TestSigWriter(UI.Project.Signals[V].Address)]));
+      end;
+      SaveToFile(FShotDir + 'sigclk_check.txt');
+    finally
+      Free;
+    end;
   if St.Cmd = 'io' then
     with TStringList.Create do
     try
@@ -4110,7 +4944,7 @@ begin
         Add(Format('Door switch clicked at %.0f,%.0f: I8.0 = %s', [Pt.X, Pt.Y, BoolToStr(UI.Rt.GetSimBit(8, 0), True)]));
       end
       else if St.Arg = 'sigbad' then
-        UI.Project.AddSignal('%Q0.0', sgSquare, 0, 1, 1000, 50)
+        UI.Project.AddSignal('"NoSuchTag"', sgSquare, 0, 1, 1000, 50)
       else if St.Arg = 'watchmw' then
         UI.Project.AddWatch('%MW20', dfDec)
       else if St.Arg = 'watchbad' then

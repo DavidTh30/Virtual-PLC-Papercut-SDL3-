@@ -233,6 +233,10 @@ begin
     '(p:[IN1, IN2, OUT]), normx scalex (p:[MIN, VALUE, MAX, OUT]); converters conv (p:[IN, OUT], type = IN, type2 = OUT, ' +
     'e.g. Int to Real), round trunc ceil floor (p:[IN, OUT], IN Real, type2 = the integer OUT, e.g. DInt); call (op = FCn / "Fc" or an instance DB "Inst_DB"; args = the operands of its ' +
     'parameters in the order Input, InOut, Output, Return). A box takes two columns when the next cell is empty.' + LineEnding +
+    'The PLC clock: #Ret := RD_LOC_T(OUT => #Now) (local) / RD_SYS_T (UTC) into a DTL (YEAR MONTH DAY WEEKDAY HOUR ' +
+    'MINUTE SECOND NANOSECOND), a DT or an LDT; WR_LOC_T(LOCTIME := .., DST := FALSE) / WR_SYS_T(IN := ..) set it ' +
+    '(1200/1500); READ_CLK(CDT => #Dt) / SET_CLK(PDT := #Dt) with a Date_And_Time (300/400); #t := TIME_TCK() ms since ' +
+    'the start. As STL: CALL READ_CLK with CDT := / RET_VAL :=.' + LineEnding +
     'FBD and CFC (all families): a network of boxes, write_network with "nodes": [{"id":1,"box":"and","in":[{"pin":"IN1",' +
     '"op":"\"Start\""},{"pin":"IN2","op":"\"Stop\"","neg":true}]},{"id":2,"box":"assign","inst":"\"Motor\"","in":[{"pin":"IN",' +
     '"from":"1.Q"}]}]. An input pin has "op" (an operand / a constant) or "from":"<id>.<output pin>" (a wire), "neg":true ' +

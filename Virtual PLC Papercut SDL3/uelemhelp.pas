@@ -13,7 +13,9 @@ unit uElemHelp;
     hbWave   a signal per line: 'Name=0011100' (a bit per step) or 'Name~0,1,2,3' (a value per step);
              '^Text:a-b' marks the steps a .. b of the signal above it
     hbBits   'Label=0101..' (16 or 32 bits, the most significant first; 'o' / 'i' a 0 / 1 marked red)
-    hbFlow   'kind|text|text..': if, ifelse, elsif, case, loop (FOR / WHILE), repeat, exit, continue, jump }
+    hbFlow   'kind|text|text..': if, ifelse, elsif, case, loop (FOR / WHILE), repeat, exit, continue, jump
+    hbMem    the bytes of a DB per line: 'Label=name:bytes:kind|..' (kind v a variable, b a Bool, p a gap);
+             a label that starts with '!' has no offsets (an optimized DB) }
 
 {$mode objfpc}{$H+}
 
@@ -24,7 +26,7 @@ uses
 
 type
   THelpBlockKind = (hbHead, hbText, hbStep, hbBullet, hbCode, hbTable, hbLad, hbWave, hbBits, hbFlow,
-    hbCaption, hbNote, hbFbd, hbCfc);
+    hbCaption, hbNote, hbFbd, hbCfc, hbMem);
   THelpBlock = record
     K: THelpBlockKind;
     S: string;
@@ -39,6 +41,10 @@ type
 function ElemHelpPage(Lang: Char; const E: TSclElem; Fam: TCpuFamily): TElemHelpPage;
 { the page as text (Copy, the test) }
 function ElemHelpText(const P: TElemHelpPage): string;
+{ the help of the Retain column of the Data blocks screen (Fam: the CPU family of the project) }
+function RetainHelpPage(Fam: TCpuFamily): TElemHelpPage;
+{ the help of the button Optimized DB of the Data blocks screen }
+function OptimizedHelpPage(Fam: TCpuFamily): TElemHelpPage;
 function LangTitle(Lang: Char): string;
 { the network of a LAD picture (hbLad); the caller frees it. HelpLadErr: the ids that are not known }
 function HelpLadNet(const S: string): TNetwork;
@@ -200,6 +206,11 @@ begin
   Pic(hbBits, S, Cap);
 end;
 
+procedure Mem(const S, Cap: string);
+begin
+  Pic(hbMem, S, Cap);
+end;
+
 procedure Flow(const S, Cap: string);
 begin
   Add(hbFlow, S);
@@ -331,6 +342,8 @@ begin
   Result := '16#' + IntToHex(V and $FFFF, 4);
 end;
 
+procedure ClockPage(const Name: string); forward;
+
 { ---------- the timers, counters, edges: all three languages ---------- }
 
 procedure TimerPage(const Name: string);
@@ -440,7 +453,7 @@ end;
 
 procedure S5TimerPage(const Name: string);
 var
-  Sum, W, Cap, Lk: string;
+  Sum, W, Cap, Lk, Fn: string;
 begin
   if Name = 'SD' then
   begin
@@ -479,6 +492,32 @@ begin
   end;
   Summary(Sum);
   Lk := LowerCase(Name);
+  if Lg in ['F', 'K'] then
+  begin
+    // the box S_ODT .. with the timer above it
+    case Name of
+      'SD': Fn := 'S_ODT';
+      'SE': Fn := 'S_PEXT';
+      'SP': Fn := 'S_PULSE';
+      'SS': Fn := 'S_ODTS';
+    else
+      Fn := 'S_OFFDT';
+    end;
+    Syntax('a box ' + Fn + ': the timer above it (T1); S (the start), TV (the time value S5T#..) and R on its left; Q ' +
+      '(the timer bit) and BI (the time left, binary) on its right');
+    Params('timer|Timer|above the box: T0 .. T255\S|Bool|start\TV|S5Time|S5T#2S (at most S5T#2H46M30S) or a word in BCD\' +
+      'R|Bool|reset (optional)\Q|Bool|the timer bit\BI|Word|the time left (binary)');
+    HowTo(['Double click the box, type the timer above it (T1), the start at S and the time at TV.',
+      'Its Q goes on: select the box and double click = (or wire it to another box).']);
+    Lad('no "Start";' + Lk + ' T1|S5T#2S;-;-\no T1;coil "Motor"', 'the S5 timer and its bit');
+    Txt('The same in SCL:');
+    Code(Fn + '(T_NO := T1, S := "Start", TV := S5T#2S, Q => "Motor");');
+    Head('Timing diagram');
+    Wave(W, Cap);
+    Notes(['The S5 timers exist on the S7-300/400/1500; on an S7-1200 use TON / TOF / TP.',
+      'A timer is a global resource: two places that start T1 disturb each other.']);
+    Exit;
+  end;
   if Lg = 'L' then
   begin
     Syntax('a coil (' + Name + ') with the timer as its operand (T1) and the time value (S5T#..) below it.\The timer bit ' +
@@ -603,6 +642,20 @@ begin
     Summary('S5 counter count down: a rising edge subtracts 1 from C n (not below 0).')
   else
     Summary('S5 set counter: a rising edge loads the counter C n with the preset value (C#..).');
+  if Lg in ['F', 'K'] then
+  begin
+    Syntax('a box S_CU / S_CD / S_CUD: the counter above it (C1); CU / CD (the counting inputs), S (load PV), PV (C#..), ' +
+      'R on its left; Q (the counter bit) and CV (the value) on its right');
+    Params('counter|Counter|above the box: C0 .. C255\CU / CD|Bool|count on a rising edge\S|Bool|load PV\' +
+      'PV|Word|C#0 .. C#999\R|Bool|reset\Q|Bool|TRUE while the value is not 0\CV|Word|the value (binary)');
+    HowTo(['Double click the box, type the counter above it (C1) and the counting signal at CU / CD.',
+      'CV: an operand for the value; Q: TRUE while it is not 0.']);
+    Lad('p "Box_Sensor"|"Edge_M";cu C1\no "Load";sc C1|C#10', 'count up, load 10');
+    Txt('The same in SCL:');
+    Code('S_CU(C_NO := C1, CU := "Box_Sensor", S := "Load", PV := C#10, CV => "Count");');
+    Notes(['The S5 counters exist on the S7-300/400/1500; on an S7-1200 use CTU / CTD / CTUD.', 'The value is 0 .. 999.']);
+    Exit;
+  end;
   if Lg = 'L' then
   begin
     Syntax('a coil (' + Name + ') with the counter as its operand (C1)' + IfThen(Name = 'SC', ' and the preset (C#10) below', '') +
@@ -1996,6 +2049,7 @@ begin
     else if (Nm = 'NORM_X') or (Nm = 'SCALE_X') then ScalePage(Nm)
     else if (Nm = 'SHL') or (Nm = 'ROL') then ShiftPage(Nm)
     else if Pos('_TO_', Nm) > 0 then ConvPage(Nm)
+    else if MatchStr(Nm, ['READ_CLK', 'SET_CLK', 'RD_LOC_T', 'TIME_TCK']) then ClockPage(Nm)
     else StringPage(Nm);
   end
   else if Cat = 'System FBs (CALL)' then
@@ -2115,6 +2169,83 @@ begin
   Txt('The right button on it (in the code) has Cross reference: every place where it is used.');
 end;
 
+{ ---------- the PLC clock ---------- }
+
+procedure ClockPage(const Name: string);
+var
+  Rd, Wr, Sys: Boolean;
+  Pin, Ex: string;
+begin
+  Rd := (Name = 'RD_LOC_T') or (Name = 'RD_SYS_T') or (Name = 'READ_CLK');
+  Wr := (Name = 'WR_LOC_T') or (Name = 'WR_SYS_T') or (Name = 'SET_CLK');
+  Sys := (Name = 'RD_SYS_T') or (Name = 'WR_SYS_T');
+  case Name of
+    'RD_LOC_T': Pin := 'OUT';
+    'RD_SYS_T': Pin := 'OUT';
+    'WR_LOC_T': Pin := 'LOCTIME';
+    'WR_SYS_T': Pin := 'IN';
+    'READ_CLK': Pin := 'CDT';
+    'SET_CLK': Pin := 'PDT';
+  else
+    Pin := '';
+  end;
+  if Name = 'TIME_TCK' then
+    Summary('TIME_TCK returns the milliseconds since the CPU started, as a Time (it wraps after 24 days). Two readings ' +
+      'give the time between them, without a timer instance.')
+  else if Rd then
+    Summary(Name + ' reads the PLC clock: ' + IfThen(Sys, 'the system time (UTC)', 'the local time') + ' into ' +
+      IfThen(Name = 'READ_CLK', 'a Date_And_Time (DT)', 'a DTL (a struct of YEAR .. NANOSECOND), or a DT / LDT') +
+      '. The clock runs with the PC clock; the CPU screen shows it and sets it (PLC clock card).')
+  else
+    Summary(Name + ' sets the PLC clock to ' + IfThen(Sys, 'a system time (UTC)', 'a local time') + ' (' +
+      IfThen(Name = 'SET_CLK', 'a Date_And_Time', 'a DTL, or a DT / LDT') + '). It runs on from there. Call it once (an edge), ' +
+      'not in every cycle.');
+  if Name = 'TIME_TCK' then Syntax('#Tick := TIME_TCK();')
+  else if Rd then Syntax(Format('#Ret := %s(%s => #Time);    // or the statement %s(%s => #Time);', [Name, Pin, Name, Pin]))
+  else Syntax(Format('#Ret := %s(%s := #Time%s);', [Name, Pin, IfThen(Name = 'WR_LOC_T', ', DST := FALSE', '')]));
+  if Name = 'TIME_TCK' then Params('RET_VAL|Time|the ms since the start')
+  else
+    Params(Pin + '|' + IfThen((Name = 'READ_CLK') or (Name = 'SET_CLK'), 'Date_And_Time', 'DTL / DT / LDT') + '|the time ' +
+      IfThen(Rd, 'read (written by the instruction)', 'to set') + '\RET_VAL|Int|0: done' +
+      IfThen(Name = 'WR_LOC_T', '\DST|Bool|summer time (not used here)', ''));
+  HowTo(['Declare the time variable: a Static / Temp of the block or a DB variable ' +
+    IfThen((Name = 'READ_CLK') or (Name = 'SET_CLK'), 'Dt : Date_And_Time', 'Now : DTL') + ', and RET_VAL : Int.',
+    IfThen(Wr, 'Set it from an edge (a button), with the members filled first.', 'Read it in every cycle; use its members: ' +
+    '#Now.HOUR, #Now.MINUTE ..')]);
+  if (Name <> 'TIME_TCK') and (Name <> 'READ_CLK') and (Name <> 'SET_CLK') then
+  begin
+    Head('The members of a DTL');
+    Tab('Member|Type|Values\YEAR|UInt|1970 .. 2262\MONTH|USInt|1 .. 12\DAY|USInt|1 .. 31\WEEKDAY|USInt|1 = Sunday .. 7 = ' +
+      'Saturday\HOUR|USInt|0 .. 23\MINUTE|USInt|0 .. 59\SECOND|USInt|0 .. 59\NANOSECOND|UDInt|0 .. 999 999 999');
+  end;
+  case Name of
+    'RD_LOC_T': Ex := '// Static: Now : DTL, Ret : Int\#Ret := RD_LOC_T(OUT => #Now);\"Night" := (#Now.HOUR >= 22) OR (#Now.HOUR < 6);' +
+      '\"Weekend" := (#Now.WEEKDAY = 1) OR (#Now.WEEKDAY = 7);';
+    'RD_SYS_T': Ex := '// Static: Utc : DTL\RD_SYS_T(OUT => #Utc);\"Log".Stamp := #Utc;';
+    'WR_LOC_T': Ex := '// Static: SetTo : DTL, Edge : R_TRIG\#Edge(CLK := "Set_PB");\IF #Edge.Q THEN\    #SetTo := "HMI".NewTime;\' +
+      '    #Ret := WR_LOC_T(LOCTIME := #SetTo, DST := FALSE);\END_IF;';
+    'WR_SYS_T': Ex := 'IF "Sync" THEN\    #Ret := WR_SYS_T(IN := "NTP".Utc);\    "Sync" := FALSE;\END_IF;';
+    'TIME_TCK': Ex := '// Static: T0 : Time\IF "Start" THEN #T0 := TIME_TCK(); END_IF;\"Took" := TIME_TCK() - #T0;';
+    'READ_CLK': Ex := '// Static: Dt : Date_And_Time\#Ret := READ_CLK(CDT => #Dt);\"Shift_Start" := #Dt >= DT#2024-01-01-06:00:00;';
+  else
+    Ex := 'IF "Set_PB" AND NOT #Old THEN\    #Ret := SET_CLK(PDT := "HMI".NewTime);\END_IF;\#Old := "Set_PB";';
+  end;
+  if Lg = 'S' then
+  begin
+    if Name = 'TIME_TCK' then Example('CALL TIME_TCK\  RET_VAL := #Tick', '')
+    else Example(Format('CALL %s\  %s := #Time\  RET_VAL := #Ret', [Name, Pin]), 'one parameter per line');
+  end
+  else if Lg in ['F', 'K'] then
+  begin
+    Head('Example (as SCL)');
+    Code(Ex);
+  end
+  else Example(Ex, '');
+  Notes(['RD_SYS_T / RD_LOC_T / WR_SYS_T / WR_LOC_T: S7-1200/1500; READ_CLK / SET_CLK: S7-300/400 (also the 1500).',
+    'The system time is the local time minus the time zone of this PC; DST (summer time) is not used.',
+    'A changed clock stays until the app is closed; the CPU screen sets it back (Set to PC time).']);
+end;
+
 { ---------- FBD / CFC ---------- }
 
 procedure FbdLogicPage(const Id: string);
@@ -2218,6 +2349,14 @@ begin
     'sr': EdgePage('SR');
     'ton', 'tof', 'tp', 'tonr': TimerPage(UpperCase(Id));
     'ctu', 'ctd', 'ctud': CounterPage(UpperCase(Id));
+    'sodt': S5TimerPage('SD');
+    'sodts': S5TimerPage('SS');
+    'spulse': S5TimerPage('SP');
+    'spext': S5TimerPage('SE');
+    'soffdt': S5TimerPage('SF');
+    'scu': S5CounterPage('CU');
+    'scd': S5CounterPage('CD');
+    'scud': S5CounterPage('CU');
     'cmp': LadCmp(5);
     'inrange': LadMisc(lkInRange);
     'outrange': LadMisc(lkOutRange);
@@ -2244,6 +2383,13 @@ begin
     'concat', 'len', 'left', 'right', 'mid', 'find': StringPage(UpperCase(Id));
     'smove': StringPage('S_MOVE');
     'call': LadMisc(lkCall);
+    'rdloct': ClockPage('RD_LOC_T');
+    'rdsyst': ClockPage('RD_SYS_T');
+    'wrloct': ClockPage('WR_LOC_T');
+    'wrsyst': ClockPage('WR_SYS_T');
+    'timetck': ClockPage('TIME_TCK');
+    'readclk': ClockPage('READ_CLK');
+    'setclk': ClockPage('SET_CLK');
     'abs', 'sqr', 'sqrt', 'exp', 'ln', 'sin', 'cos', 'tan', 'asin', 'acos', 'atan', 'frac': MathPage(UpperCase(Id));
   end;
   if Ce.Cap = '' then ;
@@ -2299,7 +2445,8 @@ begin
     if Pos('.%', E.Cap) = 1 then SclSlice(E.Cap) else ShiftPage(E.Cap);
   end
   else if Cat = 'String' then StringPage(E.Cap)
-  else if Cat = 'Operands / addresses' then SclOperand(E);
+  else if Cat = 'Operands / addresses' then SclOperand(E)
+  else if Cat = 'Date and time (clock)' then ClockPage(E.Cap);
   // nothing special: its description and its code
   if Length(Pg.Blocks) = 0 then
   begin
@@ -2419,6 +2566,113 @@ begin
   end;
 end;
 
+function RetainHelpPage(Fam: TCpuFamily): TElemHelpPage;
+begin
+  Pg.Title := 'Retain';
+  Pg.Sub := 'Data blocks  ·  the Retain column';
+  Pg.Blocks := nil;
+  Pg.Example := '';
+  Lg := 'C';
+  Fm := Fam;
+  Summary('Retain decides what a variable of a data block holds after the CPU starts again. A Retain variable keeps ' +
+    'the value it had (the CPU keeps it in its retentive memory); a variable that is not Retain gets its start value ' +
+    'again. A restart is every STOP to RUN of the CPU (the warm restart) and, on a real CPU, switching the power off ' +
+    'and on. While the CPU runs there is no difference: both hold what the program writes.');
+  Head('What happens to the value');
+  Tab('Event|Retain (ticked)|not Retain\RUN (the program runs)|what the program writes|what the program writes\' +
+    'STOP|stays as it is|stays as it is\STOP -> RUN (warm restart, OB100)|keeps its value|back to the start value\' +
+    'power off / on (a real CPU)|keeps its value|back to the start value\Download (the DB is the same)|keeps its value|' +
+    'keeps its value\Download (the DB changed: a variable more / another type)|the start value|the start value\' +
+    'MRES (memory reset)|the start value|the start value');
+  Add(hbCaption, 'the start value: the Start value column of the variable');
+  Head('Timing diagram');
+  Wave('CPU RUN=1111111100111111\^STOP:8-10\Pieces (Retain)~0,1,2,3,4,5,6,7,7,7,7,8,9,10,11,12\' +
+    'Batch (not Retain)~0,1,2,3,4,5,6,7,7,7,0,1,2,3,4,5', 'the CPU stops at step 8 and runs again at step 10 (a warm restart)');
+  Txt('Both variables count the same pieces. In STOP nothing changes; at the warm restart (step 10) the Retain variable ' +
+    'goes on from 7, the other one starts again from its start value 0.');
+  Head('How to use it');
+  Step('Open the Data blocks screen and select the DB (a global DB; an instance DB takes it from the interface of its FB).');
+  Step('Tick Retain for the variables that must survive a restart; leave it free for the others.');
+  Step('Set the Start value (the value a variable that is not Retain gets at every restart, and every variable after an ' +
+    'MRES).');
+  Step('Download (F8) and RUN (F5). Try it: STOP (F6), RUN (F5) again and look at the Monitor value column.');
+  Head('Example');
+  Txt('A DB "Production" with two counters of the same sensor: the total stays over every restart, the count of the ' +
+    'shift starts again.');
+  Tab('Name|Data type|Start value|Retain|Monitor before STOP|after STOP -> RUN\TotalPieces|UDInt|0|yes|15230|15230\' +
+    'ShiftPieces|UInt|0|no|412|0\OperatingHours|Real|0.0|yes|1288.5|1288.5\StepNo|Int|0|no|3|0');
+  Code('// OB1: both count the rising edges of the sensor\IF "Sensor" AND NOT #Old THEN\    "Production".TotalPieces := ' +
+    '"Production".TotalPieces + 1;\    "Production".ShiftPieces := "Production".ShiftPieces + 1;\END_IF;\#Old := "Sensor";');
+  Notes(['Make Retain: totals, operating hours, counters for maintenance, parameters and recipes typed on the HMI - what ' +
+    'must not be lost.',
+    'Leave it free: the steps of a sequence, commands, states of the machine - after a restart the machine should start ' +
+    'from a known state (the start value), not in the middle of a step.',
+    'A real CPU has a limited retentive memory (a few KB on the S7-1200): mark only what is needed.',
+    'In TIA Portal a standard (not optimized) DB has one Retain setting for the whole DB; an optimized DB one per ' +
+    'variable. The Virtual PLC keeps it per variable for both.',
+    'S7-300/400: the Retain column is not used; the DBs keep their values and MB0 .. MB15, C0 .. C7 are retentive. ' +
+    'Instance DBs: the Retain of the FB''s Static variables (VAR RETAIN).',
+    'MRES (memory reset on the CPU screen) puts every variable back to its start value, also the Retain ones.']);
+  if Fm = cfS7300 then ;
+  Result := Pg;
+end;
+
+function OptimizedHelpPage(Fam: TCpuFamily): TElemHelpPage;
+begin
+  Pg.Title := 'Optimized DB';
+  Pg.Sub := 'Data blocks  ·  the button Optimized DB: ON / OFF';
+  Pg.Blocks := nil;
+  Pg.Example := '';
+  Lg := 'C';
+  Fm := Fam;
+  Summary('Optimized block access (S7-1200 / S7-1500) decides how the CPU keeps the variables of a data block. ' +
+    'A standard DB (Optimized DB: OFF) lays its variables out one after the other at fixed offsets, like an S7-300: ' +
+    'every variable has an absolute address (DB1.DBX0.0, DB1.DBW2, DB1.DBD6) besides its name. An optimized DB ' +
+    '(Optimized DB: ON) lets the CPU arrange the memory itself: the variables have no offset, they are reached only ' +
+    'by their name ("Plant".Speed). The values the program computes are the same; what differs is how the DB ' +
+    'can be reached.');
+  Head('What changes');
+  Tab('|Optimized DB: OFF (standard)|Optimized DB: ON\Offset column|0.0, 2.0, 4.0 .. (the S7 layout)|empty\' +
+    'symbolic access "DB".Var|yes|yes\absolute access DB1.DBW2 in the program|yes|compile error: only symbolic access\' +
+    'PUT / GET, S7 connection, HMI by address|yes (with PUT/GET permitted)|refused (not allowed)\' +
+    'Modbus holding registers on DBn|yes|refused\Retain|per variable in the Virtual PLC (in TIA one setting for ' +
+    'the whole DB)|per variable\gaps between the variables|yes (a Bool before an Int leaves a byte free)|none, the ' +
+    'CPU packs them\S7-300 / S7-400|always standard|not available');
+  Head('The memory of the DB');
+  Txt('The same five variables in a standard and in an optimized DB:');
+  Mem('Standard (OFF)=Start:1:b|gap:1:p|Speed:2:v|Stop:1:b|gap:1:p|Temp:4:v|Alarm:1:b|gap:1:p\' +
+    '!Optimized (ON)=Temp:4:v|Speed:2:v|Start:1:b|Stop:1:b|Alarm:1:b',
+    'standard: Bool, gap, Int at 2.0, Bool at 4.0, gap, Real at 6.0, Bool at 10.0 (12 bytes)  ·  optimized: the CPU ' +
+    'sorts the variables by size, without an address');
+  Txt('In the standard DB an Int, a Real, a DInt always starts at an even byte, so a Bool before it leaves a free ' +
+    'byte; the offsets are what an absolute address (DB1.DBW2 = Speed, DB1.DBD6 = Temp) points at. In the optimized ' +
+    'DB there is no offset to point at: "Plant".Speed is the only way to it.');
+  Head('The result of the same program');
+  Tab('Statement|Optimized DB: OFF|Optimized DB: ON\"Plant".Speed := 1500;|Speed = 1500|Speed = 1500\' +
+    '%DB1.DBW2 := 1500;  (SCL)|Speed = 1500 (the same variable)|error: DB1 "Plant" is optimized: only symbolic ' +
+    'access\L DB1.DBW 2  (STL)|1500|error at compile time\a partner reads DB1.DBW2 (PUT / GET)|1500|access refused\' +
+    'Watch table: %DB1.DBW2|1500|the address does not resolve (red); "Plant".Speed works');
+  Head('How to use it');
+  Step('Open the Data blocks screen and select the DB (an S7-1200 or S7-1500 project).');
+  Step('Click Optimized DB: OFF to make it optimized (ON), click again to make it standard. The Offset column ' +
+    'shows the layout of a standard DB.');
+  Step('Compile (F7): every absolute access to the DB is listed as an error once it is optimized.');
+  Step('Download (F8): the CPU takes the new access of the DB.');
+  Head('Example');
+  Txt('A DB "Plant" (DB1) that an HMI or another CPU reads by address must stay standard; a DB only the program ' +
+    'uses can be optimized.');
+  Code('// works in both: symbolic\"Plant".Speed := "Plant".Speed + 10;\IF "Plant".Temp > 80.0 THEN\' +
+    '    "Plant".Alarm := TRUE;\END_IF;\// only in a standard DB: the absolute address of Speed\%DB1.DBW2 := 0;');
+  Notes(['Make it optimized: DBs that only your program uses - new TIA projects make every DB optimized; the ' +
+    'CPU reaches the variables faster and there are no gaps.',
+    'Keep it standard: a DB that is read by address - PUT / GET from an S7-300 or another CPU, an old HMI, a Modbus ' +
+    'or S7 connection, STL code with DBW / DBD, AT views, pointers (ANY).',
+    'Switching it changes the layout: download the DB again; an address read before may point elsewhere now.',
+    'An instance DB takes it from its FB; a PLC data type (UDT) has its own layout and no button.',
+    'S7-300 / S7-400 have no optimized DBs: every DB is standard.']);
+  Result := Pg;
+end;
+
 function ElemHelpText(const P: TElemHelpPage): string;
 var
   K, N: Integer;
@@ -2442,6 +2696,7 @@ begin
       hbWave: Result := Result + '  [timing] ' + StringReplace(S, LineEnding, ' / ', [rfReplaceAll]) + LineEnding;
       hbBits: Result := Result + '  [bits] ' + StringReplace(S, LineEnding, ' / ', [rfReplaceAll]) + LineEnding;
       hbFlow: Result := Result + '  [flowchart] ' + S + LineEnding;
+      hbMem: Result := Result + '  [bytes] ' + StringReplace(S, LineEnding, ' / ', [rfReplaceAll]) + LineEnding;
       hbCaption: Result := Result + '  (' + S + ')' + LineEnding;
     else
       Result := Result + S + LineEnding;

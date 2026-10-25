@@ -120,6 +120,7 @@ type
     procedure Card(X, Y, W, H: Single; const Title: string; Fancy: Boolean = True);
     procedure CloudMotif(CX, CY, Sz: Single; C: TBGRAPixel);
     procedure Seal(X, Y, Sz: Single; const S: string);
+    procedure AppLogo(X, Y, Sz: Single; RunOn: Boolean = True);
     { widgets }
     function Button(X, Y, W, H: Single; const Caption: string; Id: Integer; Style: TBtnStyle = bsNormal;
       Enabled: Boolean = True; Size: Single = 13): Boolean;
@@ -589,6 +590,82 @@ begin
   RR(X, Y, Sz, Sz, 5, cRed);
   RRL(X + 3, Y + 3, Sz - 6, Sz - 6, 3, 1.4, cSheet);
   Txt(fkTitle, Sz * 0.36, X + Sz / 2, Y + Sz * 0.24, S, cSheet, 1);
+end;
+
+{ the mark of Virtual PLC (as VirtualPLC.ico): a PLC module - its LEDs, a display with a LAD rung, the
+  terminal row - on a red sheet with a gold frame, gold circuit traces to the right; RunOn: the RUN LED lit }
+procedure TUiBase.AppLogo(X, Y, Sz: Single; RunOn: Boolean);
+var
+  MX, MY, MW, MH, LW, YY, R: Single;
+  K: Integer;
+  C, cIvory, cIvoryDark, cSlate, cDisplay, cLedGreen, cLedAmber, cLedRed: TBGRAPixel;
+
+  function MXf(F: Single): Single;
+  begin
+    Result := MX + MW * F;
+  end;
+
+  function MYf(F: Single): Single;
+  begin
+    Result := MY + MH * F;
+  end;
+
+begin
+  cIvory := BGRA(250, 242, 226);
+  cIvoryDark := BGRA(206, 190, 160);
+  cSlate := BGRA(58, 54, 60);
+  cDisplay := BGRA(34, 52, 48);
+  cLedGreen := BGRA(60, 200, 110);
+  cLedAmber := BGRA(240, 170, 40);
+  cLedRed := BGRA(230, 60, 50);
+  // the sheet
+  RR(X + Sz * 0.03, Y + Sz * 0.03, Sz * 0.94, Sz * 0.94, Sz * 0.18, Mixc(cRedDark, cCharcoal, 0.25));
+  RRL(X + Sz * 0.03, Y + Sz * 0.03, Sz * 0.94, Sz * 0.94, Sz * 0.18, Max(0.8, Sz * 0.02), Alpha(cSheet, 190));
+  RR(X + Sz * 0.075, Y + Sz * 0.075, Sz * 0.85, Sz * 0.85, Sz * 0.14, cRed);
+  RRL(X + Sz * 0.11, Y + Sz * 0.11, Sz * 0.78, Sz * 0.78, Sz * 0.1, Max(0.8, Sz * 0.02), cGold);
+  // the circuit traces (virtual)
+  if Sz >= 40 then
+    for K := 0 to 2 do
+    begin
+      YY := Y + Sz * (0.40 + K * 0.12);
+      Ln(X + Sz * 0.70, YY, X + Sz * (0.84 - Ord(K = 1) * 0.04), YY, Max(0.8, Sz * 0.018), cGold);
+      El(X + Sz * (0.84 - Ord(K = 1) * 0.04), YY, Sz * 0.025, Sz * 0.025, cGold);
+    end;
+  // the module
+  MX := X + Sz * 0.22;
+  MY := Y + Sz * 0.20;
+  MW := Sz * 0.48;
+  MH := Sz * 0.60;
+  RR(MX + Sz * 0.01, MY + Sz * 0.02, MW, MH, Sz * 0.05, Alpha(cCharcoal, 90));
+  RR(MX, MY, MW, MH, Sz * 0.05, cIvory);
+  RRL(MX, MY, MW, MH, Sz * 0.05, Max(0.6, Sz * 0.012), cIvoryDark);
+  Rc(MXf(0.02), MYf(0.02), MW * 0.96, MH * 0.11, cSlate);
+  // the LEDs: RUN, STOP, ERROR
+  R := MW * 0.065;
+  if RunOn then C := cLedGreen else C := Mixc(cLedGreen, cSlate, 0.7);
+  El(MXf(0.18), MYf(0.31), R, R, C);
+  if Sz >= 28 then
+  begin
+    El(MXf(0.18), MYf(0.47), R, R, cLedAmber);
+    El(MXf(0.18), MYf(0.63), R, R, cLedRed);
+  end;
+  // the display with a LAD rung
+  RR(MXf(0.34), MYf(0.22), MW * 0.56, MH * 0.42, Sz * 0.015, cDisplay);
+  if Sz >= 28 then
+  begin
+    LW := Max(0.6, Sz * 0.014);
+    YY := MYf(0.43);
+    Ln(MXf(0.40), MYf(0.30), MXf(0.40), MYf(0.56), LW, cGold);
+    Ln(MXf(0.84), MYf(0.30), MXf(0.84), MYf(0.56), LW, cGold);
+    Ln(MXf(0.40), YY, MXf(0.52), YY, LW, cLedGreen);
+    Ln(MXf(0.52), MYf(0.36), MXf(0.52), MYf(0.50), LW, cLedGreen);
+    Ln(MXf(0.58), MYf(0.36), MXf(0.58), MYf(0.50), LW, cLedGreen);
+    Ln(MXf(0.58), YY, MXf(0.67), YY, LW, cLedGreen);
+    ElL(MXf(0.73), YY, MW * 0.06, MW * 0.06, LW, cLedGreen);
+    Ln(MXf(0.73) + MW * 0.06, YY, MXf(0.84), YY, LW, cLedGreen);
+    // the terminal row
+    for K := 0 to 5 do Rc(MXf(0.10 + K * 0.14), MYf(0.76), MW * 0.09, MH * 0.14, cSlate);
+  end;
 end;
 
 { ---------- widgets ---------- }

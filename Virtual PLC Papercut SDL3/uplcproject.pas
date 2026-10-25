@@ -216,6 +216,18 @@ type
     Comment: string;
   end;
 
+  { a job of the simulation the CPU runs (uPlcRuntime): Kind 0 a row of the signal table (its address
+    resolved), 1 an analog input channel }
+  TSimJob = record
+    Kind: Integer;
+    A: TAddr;
+    IsReal: Boolean;
+    Sig: TSimSignal;
+    AiMode: TAiMode;
+    AiValue, AiIndex: Integer;
+  end;
+  TSimJobs = array of TSimJob;
+
   TWatchRow = record
     Address: string;
     Fmt: TDispFmt;
@@ -256,11 +268,16 @@ type
     ModelIdx: Integer;
     CyclicMs: Integer;
     ClockByte: Integer;       // clock memory byte, -1 = off
+    ClockAddr: Integer;       // its address while it is off (the check box remembers it)
+    SysByte: Integer;         // system memory byte (S7-1200 / S7-1500), -1 = off
+    SysAddr: Integer;         // its address while it is off
     Blocks: TList;            // of TBlock
     DBs: TList;               // of TDataBlock
     Udts: TList;              // of TDataBlock with IsUdt: the PLC data types
     Tags: array of TTag;
     Watch: array of TWatchRow;
+    MiniWatch: array of TWatchRow;   // the rows of the Mini Watch window (address, format)
+    MiniShown: Boolean;              // the Mini Watch was open when the project was saved
     TagGroups, WatchGroups: TItemGroups;
     Signals: array of TSimSignal;   // the signal table of the I/O screen
     DIch: array[0..63] of TIoChannel;
@@ -299,6 +316,7 @@ type
     procedure DeleteTagGroup(I: Integer);     // its tags stay (no group)
     procedure DeleteWatchGroup(I: Integer);   // its rows stay
     procedure AddWatch(const AAddress: string; AFmt: TDispFmt; const AModify: string = '');
+    procedure AddMini(const AAddress: string; AFmt: TDispFmt);
     function WatchToJson: TJSONArray;
     procedure WatchFromJson(A: TJSONArray);
     procedure SaveWatchFile(const AFile: string);   // a watch table on its own
@@ -1370,6 +1388,8 @@ begin
   Udts.Clear;
   SetLength(Tags, 0);
   SetLength(Watch, 0);
+  SetLength(MiniWatch, 0);
+  MiniShown := False;
   SetLength(Signals, 0);
   SetLength(TagGroups, 0);
   SetLength(WatchGroups, 0);
@@ -1392,6 +1412,9 @@ begin
   ModelIdx := 1;
   CyclicMs := 100;
   ClockByte := -1;
+  ClockAddr := 0;
+  SysByte := -1;
+  SysAddr := 1;
   Comm := DefaultComm;
   Modified := False;
 end;
@@ -2097,6 +2120,17 @@ begin
   end;
 end;
 
+procedure TPlcProject.AddMini(const AAddress: string; AFmt: TDispFmt);
+var
+  N: Integer;
+begin
+  N := Length(MiniWatch);
+  SetLength(MiniWatch, N + 1);
+  FillChar(MiniWatch[N], SizeOf(TWatchRow), 0);
+  MiniWatch[N].Address := AAddress;
+  MiniWatch[N].Fmt := AFmt;
+end;
+
 procedure TPlcProject.AddWatch(const AAddress: string; AFmt: TDispFmt; const AModify: string);
 var
   N: Integer;
@@ -2412,6 +2446,9 @@ begin
     Root.Add('family', FamilyNames[Family]);
     Root.Add('cyclicMs', CyclicMs);
     Root.Add('clockByte', ClockByte);
+    Root.Add('clockAddr', ClockAddr);
+    Root.Add('sysByte', SysByte);
+    Root.Add('sysAddr', SysAddr);
     ABlocks := TJSONArray.Create;
     for I := 0 to BlockCount - 1 do ABlocks.Add(BlockToJson(Block(I)));
     Root.Add('blocks', ABlocks);
@@ -2438,6 +2475,14 @@ begin
     if Length(WatchGroups) > 0 then Root.Add('watchGroups', GroupsToJson(WatchGroups));
     AWatch := WatchToJson;
     Root.Add('watch', AWatch);
+    if (Length(MiniWatch) > 0) or MiniShown then
+    begin
+      AWatch := TJSONArray.Create;
+      for I := 0 to High(MiniWatch) do
+        AWatch.Add(TJSONObject.Create(['address', MiniWatch[I].Address, 'format', DispFmtNames[MiniWatch[I].Fmt]]));
+      Root.Add('miniWatch', AWatch);
+      Root.Add('miniWatchShown', MiniShown);
+    end;
     if Length(Signals) > 0 then
     begin
       AIo := TJSONArray.Create;
@@ -2536,6 +2581,10 @@ begin
     ModelIdx := Mi;
     CyclicMs := EnsureRange(Root.Get('cyclicMs', 100), 1, 60000);
     ClockByte := Root.Get('clockByte', -1);
+    ClockAddr := Root.Get('clockAddr', Max(ClockByte, 0));
+    SysByte := Root.Get('sysByte', -1);
+    SysAddr := Root.Get('sysAddr', IfThen(ClockAddr = 1, 2, 1));
+    if not IsTia(Family) then SysByte := -1;
     ABlocks := Root.Get('blocks', TJSONArray(nil));
     if ABlocks <> nil then
       for I := 0 to ABlocks.Count - 1 do
@@ -2678,6 +2727,16 @@ begin
     GroupsFromJson(Root.Get('watchGroups', TJSONArray(nil)), WatchGroups);
     AWatch := Root.Get('watch', TJSONArray(nil));
     if AWatch <> nil then WatchFromJson(AWatch);
+    AWatch := Root.Get('miniWatch', TJSONArray(nil));
+    if AWatch <> nil then
+      for I := 0 to AWatch.Count - 1 do
+        if AWatch.Items[I] is TJSONObject then
+        begin
+          AddMini(AWatch.Objects[I].Get('address', ''), dfDec);
+          for F := Low(TDispFmt) to High(TDispFmt) do
+            if DispFmtNames[F] = AWatch.Objects[I].Get('format', 'DEC') then MiniWatch[High(MiniWatch)].Fmt := F;
+        end;
+    MiniShown := Root.Get('miniWatchShown', False);
     AIo := Root.Get('signals', TJSONArray(nil));
     if AIo <> nil then
       for I := 0 to AIo.Count - 1 do

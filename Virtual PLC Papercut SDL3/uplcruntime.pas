@@ -148,8 +148,11 @@ type
   private
     FThread: TPlcThread;
     FLock: TCriticalSection;       // commands, diagnostic buffer, retired programs
+    FCycLock: TCriticalSection;    // held while a cycle / the commands run: LockCycle reads between two cycles
     FCmds: array of TPlcCmd;
     FDiag: array of TDiagEntry;
+    FFirstScan: Boolean;          // the first cycle of OB1 after STOP -> RUN is still to come
+    FDiagSeq, FDiagSeen: Integer; // diagnostic events (not mode changes) counted / seen by the system memory byte
     FRetired: TList;
     FCtx: TCtx;
     FPin, FPout: array[0..MaxLadRows - 1] of Boolean;
@@ -161,6 +164,11 @@ type
     { SCL value stack, CASE registers, the last value for the monitor }
     FSt: array[0..255] of Double;
     FSti: array[0..255] of Int64;   // SCL: the exact integer of every stack value (the 64 bit types use it)
+    FSimJobs: TSimJobs;
+    FSimRnd: array of Double;
+    FSimRndK: array of Int64;
+    FClkOffset: Double;                   // the PLC clock - the local time of this PC (days)
+    FClkParts: array[0..7] of Int64;      // WR_SYS_T / WR_LOC_T: the parts set one by one
     FSp: Integer;
     FSS: array[0..63] of UnicodeString;   // SCL: the string stack
     FSSp: Integer;
@@ -245,9 +253,13 @@ type
     procedure GoStop(const Why: string);
     procedure GoRun;
     procedure RunCycle;
+    procedure ApplySimJobs;
+    function ClockValue(K: Integer; out I8: Int64): Double;
+    procedure ClockWrite(K: Integer; V: Double; I8: Int64);
     procedure ReadInputs;
     procedure WriteOutputs;
     procedure UpdateClock(NowMs: Double);
+    procedure UpdateSysByte(Cycle: Boolean);
     procedure ExecBlock(BI: Integer);
     procedure CheckCyclic;
     procedure RunOB(BI: Integer);
@@ -339,6 +351,10 @@ type
     procedure FreeRetired;
     function DiagCopy(MaxN: Integer): TDiagArray;
     function DiagCount: Integer;
+    { wait for the end of the cycle that runs and hold the next one back (a reader that needs the memory as one
+      cycle left it, not half way through it); every LockCycle needs its UnlockCycle }
+    procedure LockCycle;
+    procedure UnlockCycle;
     { reading for the UI (any thread, values may be one cycle old) }
     function PeekRaw(const O: TOperand; out V: LongWord): Boolean;
     { the text of a String / WString (UTF-8), for the monitor }
@@ -351,6 +367,17 @@ type
     function TimerRunning(N: Integer): Boolean;
     function TimerQ(N: Integer): Boolean;
     function CounterValue(N: Integer): Integer;
+    { the simulation the CPU runs itself (also while the window is minimized): the analog generators and the
+      rows of the signal table (an input: its simulated value; Q / M / DB: written at the start of the cycle, so
+      a program that writes the operand wins) }
+    procedure SetSimJobs(const Jobs: TSimJobs);
+    function SimSeconds: Double;          // the time of the signals
+    { the PLC clock (its time of day): the local time, set by the CPU screen or by WR_LOC_T / SET_CLK; UTC: the
+      local time - the time zone of this PC }
+    function ClockLocal: TDateTime;
+    function ClockUtc: TDateTime;
+    procedure SetClockLocal(T: TDateTime);
+    procedure ClockToPc;                  // the clock = the time of this PC
     procedure SetSimBit(ByteOfs, Bit: Integer; V: Boolean);
     function GetSimBit(ByteOfs, Bit: Integer): Boolean;
     function GetOutBit(ByteOfs, Bit: Integer): Boolean;
@@ -571,6 +598,7 @@ constructor TPlcRuntime.Create(AModelIdx: Integer);
 begin
   inherited Create;
   FLock := TCriticalSection.Create;
+  FCycLock := TCriticalSection.Create;
   FRetired := TList.Create;
   FIecKeys := TKeyMap.Create;
   FIecKeys.Sorted := True;
@@ -603,6 +631,7 @@ begin
   FRetired.Free;
   FIecKeys.Free;
   FLock.Free;
+  FCycLock.Free;
   inherited Destroy;
 end;
 
@@ -707,6 +736,7 @@ begin
     FDiag[N].Time := Now;
     FDiag[N].Kind := AKind;
     FDiag[N].Text := AText;
+    if AKind <> dkMode then Inc(FDiagSeq);
   finally
     FLock.Leave;
   end;
@@ -1200,6 +1230,9 @@ begin
   if IsTia(Model.Family) then DiagAdd(dkMode, 'STOP -> STARTUP (warm restart)')
   else DiagAdd(dkMode, 'STOP -> STARTUP (complete restart, OB100)');
   CompleteRestart;
+  FFirstScan := True;
+  FDiagSeen := FDiagSeq;
+  UpdateSysByte(False);
   FErrThisCycle := 0;
   ReadInputs;
   FCycleStartMs := PlcNowMs;
@@ -1289,6 +1322,23 @@ begin
   for K := 0 to 7 do
     if Frac(T / Periods[K]) < 0.5 then V := V or (1 shl K);
   M[Prog.ClockByte] := V;
+end;
+
+procedure TPlcRuntime.UpdateSysByte(Cycle: Boolean);
+var
+  V: Byte;
+begin
+  // the system memory byte (TIA): bit 0 FirstScan, 1 DiagStatusUpdate, 2 AlwaysTRUE, 3 AlwaysFALSE
+  if (Prog = nil) or (Prog.SysByte < 0) or (Prog.SysByte > High(M)) then Exit;
+  V := 4;
+  if Cycle then
+  begin
+    if FFirstScan then V := V or 1;
+    FFirstScan := False;
+    if FDiagSeq <> FDiagSeen then V := V or 2;
+    FDiagSeen := FDiagSeq;
+  end;
+  M[Prog.SysByte] := V;
 end;
 
 { ---------- memory access ---------- }
@@ -1726,6 +1776,16 @@ end;
 
 { ---------- peeking for the UI ---------- }
 
+procedure TPlcRuntime.LockCycle;
+begin
+  FCycLock.Enter;
+end;
+
+procedure TPlcRuntime.UnlockCycle;
+begin
+  FCycLock.Leave;
+end;
+
 function TPlcRuntime.PeekRaw(const O: TOperand; out V: LongWord): Boolean;
 var
   P: PByte;
@@ -1865,6 +1925,179 @@ function TPlcRuntime.CounterValue(N: Integer): Integer;
 begin
   if (N < 0) or (N >= Length(Counters)) then Exit(0);
   Result := Counters[N].Value;
+end;
+
+procedure TPlcRuntime.SetSimJobs(const Jobs: TSimJobs);
+begin
+  FLock.Enter;
+  try
+    FSimJobs := Jobs;
+  finally
+    FLock.Leave;
+  end;
+end;
+
+function TPlcRuntime.ClockLocal: TDateTime;
+begin
+  Result := Now + FClkOffset;
+end;
+
+function TPlcRuntime.ClockUtc: TDateTime;
+begin
+  // GetLocalTimeOffset: UTC - local in minutes
+  Result := ClockLocal + GetLocalTimeOffset / (24 * 60);
+end;
+
+procedure TPlcRuntime.SetClockLocal(T: TDateTime);
+begin
+  FClkOffset := T - Now;
+end;
+
+procedure TPlcRuntime.ClockToPc;
+begin
+  FClkOffset := 0;
+end;
+
+{ a part of the clock for _CLK(k): 0 the local DT (ms since 1990), 1 / 2 the UTC / local LDT (ns since 1970), 3 the
+  ms since the start (TIME_TCK); 10 .. 17 the local YEAR MONTH DAY WEEKDAY (1 = Sunday) HOUR MINUTE SECOND
+  NANOSECOND, 20 .. 27 the same in UTC }
+function TPlcRuntime.ClockValue(K: Integer; out I8: Int64): Double;
+var
+  T: TDateTime;
+  Y, Mo, Dd, H, Mi, S, Ms: Word;
+begin
+  I8 := 0;
+  case K of
+    0: I8 := Round((ClockLocal - EncodeDate(1990, 1, 1)) * 86400000);
+    1: I8 := Round((ClockUtc - EncodeDate(1970, 1, 1)) * 86400000) * 1000000;
+    2: I8 := Round((ClockLocal - EncodeDate(1970, 1, 1)) * 86400000) * 1000000;
+    3: I8 := Round(PlcNowMs - StartTimeMs) and $7FFFFFFF;
+  else
+    begin
+      if K >= 20 then T := ClockUtc else T := ClockLocal;
+      DecodeDate(T, Y, Mo, Dd);
+      DecodeTime(T, H, Mi, S, Ms);
+      case K mod 10 of
+        0: I8 := Y;
+        1: I8 := Mo;
+        2: I8 := Dd;
+        3: I8 := DayOfWeek(T);
+        4: I8 := H;
+        5: I8 := Mi;
+        6: I8 := S;
+        7: I8 := Int64(Ms) * 1000000;
+      end;
+    end;
+  end;
+  Result := I8;
+end;
+
+{ IF _CLKW(k, v): 1 the local DT, 2 / 3 the local / UTC LDT, 10 .. 17 / 20 .. 27 a part (local / UTC), 99 / 98 set
+  the clock from the parts (a date that is not there: the clock stays) }
+procedure TPlcRuntime.ClockWrite(K: Integer; V: Double; I8: Int64);
+var
+  T: TDateTime;
+begin
+  case K of
+    1: SetClockLocal(EncodeDate(1990, 1, 1) + I8 / 86400000);
+    2: SetClockLocal(EncodeDate(1970, 1, 1) + I8 / 1000000 / 86400000);
+    3: SetClockLocal(EncodeDate(1970, 1, 1) + I8 / 1000000 / 86400000 - GetLocalTimeOffset / (24 * 60));
+    10..17: FClkParts[K - 10] := I8;
+    20..27: FClkParts[K - 20] := I8;
+    98, 99:
+      if TryEncodeDate(FClkParts[0], FClkParts[1], FClkParts[2], T) and (FClkParts[4] < 24) and (FClkParts[5] < 60) and
+        (FClkParts[6] < 60) then
+      begin
+        T := T + EncodeTime(FClkParts[4], FClkParts[5], FClkParts[6], 0) + FClkParts[7] / 1000000 / 86400000;
+        if K = 98 then T := T - GetLocalTimeOffset / (24 * 60);
+        SetClockLocal(T);
+      end;
+  end;
+  if V = 0 then ;
+end;
+
+function TPlcRuntime.SimSeconds: Double;
+begin
+  Result := (PlcNowMs - StartTimeMs) / 1000;
+end;
+
+{ the jobs of the simulation, in the thread of the CPU before the inputs are read }
+procedure TPlcRuntime.ApplySimJobs;
+var
+  Jobs: TSimJobs;
+  K, Bytes: Integer;
+  T, V, Per: Double;
+  Kk: Int64;
+  Sg: Single;
+  Raw: LongWord;
+begin
+  FLock.Enter;
+  try
+    Jobs := FSimJobs;
+  finally
+    FLock.Leave;
+  end;
+  if Length(Jobs) = 0 then Exit;
+  if Length(FSimRnd) <> Length(Jobs) then
+  begin
+    SetLength(FSimRnd, Length(Jobs));
+    SetLength(FSimRndK, Length(Jobs));
+    for K := 0 to High(FSimRndK) do FSimRndK[K] := -1;
+  end;
+  T := SimSeconds;
+  for K := 0 to High(Jobs) do
+  begin
+    if Jobs[K].Kind = 1 then
+    begin
+      // an analog input channel: its generator or its value
+      case Jobs[K].AiMode of
+        amSine: V := Round(13824 + 13824 * Sin(2 * Pi * T / 8 + Jobs[K].AiIndex * 0.9));
+        amRamp: V := Round(27648 * Frac(T / 10 + Jobs[K].AiIndex * 0.13));
+      else
+        V := Jobs[K].AiValue;
+      end;
+      if Model.AIWord + Jobs[K].AiIndex * 2 + 1 < Length(SimIn) then SetSimWord(Model.AIWord + Jobs[K].AiIndex * 2, Round(V));
+      Continue;
+    end;
+    Per := Max(1, Jobs[K].Sig.PeriodMs) / 1000;
+    Kk := Trunc(T / Per);
+    if FSimRndK[K] <> Kk then
+    begin
+      FSimRndK[K] := Kk;
+      FSimRnd[K] := Random;
+    end;
+    V := SignalValue(Jobs[K].Sig, T, FSimRnd[K]);
+    if Jobs[K].A.Size = osBit then Raw := Ord(V >= 0.5)
+    else if Jobs[K].IsReal then
+    begin
+      Sg := V;
+      Move(Sg, Raw, 4);
+    end
+    else
+      Raw := LongWord(Int64(Round(EnsureRange(V, -2147483648.0, 4294967295.0))) and $FFFFFFFF);
+    if Jobs[K].A.Area in [arI, arPI] then
+    begin
+      // an input: the simulated input (the process image reads it)
+      if Jobs[K].A.Size = osBit then SetSimBit(Jobs[K].A.Ofs, Jobs[K].A.Bit, Raw <> 0)
+      else
+      begin
+        case Jobs[K].A.Size of
+          osByte: Bytes := 1;
+          osWord: Bytes := 2;
+        else
+          Bytes := 4;
+        end;
+        SetSimRaw(Jobs[K].A.Ofs, Bytes, Raw);
+      end;
+    end
+    else
+      // an output, a memory, a DB variable: in the memory now (a missing DB or a bad address: nothing)
+      try
+        WriteRaw(Jobs[K].A, Raw);
+      except
+        on Exception do ;
+      end;
+  end;
 end;
 
 procedure TPlcRuntime.SetSimBit(ByteOfs, Bit: Integer; V: Boolean);
@@ -2597,6 +2830,8 @@ const
   stLimitK = 0;
   stSelK = 1;
   stSrtDintK = 4;
+  suClockK = 22;
+  sbClkWK = 24;
   suNeg = 0; suNotBits = 2; suAbs = 3; suRound = 14; suTrunc = 15; suCeil = 16; suFloor = 17; suWrap = 18;
   suBool = 19;
 
@@ -4369,7 +4604,15 @@ begin
             SclStoreVar(SclIdx(Op^, I1), Op^.DType);
           end;
         opSBin:
-          if Op^.DType in Int64Types then
+          if Op^.Sub = sbClkWK then
+          begin
+            // the PLC clock set: the part K, its value (exact: a DT / LDT is 64 bit)
+            Q8 := FSti[FSp - 1];
+            D1 := SPop;
+            ClockWrite(Round(SPop), D1, Q8);
+            SPush(1);
+          end
+          else if Op^.DType in Int64Types then
           begin
             Q8 := SPopI;
             SPushI(SclBin64(Op^.Sub, Op^.DType, SPopI, Q8));
@@ -4380,7 +4623,13 @@ begin
             SPush(SclBin(Op^.Sub, Op^.DType, SPop, D1));
           end;
         opSUn:
-          if (Op^.Sub in [suRound, suTrunc, suCeil, suFloor]) and (Op^.DType in Int64Types) then
+          if Op^.Sub = suClockK then
+          begin
+            // the PLC clock: the part on the stack
+            D1 := ClockValue(Round(SPop), Q8);
+            if Op^.DType in Int64Types then SPushI(Q8) else SPush(D1);
+          end
+          else if (Op^.Sub in [suRound, suTrunc, suCeil, suFloor]) and (Op^.DType in Int64Types) then
           begin
             // LREAL_TO_LINT: rounded into 64 bit
             D1 := SPop;
@@ -4834,8 +5083,10 @@ begin
   FOpsCount := 0;
   T0 := PlcNowMs;
   FCycleStartMs := T0;
+  ApplySimJobs;
   ReadInputs;
   UpdateClock(T0);
+  UpdateSysByte(True);
   FOb80Done := False;
   if FObStProg <> Prog then ObStateReset;
   try
@@ -4930,7 +5181,12 @@ begin
   FCpsT0 := FLastCycleEnd;
   while not FThread.Terminated do
   begin
-    ProcessCommands;
+    FCycLock.Enter;
+    try
+      ProcessCommands;
+    finally
+      FCycLock.Leave;
+    end;
     if Mode = rmMres then
     begin
       if PlcNowMs >= FMresUntil then
@@ -4953,7 +5209,12 @@ begin
     end;
     if (Mode = rmRun) and (Prog <> nil) and (Prog.OB1 >= 0) then
     begin
-      RunCycle;
+      FCycLock.Enter;
+      try
+        RunCycle;
+      finally
+        FCycLock.Leave;
+      end;
       T := PlcNowMs;
       if FLastStartMs > 0 then PeriodMs := FCycleStartMs - FLastStartMs;
       FLastStartMs := FCycleStartMs;
@@ -4992,6 +5253,7 @@ begin
     else
     begin
       if Mode = rmRun then GoStop('no OB1');
+      ApplySimJobs;
       ReadInputs;
       UpdateClock(PlcNowMs);
       WriteOutputs;

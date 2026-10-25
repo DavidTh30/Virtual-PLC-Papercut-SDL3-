@@ -194,6 +194,7 @@ type
     Obs: array of TCObRef;         // every OB, by number
     CyclicMs: Integer;
     ClockByte: Integer;
+    SysByte: Integer;              // system memory byte, -1 = off
     CodeBytes, DataBytes: Integer;
     destructor Destroy; override;
     function FindBlock(AKind: TBlockKind; ANumber: Integer): Integer;
@@ -1364,6 +1365,7 @@ const
     'RIGHT', 'MID', 'FIND', 'SHL', 'SHR', 'ROL', 'ROR', 'ABS', 'SQR', 'SQRT', 'EXP', 'LN', 'LOG', 'SIN', 'COS', 'TAN',
     'ASIN', 'ACOS', 'ATAN', 'FRAC', 'TRUNC', 'ROUND', 'CEIL', 'FLOOR', 'S_MOVE', 'EXPT', 'MOD', 'NEG', 'SRT_DINT',
     'CAN_DINT');
+  Clocks: array[0..6] of string = ('RD_SYS_T', 'RD_LOC_T', 'WR_SYS_T', 'WR_LOC_T', 'READ_CLK', 'SET_CLK', 'TIME_TCK');
   Outs: array[0..7] of string = ('Q', 'ET', 'QU', 'QD', 'CV', 'Q1', 'RET_VAL', 'OUT');
 var
   U, Res, Args, Code: string;
@@ -1374,6 +1376,24 @@ var
 begin
   Result := False;
   U := UpperCase(Trim(Tgt));
+  // the clock: every parameter is passed (OUT / CDT too), RET_VAL is the result
+  if MatchStr(U, Clocks) then
+  begin
+    Result := True;
+    Res := '';
+    Args := '';
+    for K := 0 to High(Names) do
+      if SameText(Names[K], 'RET_VAL') then Res := Acts[K]
+      else
+      begin
+        if Args <> '' then Args := Args + ', ';
+        Args := Args + Names[K] + ' := ' + Acts[K];
+      end;
+    if Res <> '' then Code := Format('%s := %s(%s);', [Res, U, Args])
+    else Code := Format('%s(%s);', [U, Args]);
+    CompileSclText(Code, 'CALL ' + U);
+    Exit;
+  end;
   IsFn := Pos('_TO_', U) > 0;
   for K := 0 to High(Fns) do
     if Fns[K] = U then IsFn := True;
@@ -1466,19 +1486,23 @@ function TCompiler.CompileSclText(const Code, What: string): Boolean;
 var
   N: TNetwork;
   E0, L0: Integer;
+  In0: Boolean;
+  W0: string;
 begin
   E0 := FProg.ErrorCount;
   L0 := FLine;
+  In0 := FInline;
+  W0 := FInlineWhat;
   N := TNetwork.Create(nkSCL);
   try
     N.Stl.Text := Code;
     FInline := True;
-    FInlineWhat := What;
+    if not In0 then FInlineWhat := What;
     try
       CompileScl(N);
     finally
-      FInline := False;
-      FInlineWhat := '';
+      FInline := In0;
+      FInlineWhat := W0;
       FLine := L0;
     end;
   finally
@@ -2998,6 +3022,7 @@ begin
   FProg.Family := FModel.Family;
   FProg.CyclicMs := FProject.CyclicMs;
   FProg.ClockByte := FProject.ClockByte;
+  if IsTia(FModel.Family) then FProg.SysByte := FProject.SysByte else FProg.SysByte := -1;
   FProg.OB1 := -1;
   FProg.OBCyc := -1;
   FProg.OB100 := -1;

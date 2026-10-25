@@ -52,10 +52,12 @@ const
   sbAdd = 0; sbSub = 1; sbMul = 2; sbDiv = 3; sbMod = 4; sbPow = 5; sbAnd = 6; sbOr = 7; sbXor = 8;
   sbBAnd = 9; sbBOr = 10; sbBXor = 11; sbEq = 12; sbNe = 13; sbLt = 14; sbGt = 15; sbLe = 16; sbGe = 17;
   sbMin = 18; sbMax = 19; sbShl = 20; sbShr = 21; sbRol = 22; sbRor = 23;
+  sbClkW = 24;    // the PLC clock set: K, the value (TRUE)
   { opSUn }
   suNeg = 0; suNot = 1; suNotBits = 2; suAbs = 3; suSqrt = 4; suSqr = 5; suLn = 6; suExp = 7; suSin = 8;
   suCos = 9; suTan = 10; suAsin = 11; suAcos = 12; suAtan = 13; suRound = 14; suTrunc = 15; suCeil = 16;
   suFloor = 17; suWrap = 18; suBool = 19; suLog = 20; suFrac = 21;
+  suClock = 22;   // the PLC clock: the part K (uPlcRuntime: ClockValue)
   { opSTern }
   stLimit = 0; stSel = 1; stNormX = 2; stScaleX = 3; stSrtDint = 4;   // SRT_DINT (DTIME < 0: CAN_DINT)
 
@@ -1124,6 +1126,124 @@ var
     end;
   end;
 
+  { the PLC clock (the name was read, the "(" is next): RD_SYS_T / RD_LOC_T (OUT => a DTL, DT or LDT; UTC / the
+    local time), WR_SYS_T (IN := ..) / WR_LOC_T (LOCTIME := .., DST ignored), READ_CLK (CDT => a DT) / SET_CLK
+    (PDT := ..) of the S7-300/400, TIME_TCK () (ms since the start, a Time). The RET_VAL (Int) is 0. The parts go
+    through two internal functions written as SCL: _CLK(k) reads a part, IF _CLKW(k, v) THEN END_IF; sets one }
+  function ClockCall(const U: string): TDataType;
+  var
+    Opd, Nm, Code, Sfx: string;
+    V: TVarInfo;
+    Er: string;
+    Depth, K: Integer;
+    Utc: Boolean;
+  begin
+    Expect('(');
+    if U = 'TIME_TCK' then
+    begin
+      Expect(')');
+      EK(3, dtInt);
+      E(opSUn, tcWord, dtTime, suClock);
+      Exit(dtTime);
+    end;
+    if (U = '_CLK') or (U = '_CLKW') then
+    begin
+      // internal: the part number, then (for _CLKW) the value
+      if Tok.Kind <> stNum then Fail(U + ': the part number expected');
+      K := StrToIntDef(Tok.S, 0);
+      Next;
+      if U = '_CLK' then
+      begin
+        Expect(')');
+        EK(K, dtInt);
+        case K of
+          0: Result := dtDT;
+          1, 2: Result := dtLDT;
+          10, 20: Result := dtUInt;
+          17, 27: Result := dtUDInt;
+        else
+          Result := dtUSInt;
+        end;
+        E(opSUn, tcWord, Result, suClock);
+        Exit;
+      end;
+      Expect(',');
+      EK(K, dtInt);
+      Expr;
+      Expect(')');
+      E(opSBin, tcWord, dtBool, sbClkW);
+      Exit(dtBool);
+    end;
+    // the operand of the one parameter that matters (OUT / IN / LOCTIME / CDT / PDT); the others are skipped
+    Opd := '';
+    while not IsSym(')') and (Tok.Kind <> stEOF) do
+    begin
+      Nm := '';
+      if (Tok.Kind = stIdent) and (PeekTok(1).Kind = stSym) and ((PeekTok(1).S = ':=') or (PeekTok(1).S = '=>')) then
+      begin
+        Nm := UpperCase(Tok.S);
+        Next;
+        Next;
+      end;
+      Code := '';
+      Depth := 0;
+      while (Tok.Kind <> stEOF) and not ((Depth = 0) and (IsSym(',') or IsSym(')'))) do
+      begin
+        if IsSym('[') or IsSym('(') then Inc(Depth);
+        if IsSym(']') or (IsSym(')') and (Depth > 0)) then Dec(Depth);
+        case Tok.Kind of
+          stQuoted: Code := Code + '"' + Tok.S + '"';
+          stHash: Code := Code + '#' + Tok.S;
+          stStr: Code := Code + '''' + Tok.S + '''';
+        else
+          Code := Code + Tok.S;
+        end;
+        Next;
+      end;
+      if (Nm = '') or (Nm = 'OUT') or (Nm = 'IN') or (Nm = 'LOCTIME') or (Nm = 'CDT') or (Nm = 'PDT') then
+        if Opd = '' then Opd := Code;
+      if IsSym(',') then Next;
+    end;
+    Expect(')');
+    if Opd = '' then Fail(U + ': the time operand missing');
+    if ((U = 'RD_SYS_T') or (U = 'RD_LOC_T') or (U = 'WR_SYS_T') or (U = 'WR_LOC_T')) and not IsTia(FProject.Family) then
+      Fail(U + ' is an S7-1200/1500 instruction: READ_CLK / SET_CLK on the S7-300/400');
+    if not FRes.ResolveVar(Opd, V, Er) then Fail(U + ': ' + Er);
+    Utc := (U = 'RD_SYS_T') or (U = 'WR_SYS_T');
+    if (V.T = dtStruct) and (V.Udt <> nil) and SameText(V.Udt.Name, 'DTL') then
+    begin
+      // a DTL: its parts one by one
+      if Utc then Sfx := '2' else Sfx := '1';
+      if (U = 'RD_SYS_T') or (U = 'RD_LOC_T') then
+        Code := Format('%0:s.YEAR := _CLK(%1:s0); %0:s.MONTH := _CLK(%1:s1); %0:s.DAY := _CLK(%1:s2); ' +
+          '%0:s.WEEKDAY := _CLK(%1:s3); %0:s.HOUR := _CLK(%1:s4); %0:s.MINUTE := _CLK(%1:s5); %0:s.SECOND := _CLK(%1:s6); ' +
+          '%0:s.NANOSECOND := _CLK(%1:s7);', [Opd, Sfx])
+      else
+        Code := Format('IF _CLKW(%1:s0, %0:s.YEAR) THEN END_IF; IF _CLKW(%1:s1, %0:s.MONTH) THEN END_IF; ' +
+          'IF _CLKW(%1:s2, %0:s.DAY) THEN END_IF; IF _CLKW(%1:s4, %0:s.HOUR) THEN END_IF; ' +
+          'IF _CLKW(%1:s5, %0:s.MINUTE) THEN END_IF; IF _CLKW(%1:s6, %0:s.SECOND) THEN END_IF; ' +
+          'IF _CLKW(%1:s7, %0:s.NANOSECOND) THEN END_IF; IF _CLKW(%2:s, 0) THEN END_IF;',
+          [Opd, Sfx, IfThen(Utc, '98', '99')]);
+    end
+    else if V.T = dtDT then
+    begin
+      if Utc then Fail(U + ': a DT is the local time (DTL or LDT for the system time)');
+      if (U = 'RD_LOC_T') or (U = 'READ_CLK') then Code := Opd + ' := _CLK(0);'
+      else Code := Format('IF _CLKW(1, %s) THEN END_IF;', [Opd]);
+    end
+    else if V.T = dtLDT then
+    begin
+      if (U = 'RD_SYS_T') or (U = 'RD_LOC_T') or (U = 'READ_CLK') then
+        Code := Format('%s := _CLK(%d);', [Opd, IfThen(Utc, 1, 2)])
+      else Code := Format('IF _CLKW(%d, %s) THEN END_IF;', [IfThen(Utc, 3, 2), Opd]);
+    end
+    else
+      Fail(U + ': ' + Opd + ' must be a DTL, a DT (Date_And_Time) or an LDT');
+    CompileSclText(Code, U);
+    EK(0, dtInt);
+    Result := dtInt;
+  end;
+
   function Call(const Name: string): TDataType;
   var
     U, A, B: string;
@@ -1134,6 +1254,8 @@ var
     Un: Integer;
   begin
     U := UpperCase(Name);
+    if MatchStr(U, ['RD_SYS_T', 'RD_LOC_T', 'WR_SYS_T', 'WR_LOC_T', 'READ_CLK', 'SET_CLK', 'TIME_TCK', '_CLK', '_CLKW']) then
+      Exit(ClockCall(U));
     Q := Pos('_TO_', U);
     if Q > 0 then
     begin
@@ -2362,6 +2484,192 @@ var
     for K := 0 to NPost - 1 do PutChunk(Posts[K]);
   end;
 
+  { the S5 timers / counters of SCL (S7-300/400/1500): S_ODT S_ODTS S_PULSE S_PEXT S_OFFDT (T_NO, S, TV, R; Q, BI) and
+    S_CU S_CD S_CUD (C_NO, CU, CD, S, PV, R; Q, CV), as a statement. T_NO / C_NO, TV / PV and BI / CV are operands
+    or constants (as in STL: L S5T#2S); S, R, CU, CD any BOOL expression, Q any BOOL target. The code is the one
+    of STL on the RLO (the RLO set from the value of an input) }
+  procedure S5Call(const Name: string; Line: Integer);
+  var
+    IsTimer: Boolean;
+    InB: array of string;       // the BOOL inputs
+    Chunks: array of TOpChunk;
+    Given: array of Boolean;
+    TxNo, TxVal, TxOut: string;
+    QGiven: Boolean;
+    QChunk: TOpChunk;
+    QRef: TRef;
+    K, Ix, Pos0, Op: Integer;
+    Nm, Er, Tx: string;
+    T: TDataType;
+    TOpd, VOpd, OOpd: TOperand;
+
+    { an operand / a constant up to , or ) }
+    function RawOperand: string;
+    begin
+      Result := '';
+      while not IsSym(',') and not IsSym(')') and (Tok.Kind <> stEOF) do
+      begin
+        case Tok.Kind of
+          stQuoted: Result := Result + '"' + Tok.S + '"';
+          stHash: Result := Result + '#' + Tok.S;
+          stStr: Result := Result + '''' + Tok.S + '''';
+        else
+          Result := Result + Tok.S;
+        end;
+        Next;
+      end;
+    end;
+
+    procedure BoolIn(const AName: string);
+    var
+      J: Integer;
+    begin
+      for J := 0 to High(InB) do
+        if (InB[J] = AName) and Given[J] then
+        begin
+          PutChunk(Chunks[J]);
+          E(opSRloSet, tcBit, dtBool);
+          Exit;
+        end;
+      // not given: FALSE
+      EK(0, dtBool);
+      E(opSRloSet, tcBit, dtBool);
+    end;
+
+    function Has(const AName: string): Boolean;
+    var
+      J: Integer;
+    begin
+      Result := False;
+      for J := 0 to High(InB) do
+        if (InB[J] = AName) and Given[J] then Exit(True);
+    end;
+
+  begin
+    IsTimer := Copy(Name, 1, 3) <> 'S_C';
+    if IsTimer then InB := ['S', 'R']
+    else if Name = 'S_CU' then InB := ['CU', 'S', 'R']
+    else if Name = 'S_CD' then InB := ['CD', 'S', 'R']
+    else InB := ['CU', 'CD', 'S', 'R'];
+    SetLength(Chunks, Length(InB));
+    SetLength(Given, Length(InB));
+    for K := 0 to High(InB) do Given[K] := False;
+    TxNo := '';
+    TxVal := '';
+    TxOut := '';
+    QGiven := False;
+    Expect('(');
+    while not IsSym(')') do
+    begin
+      if Tok.Kind <> stIdent then Fail('parameter name expected (' + IfThen(IsTimer, 'T_NO', 'C_NO') + ' := ..)');
+      Nm := UpperCase(Tok.S);
+      Next;
+      if not IsSym(':=') and not IsSym('=>') then Fail(':= or => expected after ' + Nm);
+      Next;
+      if (IsTimer and (Nm = 'T_NO')) or (not IsTimer and (Nm = 'C_NO')) then TxNo := RawOperand
+      else if (IsTimer and (Nm = 'TV')) or (not IsTimer and (Nm = 'PV')) then TxVal := RawOperand
+      else if (IsTimer and (Nm = 'BI')) or (not IsTimer and (Nm = 'CV')) then TxOut := RawOperand
+      else if Nm = 'Q' then
+      begin
+        Pos0 := Length(FBlock.Ops);
+        QRef := Path;
+        QChunk := TakeChunk(Pos0);
+        QGiven := True;
+      end
+      else
+      begin
+        Ix := -1;
+        for K := 0 to High(InB) do
+          if InB[K] = Nm then Ix := K;
+        if Ix < 0 then Fail(Format('%s has no parameter %s', [Name, Nm]));
+        Pos0 := Length(FBlock.Ops);
+        T := Expr;
+        if T <> dtBool then Fail(Format('%s: %s must be BOOL', [Name, Nm]));
+        Chunks[Ix] := TakeChunk(Pos0);
+        Given[Ix] := True;
+      end;
+      if IsSym(',') then Next else Break;
+    end;
+    Expect(')');
+    if TxNo = '' then Fail(Format('%s: %s missing', [Name, IfThen(IsTimer, 'T_NO', 'C_NO')]));
+    if not FRes.Resolve(TxNo, TOpd, Er, False) then Fail(Name + ': ' + Er);
+    if IsTimer and (TOpd.A.Area <> arT) then Fail(Name + ': T_NO must be a timer (T1)');
+    if not IsTimer and (TOpd.A.Area <> arC) then Fail(Name + ': C_NO must be a counter (C1)');
+    if IsTimer and not Has('S') then Fail(Name + ': S missing');
+    if IsTimer and (TxVal = '') then Fail(Name + ': TV missing (S5T#2S)');
+    if (TxVal <> '') and not FRes.Resolve(TxVal, VOpd, Er, True) then Fail(Name + ': ' + Er);
+    if IsTimer then
+    begin
+      // S: start with the time value in ACCU 1
+      BoolIn('S');
+      Op := Emit(opL, tcWord);
+      FBlock.Ops[Op].Opd := VOpd;
+      case Name of
+        'S_ODT': Op := Emit(opSD, tcFix, 2);
+        'S_ODTS': Op := Emit(opSS, tcFix, 2);
+        'S_PULSE': Op := Emit(opSP, tcFix, 2);
+        'S_PEXT': Op := Emit(opSE, tcFix, 2);
+      else
+        Op := Emit(opSF, tcFix, 2);
+      end;
+      FBlock.Ops[Op].Opd := TOpd;
+      SetMon(Op, Line);
+    end
+    else
+    begin
+      // count up / down on the edges, S sets PV, R resets
+      if Has('CU') then
+      begin
+        BoolIn('CU');
+        Op := Emit(opCU, tcFix, 2);
+        FBlock.Ops[Op].Opd := TOpd;
+      end;
+      if Has('CD') then
+      begin
+        BoolIn('CD');
+        Op := Emit(opCD, tcFix, 2);
+        FBlock.Ops[Op].Opd := TOpd;
+      end;
+      if Has('S') then
+      begin
+        if TxVal = '' then Fail(Name + ': PV missing (C#10)');
+        BoolIn('S');
+        Op := Emit(opL, tcWord);
+        FBlock.Ops[Op].Opd := VOpd;
+        Op := Emit(opSC, tcFix, 2);
+        FBlock.Ops[Op].Opd := TOpd;
+      end;
+    end;
+    if Has('R') then
+    begin
+      BoolIn('R');
+      Op := Emit(opR, tcBit);
+      FBlock.Ops[Op].Opd := TOpd;
+    end;
+    // Q: the timer / counter bit
+    if QGiven then
+    begin
+      PutChunk(QChunk);
+      EK(1, dtBool);
+      E(opSRloSet, tcBit, dtBool);
+      Op := Emit(opA, tcBit);
+      FBlock.Ops[Op].Opd := TOpd;
+      E(opSRloPush, tcBit, dtBool);
+      CheckAssign(QRef.T, dtBool, QRef.Text);
+      StoreRef(QRef, Line);
+    end;
+    // BI / CV: the value (binary), as L T n / L C n and T <operand>
+    if TxOut <> '' then
+    begin
+      if not FRes.Resolve(TxOut, OOpd, Er, False) then Fail(Name + ': ' + Er);
+      Op := Emit(opL, tcWord);
+      FBlock.Ops[Op].Opd := TOpd;
+      Op := Emit(opT, tcWord);
+      FBlock.Ops[Op].Opd := OOpd;
+    end;
+    if Tx = '' then ;
+  end;
+
   procedure Statement;
   var
     Line, J1, J2, Top, Cont, K, Lo, Hi, Reg, LabelLine: Integer;
@@ -2648,6 +2956,27 @@ var
       Exit;
     end;
     if (Tok.Kind = stIdent) and IsKeyword(Tok.S) then Fail('"' + Tok.S + '" is not allowed here');
+    // the PLC clock as a statement (its RET_VAL not used): RD_LOC_T(OUT => #Now);
+    if (Tok.Kind = stIdent) and (PeekTok(1).Kind = stSym) and (PeekTok(1).S = '(') and
+      MatchText(Tok.S, ['RD_SYS_T', 'RD_LOC_T', 'WR_SYS_T', 'WR_LOC_T', 'READ_CLK', 'SET_CLK']) then
+    begin
+      U := UpperCase(Tok.S);
+      Next;
+      ClockCall(U);
+      E(opSPop, tcWord, dtInt);
+      EndStmt;
+      Exit;
+    end;
+    // an S5 timer / counter: S_ODT(T_NO := T1, S := .., TV := S5T#2S, Q => ..)
+    if (Tok.Kind = stIdent) and (PeekTok(1).Kind = stSym) and (PeekTok(1).S = '(') and
+      MatchText(Tok.S, ['S_ODT', 'S_ODTS', 'S_PULSE', 'S_PEXT', 'S_OFFDT', 'S_CU', 'S_CD', 'S_CUD']) then
+    begin
+      U := UpperCase(Tok.S);
+      Next;
+      S5Call(U, Line);
+      EndStmt;
+      Exit;
+    end;
     // an FB call with an instance DB: "Inst_DB"(In := ..)
     if (Tok.Kind in [stIdent, stQuoted]) and (PeekTok(1).Kind = stSym) and (PeekTok(1).S = '(') and
       (FProject.FindDBByName(Tok.S) <> nil) and (FProject.FindDBByName(Tok.S).InstanceOf > 0) then
