@@ -7,11 +7,20 @@ program plctest;
 {$mode objfpc}{$H+}
 
 uses
-  Classes, SysUtils, Math, fpjson, jsonparser, uPlcTypes, uPlcProject, uPlcCompiler, uPlcRuntime, uPlcServer,
-  uPlcClient, uClaude, uExamples, uSclSource, uObCatalog, uSclSig, uXref;
+  Classes, SysUtils, Math, DateUtils, fpjson, jsonparser, uPlcTypes, uPlcProject, uPlcCompiler, uPlcRuntime, uPlcServer,
+  uPlcClient, uClaude, uExamples, uSclSource, uObCatalog, uSclSig, uXref, uFbd;
 
 var
   Fails, Passes: Integer;
+
+function NodeIdx(N: TNetwork; const Box: string): Integer;
+var
+  K: Integer;
+begin
+  for K := 0 to High(N.Nodes) do
+    if N.Nodes[K].Box = Box then Exit(K);
+  Result := 0;
+end;
 
 procedure Check(Cond: Boolean; const What: string);
 begin
@@ -46,7 +55,13 @@ begin
       WriteLn('    resolve ', S, ': ', E);
       Exit;
     end;
-    Rt.PeekRaw(O, Result);
+    // between two cycles: a value the program writes twice in a cycle is read as the cycle left it
+    Rt.LockCycle;
+    try
+      Rt.PeekRaw(O, Result);
+    finally
+      Rt.UnlockCycle;
+    end;
   finally
     Res.Free;
   end;
@@ -1881,6 +1896,22 @@ begin
     Check(not E and (P.FindBlock(bkFC, 3) <> nil), 'create_block FC3 "Twice": ' + S);
     S := Ag.TestTool('write_network', '{"block":"Twice","language":"SCL","title":"double it","code":"#Ret_Val := #a * 2;"}', E);
     Check(not E and (Pos('"errors" : 0', S) + Pos('"errors":0', S) > 0), 'write_network SCL: compiles ' + Copy(S, 1, 120));
+    // FBD / CFC written as boxes: the pins come from the box, a wire from the ET of a TON (its outputs not given)
+    S := Ag.TestTool('write_network', '{"block":"Twice","language":"FBD","title":"boxes","nodes":[' +
+      '{"id":1,"box":"and","in":[{"pin":"IN1","op":"#a > 0"},{"pin":"IN2","op":"TRUE","neg":true},{"pin":"IN3","op":"TRUE"}]},' +
+      '{"id":2,"box":"assign","inst":"%M100.0","in":[{"pin":"IN","from":"1.Q"}]}]}', E);
+    Check(not E and (Pos('"errors" : 0', S) + Pos('"errors":0', S) > 0), 'write_network FBD: compiles ' + Copy(S, 1, 160));
+    S := Ag.TestTool('write_network', '{"block":"Twice","language":"CFC","title":"chart","nodes":[' +
+      '{"id":1,"box":"move","type":"Int","in":[{"pin":"IN","op":"5"}],"out":[{"pin":"OUT1","op":"%MW102"}]},' +
+      '{"id":2,"box":"add","type":"Int","in":[{"pin":"IN1","from":"1.OUT1"},{"pin":"IN2","op":"1"}],"out":[{"pin":"OUT","op":"%MW104"}]}]}', E);
+    Check(not E and (Pos('"errors" : 0', S) + Pos('"errors":0', S) > 0), 'write_network CFC: compiles ' + Copy(S, 1, 160));
+    S := Ag.TestTool('get_block', '{"block":"Twice"}', E);
+    Check(not E and (Pos('"language" : "FBD"', S) + Pos('"language":"FBD"', S) > 0) and (Pos('as_scl', S) > 0) and
+      (Pos('"box"', S) > 0), 'get_block: FBD / CFC boxes and their SCL');
+    S := Ag.TestTool('write_network', '{"block":"Twice","language":"FBD","nodes":[{"id":1,"box":"nonsense"}]}', E);
+    Check(E and (Pos('unknown box', S) > 0), 'write_network FBD: an unknown box is refused: ' + S);
+    S := SclExportBlock(P, P.FindBlock(bkFC, 3), NOb1);
+    Check((Pos('(FBD as SCL)', S) > 0) and (Pos('%M100.0 :=', S) > 0) and (NOb1 = 0), 'the SCL source: FBD / CFC as SCL');
     // a LAD network appended to OB1: a self-holding contact
     NOb1 := P.Block(0).NetCount;
     S := Ag.TestTool('write_network', '{"block":"OB1","language":"LAD","title":"pump","cells":[' +
@@ -2334,7 +2365,12 @@ begin
       WriteLn('    resolve ', S, ': ', E);
       Exit;
     end;
-    if not Rt.PeekString(O, Wide, Result) then Result := '<no>';
+    Rt.LockCycle;
+    try
+      if not Rt.PeekString(O, Wide, Result) then Result := '<no>';
+    finally
+      Rt.UnlockCycle;
+    end;
   finally
     Res.Free;
   end;
@@ -2546,7 +2582,12 @@ begin
       WriteLn('    resolve ', S, ': ', E);
       Exit;
     end;
-    Rt.Peek8(O, Result);
+    Rt.LockCycle;
+    try
+      Rt.Peek8(O, Result);
+    finally
+      Rt.UnlockCycle;
+    end;
   finally
     Res.Free;
   end;
@@ -3593,6 +3634,506 @@ begin
 end;
 
 { the cross reference: where an operand is read (a decision) and written (a destination) }
+{ the S5 timers / counters of SCL (S_ODT .., S_CU ..) on an S7-300, refused on the S7-1200; as FBD boxes, also from a
+  LAD coil converted }
+procedure TestS5Scl;
+var
+  P: TPlcProject;
+  Pr: TCProgram;
+  Rt: TPlcRuntime;
+  B: TBlock;
+  N, L, Fn: TNetwork;
+  K, J: Integer;
+  Err: string;
+  Ce5: TLadCell;
+begin
+  WriteLn('== S5 timers / counters in SCL and FBD');
+  Rt := RunScl(1, 'S_ODT(T_NO := T1, S := I0.0, TV := S5T#100MS, Q => Q0.0, BI => MW10);' + LineEnding +
+    'S_CU(C_NO := C1, CU := I0.1, S := I0.2, PV := C#5, R := I0.3, Q => Q0.1, CV => MW12);', P, Pr);
+  try
+    Check(Pr.ErrorCount = 0, 'S_ODT and S_CU compile on the S7-300');
+    if Pr.ErrorCount = 0 then
+    begin
+      Rt.SetSimBit(0, 0, True);
+      Wait(40);
+      Check(not Rt.GetOutBit(0, 0) and (Peek(Rt, P, 'MW10') > 0), Format('S_ODT runs: Q not yet, BI = %d', [Peek(Rt, P, 'MW10')]));
+      Wait(150);
+      Check(Rt.GetOutBit(0, 0), 'S_ODT: Q after TV');
+      Rt.SetSimBit(0, 0, False);
+      Wait(30);
+      Check(not Rt.GetOutBit(0, 0), 'S_ODT: Q goes with S');
+      for K := 1 to 3 do
+      begin
+        Rt.SetSimBit(0, 1, True);
+        Wait(25);
+        Rt.SetSimBit(0, 1, False);
+        Wait(25);
+      end;
+      Check((Peek(Rt, P, 'MW12') = 3) and Rt.GetOutBit(0, 1), Format('S_CU counts 3 edges: CV = %d', [Peek(Rt, P, 'MW12')]));
+      Rt.SetSimBit(0, 2, True);
+      Wait(30);
+      Rt.SetSimBit(0, 2, False);
+      Check(Peek(Rt, P, 'MW12') = 5, Format('S_CU: S loads PV 5 (%d)', [Peek(Rt, P, 'MW12')]));
+      Rt.SetSimBit(0, 3, True);
+      Wait(30);
+      Check((Peek(Rt, P, 'MW12') = 0) and not Rt.GetOutBit(0, 1), 'S_CU: R resets');
+    end;
+  finally
+    Rt.Free;
+    P.Free;
+  end;
+  Rt := RunScl(7, 'S_ODT(T_NO := T1, S := %I0.0, TV := S5T#1S, Q => %Q0.0);', P, Pr);
+  try
+    Check((Pr.ErrorCount > 0) and (Pos('S5', Pr.Msgs[0].Text) > 0), 'the S7-1200 refuses S_ODT: ' + Pr.Msgs[0].Text);
+  finally
+    Rt.Free;
+    P.Free;
+  end;
+  // an FBD box S_ODT, and a LAD SD coil converted
+  P := TPlcProject.Create;
+  try
+    P.NewEmpty(1);
+    B := P.Block(0);
+    B.DeleteNet(0);
+    N := B.AddNet(nkFBD);
+    SetLength(N.Nodes, 1);
+    N.Nodes[0] := NewFbdNode(N, 'sodt', P, '');
+    N.Nodes[0].Inst := 'T2';
+    N.Nodes[0].Ins[0].Opnd := 'I0.4';
+    N.Nodes[0].Ins[1].Opnd := 'S5T#50MS';
+    N.Nodes[0].Outs[0].Opnd := 'Q0.2';
+    L := TNetwork.Create(nkLAD);
+    L.SetCell(0, 0, NewCell(lkNO, 'I0.5'));
+    L.SetCell(0, 1, NewCell(lkSE, 'T3'));
+    Ce5 := L.Cell(0, 1);
+    Ce5.P[0] := 'S5T#50MS';
+    L.SetCell(0, 1, Ce5);
+    Fn := LadToFbd(L, P, Err);
+    Check((Fn <> nil) and (Err = '') and (Length(Fn.Nodes) = 1) and (Fn.Nodes[0].Box = 'spext'), 'a LAD SE coil as the box S_PEXT ' + Err);
+    L.Free;
+    if Fn <> nil then
+    begin
+      // its Q: an assignment after it
+      SetLength(Fn.Nodes, 2);
+      Fn.Nodes[1] := NewFbdNode(Fn, 'assign', P, '');
+      Fn.Nodes[1].Id := 2;
+      Fn.Nodes[1].Inst := 'Q0.3';
+      Fn.Nodes[1].Ins[0].Src := Fn.Nodes[0].Id;
+      B.Networks.Add(Fn);
+    end;
+    Pr := Compile(P);
+    ShowMsgs(Pr);
+    Check(Pr.ErrorCount = 0, 'FBD S_ODT / S_PEXT compile');
+    if Pr.ErrorCount = 0 then
+    begin
+      Rt := TPlcRuntime.Create(1);
+      try
+        Rt.CmdDownload(Pr);
+        Rt.CmdRun;
+        Wait(30);
+        Rt.SetSimBit(0, 4, True);
+        Rt.SetSimBit(0, 5, True);
+        Wait(20);
+        J := Ord(Rt.GetOutBit(0, 3));
+        Rt.SetSimBit(0, 5, False);
+        Wait(100);
+        Check(Rt.GetOutBit(0, 2) and (J = 1) and not Rt.GetOutBit(0, 3),
+          Format('FBD: S_ODT Q after TV, S_PEXT pulse at once, then gone (%d)', [J]));
+      finally
+        Rt.Free;
+      end;
+    end
+    else Pr.Free;
+  finally
+    P.Free;
+  end;
+end;
+
+{ the PLC clock: RD_LOC_T / RD_SYS_T into a DTL, a DT, an LDT; WR_LOC_T sets it; TIME_TCK; READ_CLK / SET_CLK on
+  the S7-300 (also as STL CALL); a 1500 instruction on the 300 refused }
+procedure TestSysByte;
+var
+  P: TPlcProject;
+  B: TBlock;
+  N: TNetwork;
+  D: TDataBlock;
+  Pr: TCProgram;
+  Rt: TPlcRuntime;
+begin
+  WriteLn('== the system memory byte');
+  P := TPlcProject.Create;
+  P.NewEmpty(13);
+  P.SysByte := 1;
+  P.ClockByte := 0;
+  D := P.AddDB(1, 'D');
+  D.AddVar('First', 'Int', '0', '');
+  D.AddVar('Cycles', 'Int', '0', '');
+  D.AddVar('Hi', 'Bool', 'FALSE', '');
+  D.AddVar('Lo', 'Bool', 'TRUE', '');
+  D.AddVar('Diag', 'Int', '0', '');
+  B := P.Block(0);
+  B.DeleteNet(0);
+  N := B.AddNet(nkSCL);
+  N.Stl.Text := 'IF %M1.0 THEN "D".First := "D".First + 1; END_IF;' + LineEnding +
+    'IF "D".Cycles < 30000 THEN "D".Cycles := "D".Cycles + 1; END_IF;' + LineEnding +
+    '"D".Hi := %M1.2;' + LineEnding + '"D".Lo := %M1.3;' + LineEnding +
+    'IF %M1.1 THEN "D".Diag := "D".Diag + 1; END_IF;';
+  Pr := Compile(P);
+  ShowMsgs(Pr);
+  Check((Pr.ErrorCount = 0) and (Pr.SysByte = 1), 'S7-1500: a program on the system memory byte MB1 compiles');
+  Rt := TPlcRuntime.Create(13);
+  try
+    Rt.CmdDownload(Pr);
+    Rt.CmdRun;
+    Wait(80);
+    Check((Peek(Rt, P, '"D".First') = 1) and (Peek(Rt, P, '"D".Cycles') > 1),
+      Format('FirstScan (M1.0) only in the first cycle: %d of %d cycles', [Peek(Rt, P, '"D".First'), Peek(Rt, P, '"D".Cycles')]));
+    Check((Peek(Rt, P, '"D".Hi') <> 0) and (Peek(Rt, P, '"D".Lo') = 0), 'AlwaysTRUE (M1.2) = 1, AlwaysFALSE (M1.3) = 0');
+    Check(Peek(Rt, P, '"D".Diag') <= 1, 'DiagStatusUpdate (M1.1): no diagnostic event, no cycle with it');
+    Rt.CmdStop;
+    Wait(20);
+    Rt.CmdRun;
+    Wait(60);
+    Check(Peek(Rt, P, '"D".First') = 1, 'after STOP -> RUN: FirstScan once again (the DB back to its start value)');
+  finally
+    Rt.Free;
+  end;
+  P.Free;
+  P := TPlcProject.Create;
+  P.NewEmpty(1);
+  P.SysByte := 1;
+  Pr := Compile(P);
+  Check(Pr.SysByte = -1, 'S7-300: no system memory byte');
+  Pr.Free;
+  P.Free;
+end;
+
+procedure TestClock;
+var
+  P: TPlcProject;
+  B: TBlock;
+  N: TNetwork;
+  D: TDataBlock;
+  Pr: TCProgram;
+  Rt: TPlcRuntime;
+  Y: Word;
+  Mo, Dd: Word;
+
+  procedure Make(Model: Integer; const Code: string);
+  begin
+    P := TPlcProject.Create;
+    P.NewEmpty(Model);
+    D := P.AddDB(1, 'D');
+    if IsTia(P.Family) then
+    begin
+      D.AddVar('Now', 'DTL', '', '');
+      D.AddVar('Utc', 'DTL', '', '');
+      D.AddVar('SetTo', 'DTL', '', '');
+      D.AddVar('Ldt', 'LDT', '', '');
+      D.AddVar('Tck', 'Time', 'T#0MS', '');
+    end;
+    D.AddVar('Dt', 'Date_And_Time', '', '');
+    D.AddVar('Dt2', 'Date_And_Time', '', '');
+    D.AddVar('Ret', 'Int', '-1', '');
+    D.AddVar('R2', 'Int', '-1', '');
+    D.AddVar('Done', 'Bool', 'FALSE', '');
+    D.AddVar('Late', 'Bool', 'FALSE', '');
+    B := P.Block(0);
+    B.DeleteNet(0);
+    N := B.AddNet(nkSCL);
+    N.Stl.Text := Code;
+  end;
+
+begin
+  WriteLn('== the PLC clock');
+  DecodeDate(Now, Y, Mo, Dd);
+  Make(13, '"D".Ret := RD_LOC_T(OUT => "D".Now);' + LineEnding + 'RD_SYS_T(OUT => "D".Utc);' + LineEnding +
+    '"D".R2 := RD_LOC_T(OUT => "D".Ldt);' + LineEnding + 'READ_CLK(CDT => "D".Dt);' + LineEnding + '"D".Tck := TIME_TCK();');
+  Pr := Compile(P);
+  ShowMsgs(Pr);
+  Check(Pr.ErrorCount = 0, 'S7-1500: RD_LOC_T, RD_SYS_T, READ_CLK, TIME_TCK compile');
+  Rt := TPlcRuntime.Create(13);
+  try
+    Rt.CmdDownload(Pr);
+    Rt.CmdRun;
+    Wait(80);
+    Check((Peek(Rt, P, '"D".Ret') = 0) and (Peek(Rt, P, '"D".Now.YEAR') = Y) and (Peek(Rt, P, '"D".Now.MONTH') = Mo) and
+      (Peek(Rt, P, '"D".Now.DAY') = Dd), Format('RD_LOC_T: the date of today %d-%d-%d (RET_VAL %d)', [Peek(Rt, P, '"D".Now.YEAR'),
+      Peek(Rt, P, '"D".Now.MONTH'), Peek(Rt, P, '"D".Now.DAY'), SmallInt(Peek(Rt, P, '"D".Ret'))]));
+    Check(Abs((Integer(Peek(Rt, P, '"D".Now.HOUR')) - Integer(Peek(Rt, P, '"D".Utc.HOUR')) + 24) mod 24 -
+      ((-GetLocalTimeOffset div 60 + 24) mod 24)) <= 1, 'RD_SYS_T: UTC = the local time - the time zone');
+    Check((Peek(Rt, P, '"D".Now.WEEKDAY') >= 1) and (Peek(Rt, P, '"D".Now.WEEKDAY') <= 7), 'the weekday 1..7');
+    Check(Peek(Rt, P, '"D".Tck') > 0, Format('TIME_TCK: %d ms since the start', [Peek(Rt, P, '"D".Tck')]));
+  finally
+    Rt.Free;
+  end;
+  P.Free;
+  // WR_LOC_T: the clock set once, then read back
+  Make(13, 'IF NOT "D".Done THEN' + LineEnding +
+    '  "D".SetTo.YEAR := 2030; "D".SetTo.MONTH := 5; "D".SetTo.DAY := 6;' + LineEnding +
+    '  "D".SetTo.HOUR := 12; "D".SetTo.MINUTE := 34; "D".SetTo.SECOND := 56;' + LineEnding +
+    '  "D".Ret := WR_LOC_T(LOCTIME := "D".SetTo, DST := FALSE);' + LineEnding +
+    '  "D".Done := TRUE;' + LineEnding + 'END_IF;' + LineEnding + 'RD_LOC_T(OUT => "D".Now);' + LineEnding +
+    '"D".Late := "D".Ldt > LDT#2029-12-31-00:00:00;' + LineEnding + 'RD_LOC_T(OUT => "D".Ldt);');
+  Pr := Compile(P);
+  ShowMsgs(Pr);
+  Check(Pr.ErrorCount = 0, 'WR_LOC_T compiles');
+  Rt := TPlcRuntime.Create(13);
+  try
+    Rt.CmdDownload(Pr);
+    Rt.CmdRun;
+    Wait(80);
+    Check((Peek(Rt, P, '"D".Now.YEAR') = 2030) and (Peek(Rt, P, '"D".Now.MONTH') = 5) and (Peek(Rt, P, '"D".Now.DAY') = 6) and
+      (Peek(Rt, P, '"D".Now.HOUR') = 12) and (Peek(Rt, P, '"D".Now.MINUTE') = 34),
+      Format('WR_LOC_T set the clock: %d-%d-%d %d:%d', [Peek(Rt, P, '"D".Now.YEAR'), Peek(Rt, P, '"D".Now.MONTH'),
+      Peek(Rt, P, '"D".Now.DAY'), Peek(Rt, P, '"D".Now.HOUR'), Peek(Rt, P, '"D".Now.MINUTE')]));
+    Check(Peek(Rt, P, '"D".Late') <> 0, 'RD_LOC_T into an LDT: after 2029');
+    Check(YearOf(Rt.ClockLocal) = 2030, 'the clock of the CPU screen: 2030');
+    Rt.ClockToPc;
+    Wait(40);
+    Check(Peek(Rt, P, '"D".Now.YEAR') = Y, 'back to the time of the PC');
+  finally
+    Rt.Free;
+  end;
+  P.Free;
+  // S7-300: SET_CLK / READ_CLK with a Date_And_Time, also as STL CALL
+  Make(1, 'IF NOT "D".Done THEN' + LineEnding + '  "D".Dt := DT#2031-01-02-03:04:05;' + LineEnding +
+    '  "D".Ret := SET_CLK(PDT := "D".Dt);' + LineEnding + '  "D".Done := TRUE;' + LineEnding + 'END_IF;' + LineEnding +
+    'READ_CLK(CDT => "D".Dt2);' + LineEnding + '"D".Late := "D".Dt2 >= DT#2031-01-02-03:04:05;');
+  N := P.Block(0).AddNet(nkSTL);
+  N.Stl.Text := 'CALL READ_CLK' + LineEnding + '  RET_VAL := "D".R2' + LineEnding + '  CDT := "D".Dt';
+  Pr := Compile(P);
+  ShowMsgs(Pr);
+  Check(Pr.ErrorCount = 0, 'S7-300: SET_CLK, READ_CLK (SCL and STL CALL) compile');
+  Rt := TPlcRuntime.Create(1);
+  try
+    Rt.CmdDownload(Pr);
+    Rt.CmdRun;
+    Wait(80);
+    Check((Peek(Rt, P, '"D".Late') <> 0) and (YearOf(Rt.ClockLocal) = 2031) and (Peek(Rt, P, '"D".R2') = 0),
+      Format('SET_CLK set 2031, READ_CLK reads it (%s)', [FormatDateTime('yyyy-mm-dd hh:nn', Rt.ClockLocal)]));
+  finally
+    Rt.Free;
+  end;
+  P.Free;
+  // FBD: the clock boxes
+  Make(13, '');
+  P.Block(0).DeleteNet(0);
+  N := P.Block(0).AddNet(nkFBD);
+  SetLength(N.Nodes, 2);
+  N.Nodes[0] := NewFbdNode(N, 'rdloct', P, '');
+  N.Nodes[0].Outs[0].Opnd := '"D".Now';
+  N.Nodes[0].Outs[1].Opnd := '"D".Ret';
+  N.Nodes[1] := NewFbdNode(N, 'timetck', P, '');
+  N.Nodes[1].Id := 2;
+  N.Nodes[1].Outs[0].Opnd := '"D".Tck';
+  Pr := Compile(P);
+  ShowMsgs(Pr);
+  Check(Pr.ErrorCount = 0, 'FBD: RD_LOC_T and TIME_TCK boxes compile');
+  Rt := TPlcRuntime.Create(13);
+  try
+    Rt.CmdDownload(Pr);
+    Rt.CmdRun;
+    Wait(60);
+    Check((Peek(Rt, P, '"D".Now.YEAR') = Y) and (Peek(Rt, P, '"D".Tck') > 0), 'FBD: the clock read by the boxes');
+  finally
+    Rt.Free;
+  end;
+  P.Free;
+  Make(1, '"D".Ret := RD_SYS_T(OUT => "D".Dt);');
+  Pr := Compile(P);
+  Check((Pr.ErrorCount > 0) and (Pos('S7-1200/1500', Pr.Msgs[0].Text) > 0), 'RD_SYS_T on the S7-300: ' + Pr.Msgs[0].Text);
+  Pr.Free;
+  P.Free;
+end;
+
+{ FBD and CFC: boxes compiled as SCL; the same boxes in a CFC chart in another order; a LAD rung converted to
+  FBD; the project file; the messages of a box }
+procedure TestFbd;
+var
+  P, P2: TPlcProject;
+  B: TBlock;
+  N, L, Fn, C: TNetwork;
+  Pr: TCProgram;
+  Rt: TPlcRuntime;
+  D: TDataBlock;
+  Err: string;
+  K, J, A, Cm, Mv, I: Integer;
+  Lines: TStringList;
+  LN: TIntArray;
+  Errs: TStringList;
+
+  function AddNode(Net: TNetwork; const Id: string): Integer;
+  begin
+    SetLength(Net.Nodes, Length(Net.Nodes) + 1);
+    Net.Nodes[High(Net.Nodes)] := NewFbdNode(Net, Id, P, '');
+    Result := High(Net.Nodes);
+  end;
+
+  procedure Wire(Net: TNetwork; Dst, Pin, Src: Integer);
+  begin
+    Net.Nodes[Dst].Ins[Pin].Src := Net.Nodes[Src].Id;
+    Net.Nodes[Dst].Ins[Pin].SrcPin := 0;
+  end;
+
+  procedure RunChecks(const What: string);
+  begin
+    Pr := Compile(P);
+    ShowMsgs(Pr);
+    Check(Pr.ErrorCount = 0, What + ' compiles');
+    if Pr.ErrorCount > 0 then
+    begin
+      Pr.Free;
+      Exit;
+    end;
+    Rt := TPlcRuntime.Create(13);
+    try
+      Rt.CmdDownload(Pr);
+      Rt.CmdRun;
+      Wait(40);
+      Check(not Rt.GetOutBit(0, 0), What + ': AND off without I0.0');
+      Rt.SetSimBit(0, 0, True);
+      Wait(20);
+      Check(Rt.GetOutBit(0, 0), What + ': I0.0 AND NOT I0.1');
+      Rt.SetSimBit(0, 1, True);
+      Wait(20);
+      Check(not Rt.GetOutBit(0, 0), What + ': the negated input I0.1 breaks it');
+      Check(Peek(Rt, P, 'MW10') = 5, What + Format(': ADD MW20 + 5 = %d', [Peek(Rt, P, 'MW10')]));
+      Check(not Rt.GetOutBit(0, 2), What + ': CMP 5 >= 10 is FALSE');
+      Rt.SetSimBit(0, 3, True);
+      Wait(30);
+      Check(Peek(Rt, P, 'MW20') = 10, What + ': MOVE with EN = I0.3');
+      Check(Peek(Rt, P, 'MW10') = 15, What + Format(': the wired ADD then %d', [Peek(Rt, P, 'MW10')]));
+      Check(Rt.GetOutBit(0, 2), What + ': CMP 15 >= 10 is TRUE');
+      Rt.SetSimBit(0, 2, True);
+      Wait(30);
+      Check(not Rt.GetOutBit(0, 1), What + ': TON not yet');
+      Wait(150);
+      Check(Rt.GetOutBit(0, 1), What + ': TON Q after PT');
+    finally
+      // the runtime has the program (it frees it)
+      Rt.Free;
+    end;
+  end;
+
+begin
+  WriteLn('== FBD / CFC');
+  P := TPlcProject.Create;
+  P.NewEmpty(13);
+  D := P.AddDB(1, 'D');
+  D.AddVar('Tm', 'IEC_TIMER', '', '');
+  B := P.Block(0);
+  B.DeleteNet(0);
+  N := B.AddNet(nkFBD);
+  // I0.0 AND NOT I0.1 -> Q0.0
+  K := AddNode(N, 'and');
+  N.Nodes[K].Ins[0].Opnd := 'I0.0';
+  N.Nodes[K].Ins[1].Opnd := 'I0.1';
+  N.Nodes[K].Ins[1].Neg := True;
+  J := AddNode(N, 'assign');
+  N.Nodes[J].Inst := 'Q0.0';
+  Wire(N, J, 0, K);
+  // TON "D".Tm: IN I0.2, PT 100 ms, Q -> Q0.1
+  K := AddNode(N, 'ton');
+  N.Nodes[K].Inst := '"D".Tm';
+  N.Nodes[K].Ins[0].Opnd := 'I0.2';
+  N.Nodes[K].Ins[1].Opnd := 'T#100MS';
+  N.Nodes[K].Outs[0].Opnd := 'Q0.1';
+  // MW10 := MW20 + 5 (also wired into CMP >= 10 -> Q0.2); MOVE 10 -> MW20 while I0.3
+  A := AddNode(N, 'add');
+  N.Nodes[A].Ins[1].Opnd := 'MW20';
+  N.Nodes[A].Ins[2].Opnd := '5';
+  N.Nodes[A].Outs[0].Opnd := 'MW10';
+  Cm := AddNode(N, 'cmp');
+  N.Nodes[Cm].Cmp := coGE;
+  Wire(N, Cm, 0, A);
+  N.Nodes[Cm].Ins[1].Opnd := '10';
+  J := AddNode(N, 'assign');
+  N.Nodes[J].Inst := 'Q0.2';
+  Wire(N, J, 0, Cm);
+  Mv := AddNode(N, 'move');
+  N.Nodes[Mv].Ins[0].Opnd := 'I0.3';
+  N.Nodes[Mv].Ins[1].Opnd := '10';
+  N.Nodes[Mv].Outs[0].Opnd := 'MW20';
+  Check(Length(FbdRoots(N)) = 4, Format('FBD: 4 roots (=, TON, =, MOVE): %d', [Length(FbdRoots(N))]));
+  Lines := TStringList.Create;
+  Errs := TStringList.Create;
+  FbdToScl(N, P, Lines, LN, Errs);
+  Check((Errs.Count = 0) and (Pos('fb4_OUT : Int;', Lines.Text) > 0) and (Pos('IF I0.3 THEN', Lines.Text) > 0),
+    'FBD as SCL: the wired ADD in a temp, MOVE in IF EN');
+  Check(Length(LN) = Lines.Count, 'a box for every line');
+  RunChecks('FBD');
+  // CFC: the same boxes, their Order backwards: the data flow decides
+  C := B.AddNet(nkCFC);
+  C.Nodes := CopyNodes(N.Nodes);
+  B.DeleteNet(0);
+  for I := 0 to High(C.Nodes) do C.Nodes[I].Order := Length(C.Nodes) - I;
+  CfcRenumber(C);
+  Check(C.Nodes[NodeIdx(C, 'cmp')].Order > C.Nodes[NodeIdx(C, 'add')].Order, 'CFC: CMP runs after the ADD it reads');
+  RunChecks('CFC');
+  // the project file
+  P2 := TPlcProject.Create;
+  try
+    P2.LoadFromJsonText(P.ToJsonText);
+    Check((P2.Block(0).Net(0).Kind = nkCFC) and (Length(P2.Block(0).Net(0).Nodes) = Length(C.Nodes)) and
+      (P2.Block(0).Net(0).Nodes[NodeIdx(P2.Block(0).Net(0), 'cmp')].Ins[0].Src = C.Nodes[NodeIdx(C, 'add')].Id),
+      'CFC saved and loaded with its wires');
+  finally
+    P2.Free;
+  end;
+  // a box with an empty input: its message names it
+  B.DeleteNet(0);
+  N := B.AddNet(nkFBD);
+  K := AddNode(N, 'and');
+  N.Nodes[K].Ins[0].Opnd := 'I0.0';
+  J := AddNode(N, 'assign');
+  N.Nodes[J].Inst := 'Q0.0';
+  Wire(N, J, 0, K);
+  Pr := Compile(P);
+  Check((Pr.ErrorCount > 0) and (Pos('box #1', Pr.Msgs[0].Text) > 0) and (Pos('IN2', Pr.Msgs[0].Text) > 0),
+    'an empty input: "' + Pr.Msgs[0].Text + '"');
+  Pr.Free;
+  // LAD to FBD: (I0.0 OR I0.1) AND (NOT I0.2 OR I0.3) -> Q0.0, as in the LAD test
+  L := TNetwork.Create(nkLAD);
+  L.SetRows(2);
+  L.SetCell(0, 0, NewCell(lkNO, 'I0.0'));
+  L.Cells[0].Down := True;
+  L.SetCell(1, 0, NewCell(lkNO, 'I0.1'));
+  L.SetCell(0, 1, NewCell(lkNC, 'I0.2'));
+  L.Cells[1].Down := True;
+  L.SetCell(1, 1, NewCell(lkNO, 'I0.3'));
+  L.SetCell(0, 2, NewCell(lkCoil, 'Q0.0'));
+  Fn := LadToFbd(L, P, Err);
+  Check((Fn <> nil) and (Err = ''), 'LAD to FBD: ' + Err);
+  B.DeleteNet(0);
+  B.Networks.Add(Fn);
+  Pr := Compile(P);
+  ShowMsgs(Pr);
+  Check(Pr.ErrorCount = 0, 'the converted network compiles');
+  Rt := TPlcRuntime.Create(13);
+  try
+    Rt.CmdDownload(Pr);
+    Rt.CmdRun;
+    Wait(40);
+    Check(not Rt.GetOutBit(0, 0), 'converted: no input: off');
+    Rt.SetSimBit(0, 1, True);
+    Wait(20);
+    Check(Rt.GetOutBit(0, 0), 'converted: I0.1 via the OR');
+    Rt.SetSimBit(0, 2, True);
+    Wait(20);
+    Check(not Rt.GetOutBit(0, 0), 'converted: I0.2 breaks it');
+    Rt.SetSimBit(0, 3, True);
+    Wait(20);
+    Check(Rt.GetOutBit(0, 0), 'converted: I0.3 bridges NOT I0.2');
+  finally
+    Rt.Free;
+  end;
+  L.Free;
+  Lines.Free;
+  Errs.Free;
+  P.Free;
+end;
+
 procedure TestXref;
 var
   P: TPlcProject;
@@ -3659,6 +4200,10 @@ begin
 end;
 
 begin
+  TestClock;
+  TestSysByte;
+  TestS5Scl;
+  TestFbd;
   TestXref;
   TestArrayStart;
   TestSclSig;
