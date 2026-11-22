@@ -31,6 +31,8 @@ type
   TCsvRow = array of string;
   TCsvRows = array of TCsvRow;
 
+function DataBlockRows(D: TDataBlock; Live: TLiveFn): TCsvRows;   // the head, then a row per variable
+
 { a CSV text (a BOM, quotes, "" in quotes; the separator , ; or a tab, from the first line) }
 function CsvRows(const Text: string): TCsvRows;
 function CsvColumn(const Head: TCsvRow; const Words: array of string): Integer;   // -1 none
@@ -359,27 +361,47 @@ begin
   end;
 end;
 
-function DataBlockCsv(D: TDataBlock; Live: TLiveFn): string;
+function DataBlockRows(D: TDataBlock; Live: TLiveFn): TCsvRows;
 var
   K: Integer;
   V: TDbVar;
   Lv, Ofs: string;
+
+  procedure Row(const Fields: array of string);
+  var
+    J: Integer;
+  begin
+    SetLength(Result, Length(Result) + 1);
+    SetLength(Result[High(Result)], Length(Fields));
+    for J := 0 to High(Fields) do Result[High(Result)][J] := Fields[J];
+  end;
+
 begin
+  Result := nil;
   D.Layout;
-  if D.IsUdt then Result := CsvLine(['Offset', 'Name', 'Data type', 'Default', 'Comment'])
-  else Result := CsvLine(['Offset', 'Name', 'Data type', 'Start value', 'Monitor value', 'Retain', 'Comment']);
+  if D.IsUdt then Row(['Offset', 'Name', 'Data type', 'Default', 'Comment'])
+  else Row(['Offset', 'Name', 'Data type', 'Start value', 'Monitor value', 'Retain', 'Comment']);
   for K := 0 to High(D.Vars) do
   begin
     V := D.Vars[K];
     if V.DType = dtBool then Ofs := Format('%d.%d', [V.Ofs, V.Bit]) else Ofs := Format('%d.0', [V.Ofs]);
-    if D.IsUdt then
-      Result := Result + CsvLine([Ofs, V.Name, V.TypeText, V.Start, V.Comment])
+    if D.IsUdt then Row([Ofs, V.Name, V.TypeText, V.Start, V.Comment])
     else
     begin
       Lv := VarLive(D, V, Live);
-      Result := Result + CsvLine([Ofs, V.Name, V.TypeText, V.Start, Lv, IfThen(V.Retain, 'yes', ''), V.Comment]);
+      Row([Ofs, V.Name, V.TypeText, V.Start, Lv, IfThen(V.Retain, 'yes', ''), V.Comment]);
     end;
   end;
+end;
+
+function DataBlockCsv(D: TDataBlock; Live: TLiveFn): string;
+var
+  Rows: TCsvRows;
+  K: Integer;
+begin
+  Rows := DataBlockRows(D, Live);
+  Result := '';
+  for K := 0 to High(Rows) do Result := Result + CsvLine(Rows[K]);
 end;
 
 end.

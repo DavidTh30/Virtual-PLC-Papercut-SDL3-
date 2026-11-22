@@ -498,7 +498,9 @@ var
         else
           Result.Text := '#' + T.S;
       stQuoted: Result.Text := '"' + T.S + '"';
-      stPercent, stIdent: Result.Text := T.S;
+      stPercent: Result.Text := T.S;
+      // CODESYS: a local / a variable of a GVL by its name alone
+      stIdent: Result.Text := FRes.Dialect(T.S);
     else
       Fail('operand expected, found "' + T.S + '"');
     end;
@@ -2999,8 +3001,9 @@ var
       EndStmt;
       Exit;
     end;
-    // an FC call: FC1(); "Name"();
-    if (Tok.Kind in [stIdent, stQuoted]) and (PeekTok(1).Kind = stSym) and (PeekTok(1).S = '(') then
+    // an FC call: FC1(); "Name"(); (CODESYS: a name that is a variable, tonDelay(IN := ..), is an instance)
+    if (Tok.Kind in [stIdent, stQuoted]) and (PeekTok(1).Kind = stSym) and (PeekTok(1).S = '(') and
+      not ((Tok.Kind = stIdent) and (FRes.Dialect(Tok.S) <> Tok.S)) then
     begin
       if FCByName(Tok.S) = nil then
       begin

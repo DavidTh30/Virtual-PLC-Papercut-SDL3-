@@ -85,6 +85,7 @@ type
     Ins, Outs: TFbdPins;
     X, Y: Integer;          // CFC: the place on the chart (grid units of 10 px)
     Order: Integer;         // CFC: the execution order (1 ..)
+    Rem: Boolean;           // LOGO!: the block is retentive (keeps its values at STOP -> RUN)
   end;
   TFbdNodes = array of TFbdNode;
 
@@ -136,6 +137,7 @@ type
     TodStart: string;            // a time of day interrupt: 'yyyy-mm-dd hh:nn:ss' ..
     TodMode: Integer;            // .. TodModeNames
     TodActive: Boolean;
+    IsLibrary: Boolean;          // a block of a library (LOGO!): made at the compile, not shown, not saved
     constructor Create(AKind: TBlockKind; ANumber: Integer; const AName: string);
     destructor Destroy; override;
     function Net(I: Integer): TNetwork;
@@ -177,6 +179,7 @@ type
     StrWide: Boolean;
     IecVar: TDataType;        // <> dtNone: a timer (dtLTime) / counter (its PV / CV type) of another layout
     InstanceOf: Integer;      // an instance DB: the FB number, its Vars follow the interface
+    ProgramOf: Integer;       // CODESYS: the VAR of PROGRAM OBn (made from its interface at every compile)
     Owner: TPlcProject;       // resolves the names of PLC data types
     Vars: array of TDbVar;
     Size: Integer;            // bytes, from Layout
@@ -317,6 +320,8 @@ type
     procedure DeleteWatchGroup(I: Integer);   // its rows stay
     procedure AddWatch(const AAddress: string; AFmt: TDispFmt; const AModify: string = '');
     procedure AddMini(const AAddress: string; AFmt: TDispFmt);
+    function BlockKindText(B: TBlock): string;
+    procedure SyncProgramDBs;
     function WatchToJson: TJSONArray;
     procedure WatchFromJson(A: TJSONArray);
     procedure SaveWatchFile(const AFile: string);   // a watch table on its own
@@ -429,6 +434,10 @@ function SignalValue(const S: TSimSignal; T: Double; Rnd: Double): Double;
 function BlockToJson(B: TBlock): TJSONObject;
 function NetToJson(N: TNetwork): TJSONObject;
 function DataBlockToJson(D: TDataBlock; AsType: Boolean): TJSONObject;
+
+var
+  { called before every compile (uLogo: the LOGO! library and its instance DB) }
+  SyncHook: procedure(P: TPlcProject) = nil;
 
 implementation
 
@@ -932,6 +941,7 @@ begin
         JN.Add('y', Y);
         JN.Add('order', Order);
       end;
+      if Rem then JN.Add('rem', True);
       AP := TJSONArray.Create;
       for I := 0 to High(Ins) do
       begin
@@ -997,6 +1007,7 @@ begin
         X := JN.Get('x', 0);
         Y := JN.Get('y', 0);
         Order := JN.Get('order', K + 1);
+        Rem := JN.Get('rem', False);
         AP := JN.Get('in', TJSONArray(nil));
         if AP <> nil then
         begin
@@ -1500,7 +1511,9 @@ var
 begin
   if (B = nil) or (B.Kind <> bkOB) then Exit;
   B.Iface.IsFC := True;
-  SV := ObStartInfo(Family, ObEventOfBlock(B), B.Number);
+  // CODESYS: a PROGRAM gets no start information (its VAR are in its program DB, SyncProgramDBs)
+  if IsCodesys(Family) or IsLogo(Family) then SV := nil
+  else SV := ObStartInfo(Family, ObEventOfBlock(B), B.Number);
   Res := nil;
   for K := 0 to High(SV) do
     if SV[K].InputSec then PutSys(SV[K]);
@@ -1521,6 +1534,54 @@ begin
   end;
   B.Iface.Vars := Res;
   B.Iface.Layout;
+end;
+
+{ CODESYS: the VAR (Static) of every PROGRAM (an OB) as a DB of its name, ProgramOf = the OB: the code reaches
+  them as "PLC_PRG".x (TResolver.Dialect), the watch table as PLC_PRG.x; a DB is made, filled again, or removed
+  when the program has no VAR any more }
+procedure TPlcProject.SyncProgramDBs;
+var
+  K, J, N: Integer;
+  B: TBlock;
+  D: TDataBlock;
+  Has: Boolean;
+begin
+  if not IsCodesys(Family) then Exit;
+  for K := 0 to BlockCount - 1 do
+  begin
+    B := Block(K);
+    if B.Kind <> bkOB then Continue;
+    Has := False;
+    for J := 0 to High(B.Iface.Vars) do
+      if B.Iface.Vars[J].Section = vsStatic then Has := True;
+    D := nil;
+    for J := 0 to DBCount - 1 do
+      if DB(J).ProgramOf = B.Number then D := DB(J);
+    if not Has then
+    begin
+      if D <> nil then DeleteDB(DBs.IndexOf(D));
+      Continue;
+    end;
+    if D = nil then
+    begin
+      // the highest free number
+      N := Models[ModelIdx].MaxDB;
+      while (N > 1) and (FindDB(N) <> nil) do Dec(N);
+      D := AddDB(N, B.Name);
+      D.ProgramOf := B.Number;
+    end;
+    D.Name := B.Name;
+    D.Optimized := True;
+    D.Comment := 'the VAR of PROGRAM ' + B.Name;
+    D.Vars := nil;
+    for J := 0 to High(B.Iface.Vars) do
+      if B.Iface.Vars[J].Section = vsStatic then
+      begin
+        SetLength(D.Vars, Length(D.Vars) + 1);
+        D.Vars[High(D.Vars)] := B.Iface.Vars[J];
+      end;
+    D.Layout;
+  end;
 end;
 
 procedure TPlcProject.SyncObIfaces;
@@ -2305,6 +2366,7 @@ begin
   begin
     Result.Add('optimized', D.Optimized);
     if D.InstanceOf > 0 then Result.Add('instanceOf', D.InstanceOf);
+    if D.ProgramOf > 0 then Result.Add('programOf', D.ProgramOf);
   end;
   AVars := TJSONArray.Create;
   for J := 0 to High(D.Vars) do
@@ -2450,7 +2512,8 @@ begin
     Root.Add('sysByte', SysByte);
     Root.Add('sysAddr', SysAddr);
     ABlocks := TJSONArray.Create;
-    for I := 0 to BlockCount - 1 do ABlocks.Add(BlockToJson(Block(I)));
+    for I := 0 to BlockCount - 1 do
+      if not Block(I).IsLibrary then ABlocks.Add(BlockToJson(Block(I)));
     Root.Add('blocks', ABlocks);
     // PLC data types first: the DBs use them
     ADbs := TJSONArray.Create;
@@ -2705,6 +2768,7 @@ begin
         D.Comment := JD.Get('comment', '');
         D.Optimized := JD.Get('optimized', False);
         D.InstanceOf := JD.Get('instanceOf', 0);
+        D.ProgramOf := JD.Get('programOf', 0);
         AVars := JD.Get('vars', TJSONArray(nil));
         if AVars <> nil then
           for J := 0 to AVars.Count - 1 do
@@ -2798,10 +2862,47 @@ begin
   Clear;
   ModelIdx := EnsureRange(AModel, 0, ModelCount - 1);
   Name := 'New ' + FamilyNames[Family] + ' project';
+  if IsCodesys(Family) then
+  begin
+    // CODESYS: the program PLC_PRG of the MainTask in ST, the global variables in the GVL
+    B := AddBlock(bkOB, 1, 'PLC_PRG');
+    B.Comment := 'PROGRAM PLC_PRG, called by the MainTask';
+    B.AddNet(nkSCL);
+    with AddDB(1, 'GVL') do
+    begin
+      Optimized := True;
+      Comment := 'the global variable list';
+    end;
+    // no S7 server on CODESYS: Modbus TCP stays
+    Comm.S7On := False;
+    Modified := False;
+    Exit;
+  end;
+  if IsLogo(Family) then
+  begin
+    // LOGO!: one program of blocks (FBD); the special functions get their block numbers B001 ..
+    B := AddBlock(bkOB, 1, 'LOGO! program');
+    B.Comment := 'the circuit program of the LOGO!';
+    B.AddNet(nkFBD);
+    Modified := False;
+    Exit;
+  end;
   B := AddBlock(bkOB, 1, 'Main');
   B.Comment := 'Main program cycle';
   B.AddNet(nkLAD);
   Modified := False;
+end;
+
+{ what a block is: OB1 / FB2 / FC3, on CODESYS PROGRAM / FUNCTION_BLOCK / FUNCTION (an OB other than OB1: a task) }
+function TPlcProject.BlockKindText(B: TBlock): string;
+begin
+  if not IsCodesys(Family) then Exit(B.Title);
+  case B.Kind of
+    bkOB: if B.Number = 1 then Result := 'PROGRAM' else Result := 'TASK ' + IntToStr(B.Number);
+    bkFB: Result := 'FUNCTION_BLOCK';
+  else
+    Result := 'FUNCTION';
+  end;
 end;
 
 procedure TPlcProject.LoadSample(AModel: Integer);

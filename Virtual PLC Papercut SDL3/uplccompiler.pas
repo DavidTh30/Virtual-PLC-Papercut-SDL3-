@@ -219,6 +219,7 @@ type
     FModel: TCpuModel;
     FTemps: TStrings;
     FIface: TDataBlock;
+    FProgDB: string;
   public
     constructor Create(AProject: TPlcProject);
     { "DB".Var..., "Tag" or #temp up to the end of S; arrays and structs are allowed as the result }
@@ -234,7 +235,12 @@ type
     function ResolveAddr(const S: string; out Opd: TOperand; out Err: string): Boolean;
     function CheckRange(const A: TAddr; out Err: string): Boolean;
     function SymbolOf(const A: TAddr): string;   // tag name or DB variable, '' when none
+    { CODESYS: a name without quotes / # as the resolver reads it: a local (#name), a variable of a GVL
+      ("GVL".name), else as it is (a tag, a GVL "GVL.name", a constant) }
+    function Dialect(const S: string): string;
     property Project: TPlcProject read FProject;
+    { CODESYS: the program DB of the PROGRAM being compiled (its VAR: "PLC_PRG".x), '' none }
+    property ProgDB: string read FProgDB write FProgDB;
   end;
 
 function Compile(AProject: TPlcProject): TCProgram;
@@ -311,6 +317,38 @@ begin
   inherited Create;
   FProject := AProject;
   FModel := Models[AProject.ModelIdx];
+  CodesysAddr := IsCodesys(FModel.Family);
+  LogoAddr := IsLogo(FModel.Family);
+end;
+
+function TResolver.Dialect(const S: string): string;
+var
+  P, K: Integer;
+  Nm: string;
+  D: TDataBlock;
+begin
+  Result := S;
+  if not (IsCodesys(FModel.Family) or IsLogo(FModel.Family)) or (S = '') or not (S[1] in ['A'..'Z', 'a'..'z', '_']) then Exit;
+
+  P := 1;
+  while (P <= Length(S)) and (S[P] in ['A'..'Z', 'a'..'z', '0'..'9', '_']) do Inc(P);
+  Nm := Copy(S, 1, P - 1);
+  // a local: VAR_TEMP, a parameter, a VAR of the POU (of a PROGRAM: in its program DB)
+  if (FTemps <> nil) and (FTemps.IndexOfName(UpperCase(Nm)) >= 0) then Exit('#' + S);
+  if (FIface <> nil) and (FIface.FindVar(Nm) >= 0) then
+  begin
+    if (FProgDB <> '') and (FIface.Vars[FIface.FindVar(Nm)].Section = vsStatic) then
+      Exit('"' + FProgDB + '".' + S);
+    Exit('#' + S);
+  end;
+  // a tag (a variable with AT %IX0.0) or a GVL by its name: as it is
+  if (FProject.FindTag(Nm) >= 0) or (FProject.FindDBByName(Nm) <> nil) then Exit;
+  // a variable of a GVL
+  for K := 0 to FProject.DBCount - 1 do
+  begin
+    D := FProject.DB(K);
+    if (D.InstanceOf = 0) and (D.FindVar(Nm) >= 0) then Exit('"' + D.Name + '".' + S);
+  end;
 end;
 
 function TResolver.CheckRange(const A: TAddr; out Err: string): Boolean;
@@ -424,7 +462,7 @@ begin
   FillChar(Opd, SizeOf(Opd), 0);
   Opd.Kind := okNone;
   Opd.Block := -1;
-  T := Trim(S);
+  T := Dialect(Trim(S));
   Opd.Text := T;
   if T = '' then
   begin
@@ -565,7 +603,7 @@ begin
   Result := False;
   Err := '';
   FillChar(V, SizeOf(V), 0);
-  T := Trim(S);
+  T := Dialect(Trim(S));
   if T = '' then
   begin
     Err := 'operand missing';
@@ -2130,10 +2168,10 @@ var
   Names, Acts: array of string;
   Lines: array of Integer;
 begin
-  if FModel.Family = cfS71200 then
+  if not HasStl(FModel.Family) then
   begin
     FLine := -1;
-    Msg('STL is not available on the S7-1200: use LAD');
+    Msg('STL is not available on the ' + FamilyNames[FModel.Family] + ': use LAD or SCL');
     Exit;
   end;
   I := 0;
@@ -2668,6 +2706,8 @@ begin
   B.Iface.Layout;
   FRes.Iface := nil;
   if B.Kind in [bkFB, bkFC, bkOB] then FRes.Iface := B.Iface;
+  FRes.ProgDB := '';
+  if IsCodesys(FModel.Family) and (B.Kind = bkOB) then FRes.ProgDB := B.Name;
   K := 0;
   for I := 0 to High(B.Iface.Vars) do
   begin
@@ -2682,6 +2722,8 @@ begin
       FTemps.AddObject(UpperCase(B.Iface.Vars[I].Name) + '=' + B.Iface.Vars[I].TypeText,
         TObject(PtrInt(B.Iface.Vars[I].Ofs * 8 + B.Iface.Vars[I].Bit)));
     end
+    else if (B.Kind = bkOB) and IsCodesys(FModel.Family) and (B.Iface.Vars[I].Section = vsStatic) then
+      // CODESYS: a VAR of the PROGRAM, in its program DB (SyncProgramDBs)
     else if (B.Kind = bkOB) and not B.Iface.Vars[I].System then
       Msg(Format('%s.%s: an OB has its start information (Input) and Temp only', [B.Title, B.Iface.Vars[I].Name]))
     else if B.Kind = bkOB then
@@ -2797,6 +2839,7 @@ begin
   // work memory: about 4 bytes per op + 36 bytes block header
   FBlock.CodeBytes := 36 + Length(FBlock.Ops) * 4 + Length(FBlock.Params) * 6;
   FRes.Iface := nil;
+  FRes.ProgDB := '';
   FSrc := nil;
 end;
 
@@ -2892,7 +2935,7 @@ var
         if Report then Msg(Format('%s.%s: unknown data type "%s"', [Where, V.Name, V.TypeText]));
         Continue;
       end;
-      if Report and (FModel.Family <> cfS71500) and (V.DType in [dtLWord, dtLInt, dtULInt, dtLTime, dtLTOD, dtLDT]) then
+      if Report and not Has64(FModel.Family) and (V.DType in [dtLWord, dtLInt, dtULInt, dtLTime, dtLTOD, dtLDT]) then
         Msg(Format('%s.%s: %s only exists on the S7-1500', [Where, V.Name, DataTypeNames[V.DType]]));
       if Report and (FModel.Family = cfS71200) and (V.DType = dtDT) then
         Msg(Format('%s.%s: Date_And_Time does not exist on the S7-1200 (DTL)', [Where, V.Name]));
@@ -3017,6 +3060,9 @@ var
   TA: TAddr;
   Er: string;
 begin
+  // CODESYS: the VAR of the programs into their program DBs, before the DBs are laid out
+  FProject.SyncProgramDBs;
+  if Assigned(SyncHook) then SyncHook(FProject);
   FProg := TCProgram.Create;
   FProg.ModelIdx := FProject.ModelIdx;
   FProg.Family := FModel.Family;

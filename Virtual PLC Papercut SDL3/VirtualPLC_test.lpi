@@ -7,6 +7,7 @@
       <Title Value="Virtual PLC Papercut SDL3"/>
       <Scaled Value="True"/>
       <ResourceType Value="res"/>
+      <Icon Value="0"/>
       <UseXPManifest Value="True"/>
       <XPManifest>
         <DpiAware Value="True"/>
@@ -38,7 +39,7 @@
     </RequiredPackages>
     <Units>
       <Unit>
-        <Filename Value="VirtualPLC_test.lpr"/>
+        <Filename Value="VirtualPLC.lpr"/>
         <IsPartOfProject Value="True"/>
       </Unit>
       <Unit>

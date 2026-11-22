@@ -28,6 +28,8 @@ function SclExportUdt(U: TDataBlock): string;
 function SclExportAll(P: TPlcProject; out Report: string): string;
 { the source into the project (nothing is changed when it has an error); Report: what was made, or the error }
 function SclImport(P: TPlcProject; const Src: string; out Report: string; DataOnly: Boolean = False): Boolean;
+{ the VAR_TEMP / VAR CONSTANT lines at the top of an SCL network apart from its code }
+procedure SplitNetwork(N: TNetwork; Temps, Consts, Code: TStrings);
 
 implementation
 
@@ -171,7 +173,8 @@ begin
     Section('VAR_INPUT', vsInput, -1);
     Section('VAR_OUTPUT', vsOutput, -1);
     Section('VAR_IN_OUT', vsInOut, -1);
-    if B.Kind = bkFB then
+    // an FB, and on CODESYS a PROGRAM (OB): its VAR
+    if (B.Kind = bkFB) or ((B.Kind = bkOB) and IsCodesys(P.Family)) then
     begin
       Section('VAR', vsStatic, 0);
       Section('VAR RETAIN', vsStatic, 1);
@@ -1081,6 +1084,7 @@ begin
           if (K >= 0) and (K <= High(B.Iface.Vars)) then B.Iface.Vars[K].Retain := U.Vars[J].Retain;
         end;
       if U.RetType <> '' then B.Iface.AddSecVar(vsReturn, 'Ret_Val', U.RetType, '', 'the function value');
+      if Bk = bkOB then P.SyncObIface(B);
       BodyNetworks(B, U.Body, Consts);
       if B.NetCount = 0 then B.AddNet(nkSCL);
       Made.Add(Format('%s "%s" (%d networks)', [B.Title, B.Name, B.NetCount]));

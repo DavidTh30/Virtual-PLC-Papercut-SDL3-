@@ -336,7 +336,7 @@ var
   K: Integer;
   S5: Boolean;
 begin
-  S5 := Fam <> cfS71200;
+  S5 := HasS5(Fam);
   AddK(L, C_BIT, '-| |- NO contact', lkNO, 0, 'Normally open: the power goes on when the operand is 1.');
   AddK(L, C_BIT, '-|/|- NC contact', lkNC, 0, 'Normally closed: the power goes on when the operand is 0.');
   AddK(L, C_BIT, '-|P|- P contact', lkPos, 0, 'A rising edge of the operand (the edge memory bit below it).');

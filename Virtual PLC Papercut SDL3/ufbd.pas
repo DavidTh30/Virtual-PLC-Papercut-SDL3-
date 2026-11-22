@@ -17,7 +17,7 @@ unit uFbd;
 interface
 
 uses
-  SysUtils, Classes, Math, StrUtils, uPlcTypes, uPlcProject, uSclElems;
+  SysUtils, Classes, Math, StrUtils, uPlcTypes, uPlcProject, uSclElems, uLogoDefs;
 
 type
   { a pin of a box: its name, its type ('B' Bool, 'N' the type of the box, 'D' its second type, 'T' Time,
@@ -289,6 +289,18 @@ begin
     'Sets the PLC clock from PDT: a Date_And_Time (SFC0). Put a P edge before EN.');
   Def('call', 'CALL', C_PRG, fiBlock, 'block (FC) / instance DB (FB)', 'EN:B?', '', False, '', dtBool, dtNone,
     'Calls an FC or an FB (its instance DB above the box); the pins are its parameters.');
+  // NOT, NAND, NOR (every family; the basic functions of LOGO!)
+  Def('not', 'NOT', C_BIT, fiNone, '', 'IN:B', 'Q:B', False, '', dtBool, dtNone, 'Q is TRUE when IN is FALSE.');
+  Def('nand', 'NAND', C_BIT, fiNone, '', 'IN1:B,IN2:B', 'Q:B', True, '', dtBool, dtNone,
+    'Q is FALSE only when every input is TRUE.');
+  Def('nor', 'NOR', C_BIT, fiNone, '', 'IN1:B,IN2:B', 'Q:B', True, '', dtBool, dtNone, 'Q is TRUE only when every input is FALSE.');
+  // LOGO!: the basic functions with an edge and the special functions, each an FB of the LOGO! library
+  for K := 0 to LogoDefCount - 1 do
+    with LogoDef(K) do
+      if (Id = 'lg_andedge') or (Id = 'lg_nandedge') then
+        Def(Id, Title, LogoCatGF, fiInstance, 'block', Ins, Outs, False, '', dtBool, dtNone, Descr)
+      else
+        Def(Id, Title, LogoCatSF, fiInstance, 'block', Ins, Outs, False, '', dtBool, dtNone, Descr);
 end;
 
 function FbdBoxes: TFbdBoxDefs;
@@ -408,6 +420,53 @@ begin
     end;
 end;
 
+{ LOGO!: the next free block number: B001, B002 .. over the whole program (N: a network that is not in it yet) }
+function FbdLogoNextBlock(P: TPlcProject; N: TNetwork): string;
+var
+  I, J, K, V, Mx: Integer;
+  B: TBlock;
+
+  procedure Look(Nt: TNetwork);
+  var
+    Q: Integer;
+  begin
+    if (Nt = nil) or not (Nt.Kind in [nkFBD, nkCFC]) then Exit;
+    for Q := 0 to High(Nt.Nodes) do
+      if (Length(Nt.Nodes[Q].Inst) > 1) and (UpCase(Nt.Nodes[Q].Inst[1]) = 'B') and
+        TryStrToInt(Copy(Nt.Nodes[Q].Inst, 2, 9), V) and (V > Mx) then Mx := V;
+  end;
+
+begin
+  Mx := 0;
+  for I := 0 to P.BlockCount - 1 do
+  begin
+    B := P.Block(I);
+    for J := 0 to B.NetCount - 1 do Look(B.Net(J));
+  end;
+  Look(N);
+  K := Mx + 1;
+  Result := Format('B%.3d', [K]);
+end;
+
+{ the operands of the parameters of a new LOGO! box: 'T=T#3S,On=500' }
+procedure FbdLogoDefaults(const S: string; var Nd: TFbdNode);
+var
+  L: TStringList;
+  K, J: Integer;
+begin
+  L := TStringList.Create;
+  try
+    L.Delimiter := ',';
+    L.StrictDelimiter := True;
+    L.DelimitedText := S;
+    for K := 0 to L.Count - 1 do
+      for J := 0 to High(Nd.Ins) do
+        if SameText(Nd.Ins[J].Name, L.Names[K]) then Nd.Ins[J].Opnd := L.ValueFromIndex[K];
+  finally
+    L.Free;
+  end;
+end;
+
 function NewFbdNode(N: TNetwork; const Id: string; P: TPlcProject; const Blk: string): TFbdNode;
 var
   D: TFbdBoxDef;
@@ -427,6 +486,12 @@ begin
   case Id of
     'ton', 'tof', 'tp', 'tonr': Result.Ins[High(Result.Ins)].Opnd := 'T#2S';
     'ctu', 'ctd', 'ctud': Result.Ins[High(Result.Ins)].Opnd := '10';
+  end;
+  // LOGO!: the next block number, the defaults of the parameters
+  if LogoDefIndex(Id) >= 0 then
+  begin
+    if P <> nil then Result.Inst := FbdLogoNextBlock(P, N) else Result.Inst := 'B001';
+    FbdLogoDefaults(LogoDef(LogoDefIndex(Id)).Defaults, Result);
   end;
   if Id = 'call' then
   begin
@@ -780,6 +845,7 @@ var
   En, Op, X, Tp, Ty, Call: string;
   HasEn: Boolean;
   Seen: TStringList;
+  LgPins: TStringArray;
 
   procedure Err(AId: Integer; const S: string);
   begin
@@ -825,6 +891,10 @@ var
     end
     else
       Result := Trim(Nd.Ins[I].Opnd);
+    // LOGO!: hi / lo, the open input x
+    if (P <> nil) and IsLogo(P.Family) then
+      if SameText(Result, 'hi') then Result := 'TRUE'
+      else if SameText(Result, 'lo') or SameText(Result, 'x') then Result := 'FALSE';
     if (Result <> '') and Nd.Ins[I].Neg then Result := 'NOT ' + Result;
   end;
 
@@ -957,6 +1027,23 @@ var
   end;
 
   { an FB box (timers, counters, edges): its call with the inputs, its outputs }
+  procedure FbCall(const Pins: array of string); forward;
+
+  { a pin of the box that may stay empty (R:B? ..) }
+  function PinOptional(const Name: string): Boolean;
+  var
+    Q: Integer;
+  begin
+    Result := False;
+    for Q := 0 to High(D.Ins) do
+      if SameText(D.Ins[Q].Name, Name) then Exit(D.Ins[Q].Opt);
+  end;
+
+  procedure FbCallList(const Pins: TStringArray);
+  begin
+    FbCall(Pins);
+  end;
+
   procedure FbCall(const Pins: array of string);
   var
     Q, Oi: Integer;
@@ -972,7 +1059,7 @@ var
     for Q := 0 to High(Pins) do
     begin
       A := Inp(Pins[Q], False);
-      if (A = '') and ((Q = 0) or (Pins[Q] = 'PT') or (Pins[Q] = 'PV')) then
+      if (A = '') and ((Q = 0) or (Pins[Q] = 'PT') or (Pins[Q] = 'PV')) and not PinOptional(Pins[Q]) then
       begin
         Err(Nd.Id, Format('%s: the input %s is empty', [D.Title, Pins[Q]]));
         A := 'FALSE';
@@ -1036,10 +1123,21 @@ begin
         HasEn := True;
       end;
       SetLength(E, Length(Nd.Ins));
+      // LOGO!: a block of the library: its instance (B003) called with its inputs
+      if LogoDefIndex(Nd.Box) >= 0 then
+      begin
+        SetLength(LgPins, Length(Nd.Ins));
+        for I := 0 to High(Nd.Ins) do LgPins[I] := Nd.Ins[I].Name;
+        FbCallList(LgPins);
+      end
+      else
       case Nd.Box of
         'and': Output(0, Joined('AND', 0));
         'or': Output(0, Joined('OR', 0));
         'xor': Output(0, Joined('XOR', 0));
+        'not': Output(0, 'NOT (' + Need('IN') + ')');
+        'nand': Output(0, 'NOT (' + Joined('AND', 0) + ')');
+        'nor': Output(0, 'NOT (' + Joined('OR', 0) + ')');
         'assign':
           begin
             if Trim(Nd.Inst) = '' then Err(Nd.Id, '=: the operand above the box is empty');
@@ -1635,7 +1733,18 @@ begin
   Result := nil;
   FbdBoxes;
   for K := 0 to High(Defs) do
-    if (P <> nil) and (P.Family = cfS71200) and ((Defs[K].Cat = 'Timers (S5)') or (Defs[K].Cat = 'Counters (S5)')) then
+    if (P <> nil) and not HasS5(P.Family) and ((Defs[K].Cat = 'Timers (S5)') or (Defs[K].Cat = 'Counters (S5)')) then
+      Continue
+    // LOGO!: its basic functions (AND, OR, NOT, NAND, NOR, XOR and the two with an edge) and its special
+    // functions; the other families: no LOGO! blocks
+    else if (P <> nil) and IsLogo(P.Family) then
+    begin
+      if MatchStr(Defs[K].Id, ['and', 'or', 'not', 'nand', 'nor', 'xor']) then
+        Add(LogoCatGF, Defs[K].Title, FbdBoxSnip + Defs[K].Id, Defs[K].Descr)
+      else if (Defs[K].Cat = LogoCatGF) or (Defs[K].Cat = LogoCatSF) then
+        Add(Defs[K].Cat, Defs[K].Title, FbdBoxSnip + Defs[K].Id, Defs[K].Descr);
+    end
+    else if (Defs[K].Cat = LogoCatGF) or (Defs[K].Cat = LogoCatSF) then
       Continue
     else if Defs[K].Id <> 'call' then Add(Defs[K].Cat, Defs[K].Title + IfThen(Defs[K].Cat = 'Shift / word logic', ' (word)', ''),
       FbdBoxSnip + Defs[K].Id, Defs[K].Descr)

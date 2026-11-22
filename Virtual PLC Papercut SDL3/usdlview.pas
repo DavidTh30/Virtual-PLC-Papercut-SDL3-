@@ -1272,6 +1272,15 @@ procedure TSDLView.RunScript;
     FShots[N].Arg := AArg;
   end;
 
+  function FSize(const Fn: string): Int64;
+  var
+    Sr: TSearchRec;
+  begin
+    Result := -1;
+    if FindFirst(Fn, faAnyFile, Sr) = 0 then Result := Sr.Size;
+    FindClose(Sr);
+  end;
+
   procedure AddFamily(const Tag, Model: string);
   begin
     Add(20, 'sample', Model);
@@ -1761,6 +1770,76 @@ begin
     FShotWait := FShots[0].Wait;
     Exit;
   end;
+  if (Length(FShots) = 0) and (GetEnvironmentVariable('VPLC_LOGO_TEST') <> '') then
+  begin
+    // LOGO!: the New device column; the stairway light: its program, the display with the message, the blocks
+    DeleteFile(FShotDir + 'watchdrag_check.txt');
+    Add(10, 'screen', '7');
+    Add(10, 'uiclick2', 'new:19');
+    Add(20, 'shot', 'logo_0_project');
+    Add(10, 'ipc', 'ex 39');
+    Add(10, 'fkey', '8');
+    Add(30, 'fkey', '5');
+    Add(10, 'set', '0=1');
+    Add(20, 'set', '0=0');
+    Add(20, 'screen', '0');
+    Add(20, 'shot', 'logo_1_cpu_display');
+    Add(5, 'screen', '1');
+    Add(20, 'shot', 'logo_2_program');
+    Add(5, 'screen', '4');
+    Add(20, 'shot', 'logo_3_blocks');
+    Add(5, 'screen', '2');
+    Add(20, 'shot', 'logo_4_io');
+    Add(5, 'screen', '3');
+    Add(20, 'shot', 'logo_5_watch');
+    Add(5, 'wd', 'dump');
+    Add(10, 'ipc', 'ex 41');
+    Add(10, 'fkey', '8');
+    Add(30, 'fkey', '5');
+    Add(10, 'set', '0=1');
+    Add(60, 'screen', '1');
+    Add(20, 'shot', 'logo_6_program_analog');
+    Add(5, 'quit');
+    FShotPos := 0;
+    FShotWait := FShots[0].Wait;
+    Exit;
+  end;
+  if (Length(FShots) = 0) and (GetEnvironmentVariable('VPLC_CODESYS_TEST') <> '') then
+  begin
+    // a CODESYS project: the New device column, every screen
+    Add(10, 'screen', '7');
+    Add(10, 'uiclick2', 'new:15');
+    Add(20, 'shot', 'codesys_7_project');
+    for P := 0 to 6 do
+    begin
+      Add(5, 'screen', IntToStr(P));
+      Add(20, 'shot', Format('codesys_%d_screen', [P]));
+    end;
+    // the example FB + GVL: compiled, run, its belts started, the screens; the help of TON written the CODESYS way
+    DeleteFile(FShotDir + 'elemhelp_check.txt');
+    DeleteFile(FShotDir + 'watchdrag_check.txt');
+    Add(10, 'ipc', 'ex 38');
+    Add(10, 'fkey', '8');
+    Add(30, 'fkey', '5');
+    Add(10, 'set', '0=1');
+    Add(30, 'set', '0=0');
+    Add(60, 'screen', '1');
+    Add(20, 'shot', 'codesys_8_fb_program');
+    Add(5, 'screen', '4');
+    Add(20, 'shot', 'codesys_9_gvl');
+    Add(5, 'screen', '3');
+    Add(20, 'shot', 'codesys_10_watch');
+    Add(5, 'wd', 'dump');
+    Add(5, 'screen', '1');
+    Add(10, 'eh', 'open TON (on delay)');
+    Add(20, 'shot', 'codesys_11_help_ton');
+    Add(5, 'eh', 'dump');
+    Add(5, 'eh', 'esc');
+    Add(5, 'quit');
+    FShotPos := 0;
+    FShotWait := FShots[0].Wait;
+    Exit;
+  end;
   if (Length(FShots) = 0) and (GetEnvironmentVariable('VPLC_WARR_TEST') <> '') then
   begin
     // the watch table with arrays: an element of an open array modified (Modify now), added as a row of its own
@@ -1893,6 +1972,34 @@ begin
     Add(5, 'sc', 'dump clock');
     Add(5, 'uiclick2', 'clkpc:0');
     Add(10, 'sc', 'dump clock');
+    Add(5, 'quit');
+    FShotPos := 0;
+    FShotWait := FShots[0].Wait;
+    Exit;
+  end;
+  if (Length(FShots) = 0) and (GetEnvironmentVariable('VPLC_TABLEIO_TEST') <> '') then
+  begin
+    // the variables of a DB and the watch table as CSV / Excel XLSX / XML: the menus, out and back in
+    DeleteFile(FShotDir + 'tableio_check.txt');
+    Add(10, 'ipc', 'ex 33');
+    Add(5, 'screen', '4');
+    Add(10, 'uiclick2', 'db:0');
+    Add(10, 'uiclick2', 'dbtable:0');
+    Add(20, 'shot', 'tableio_1_db_menu');
+    Add(5, 'esc');
+    Add(5, 'tio', 'db');
+    Add(20, 'shot', 'tableio_2_db_imported');
+    Add(5, 'tio', 'watch');
+    Add(5, 'screen', '3');
+    Add(10, 'uiclick2', 'watchmenu:0');
+    Add(20, 'shot', 'tableio_3_watch_menu');
+    Add(5, 'esc');
+    Add(20, 'shot', 'tableio_4_watch_imported');
+    Add(5, 'screen', '5');
+    Add(10, 'uiclick2', 'tagexpmenu:0');
+    Add(20, 'shot', 'tableio_5_tag_menu');
+    Add(5, 'esc');
+    Add(5, 'tio', 'tags');
     Add(5, 'quit');
     FShotPos := 0;
     FShotWait := FShots[0].Wait;
@@ -3464,7 +3571,8 @@ begin
         'refresh': UI.RefreshProjectFiles;
         'folder 0': UI.FileFolder := 0;
         'folder 1': UI.FileFolder := 1;
-        'ex 2', 'ex 6', 'ex 15', 'ex 29', 'ex 30', 'ex 34', 'ex 31', 'ex 32', 'ex 33', 'ex 19', 'ex 20', 'ex 22', 'ex 23', 'ex 25': UI.LoadExampleNow(StrToInt(Copy(St.Arg, 4, 2)));
+        'ex 2', 'ex 6', 'ex 15', 'ex 29', 'ex 30', 'ex 34', 'ex 31', 'ex 32', 'ex 33', 'ex 19', 'ex 20', 'ex 22', 'ex 23', 'ex 25',
+        'ex 35', 'ex 36', 'ex 37', 'ex 38', 'ex 39', 'ex 40', 'ex 41': UI.LoadExampleNow(StrToInt(Copy(St.Arg, 4, 2)));
         'in on': UI.Rt.SetSimBit(0, 0, True);
       end;
       SaveToFile(FShotDir + 'ipc_check.txt');
@@ -5399,6 +5507,70 @@ begin
     UI.TextInput('XYZ M0.0');
   end;
   if St.Cmd = 'compile' then UI.KeyDown(ukF7, #0, []);
+  if St.Cmd = 'tio' then
+    with TStringList.Create do
+    try
+      if FileExists(FShotDir + 'tableio_check.txt') then LoadFromFile(FShotDir + 'tableio_check.txt');
+      if St.Arg = 'db' then
+      begin
+        V := Length(UI.Project.DB(0).Vars);
+        Add(Format('DB%d "%s": %d variables', [UI.Project.DB(0).Number, UI.Project.DB(0).Name, V]));
+        for P := 0 to 2 do
+        begin
+          S0 := FShotDir + 'zz_tableio_db.' + Trim(Copy('csv xlsxxml ', P * 4 + 1, 4));
+          Ok := UI.ExportPiece(2, IfThen(P = 0, 0, P + 2), 0, S0);
+          Add(Format('export %s: %s, %d bytes', [ExtractFileName(S0), BoolToStr(Ok and FileExists(S0), 'ok', 'FAIL'),
+            FSize(S0)]));
+          S1 := UI.ImportDbTable(0, S0);
+          Add(Format('  back in: %s %s', [S1, IfThen(S1 = Format('0 added, %d changed', [V]), 'ok', 'FAIL')]));
+          DeleteFile(S0);
+        end;
+        S1 := UI.ImportDbTable(0, ExpandFileName('test\excel_vars.xlsx'));
+        Add('Excel workbook: ' + S1 + IfThen(Length(UI.Project.DB(0).Vars) > V, ' ok', ' FAIL'));
+        for P := 0 to UI.Project.DBCount - 1 do
+          if UI.Project.DB(P).InstanceOf > 0 then
+          begin
+            Add('instance DB: ' + UI.ImportDbTable(P, ExpandFileName('test\excel_vars.xlsx')));
+            Break;
+          end;
+      end
+      else if St.Arg = 'tags' then
+      begin
+        V := Length(UI.Project.Tags);
+        Add(Format('tags: %d', [V]));
+        for P := 0 to 2 do
+        begin
+          S0 := FShotDir + 'zz_tableio_tags.' + Trim(Copy('csv xlsxxml ', P * 4 + 1, 4));
+          Ok := UI.ExportPiece(6, IfThen(P = 0, 0, P + 2), 0, S0);
+          Add(Format('tag export %s: %s, %d bytes', [ExtractFileName(S0), BoolToStr(Ok and FileExists(S0), 'ok', 'FAIL'),
+            FSize(S0)]));
+          S1 := UI.ImportTags(S0);
+          Add(Format('  back in: %s %s', [S1, IfThen((S1 = Format('0 tags added, %d updated', [V])) and
+            (Length(UI.Project.Tags) = V), 'ok', 'FAIL')]));
+          DeleteFile(S0);
+        end;
+      end
+      else
+      begin
+        V := Length(UI.Project.Watch);
+        UI.Project.AddWatch('MW10', dfDec, '42');
+        UI.Project.AddWatch('"Motor".SpeedRpm', dfDec, '');
+        for P := 0 to 2 do
+        begin
+          S0 := FShotDir + 'zz_tableio_watch.' + Trim(Copy('csv xlsxxml ', P * 4 + 1, 4));
+          Ok := UI.ExportPiece(4, IfThen(P = 0, 0, P + 2), 0, S0);
+          Add(Format('watch export %s: %s, %d bytes', [ExtractFileName(S0), BoolToStr(Ok and FileExists(S0), 'ok', 'FAIL'),
+            FSize(S0)]));
+          S1 := UI.ImportWatch(S0);
+          Add(Format('  back in: %s %s', [S1, IfThen(S1 = Format('%d rows added', [(V + 2) shl P]), 'ok', 'FAIL')]));
+          DeleteFile(S0);
+        end;
+        Add(Format('watch rows now %d', [Length(UI.Project.Watch)]));
+      end;
+      SaveToFile(FShotDir + 'tableio_check.txt');
+    finally
+      Free;
+    end;
   if St.Cmd = 'fkey' then
     case St.Arg of
       '5': UI.KeyDown(ukF5, #0, []);

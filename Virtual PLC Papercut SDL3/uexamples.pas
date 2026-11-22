@@ -22,7 +22,7 @@ procedure WriteExamples(const Dir: string);          // the missing ones
 implementation
 
 const
-  Files: array[0..34] of string = (
+  Files: array[0..41] of string = (
     '01_Motor_start_stop_S7-1200', '02_Motor_start_stop_S7-1500', '03_Motor_start_stop_S7-300',
     '04_Motor_start_stop_S7-400', '05_Traffic_light_S7-1200', '06_Tank_level_control_S7-1200',
     '07_Conveyor_box_counter_S7-1200', '08_Star_delta_starter_S7-300', '09_Pump_duty_standby_S7-1500',
@@ -33,7 +33,10 @@ const
     '23_Timers_LAD_S7-300', '24_Counters_LAD_S7-300', '25_Timers_LAD_S7-400', '26_Counters_LAD_S7-400',
     '27_Data_type_conversion_S7-1200', '28_Data_type_conversion_STL_S7-300', '29_Math_S7-1200',
     '30_Large_FB_motor_control_S7-1500', '31_SCL_elements_S7-1500', '32_SCL_strings_S7-1500',
-    '33_SCL_64_bit_dates_S7-1500', '34_LAD_STL_SCL_functions_S7-1500', '35_FBD_CFC_S7-1500');
+    '33_SCL_64_bit_dates_S7-1500', '34_LAD_STL_SCL_functions_S7-1500', '35_FBD_CFC_S7-1500',
+    '36_Motor_start_stop_CODESYS', '37_Traffic_light_CODESYS', '38_Timers_counters_LD_CODESYS',
+    '39_Function_block_GVL_CODESYS', '40_Stairway_light_LOGO', '41_Pump_weekly_timer_LOGO',
+    '42_Blinker_counter_analog_LOGO');
 
 function ExampleCount: Integer;
 begin
@@ -198,6 +201,38 @@ var
   procedure Push(Bit: Integer; NC: Boolean = False);
   begin
     if NC then P.DIch[Bit].InType := itPushNC else P.DIch[Bit].InType := itPushNO;
+  end;
+
+  { a CODESYS project: PLC_PRG (its ST network removed) and the GVL }
+  procedure StartCs(const ModelName, AName, AComment: string);
+  begin
+    K := ModelIndexByName(ModelName);
+    if K < 0 then K := 0;
+    P.NewEmpty(K);
+    P.Block(0).DeleteNet(0);
+    P.Name := AName;
+    P.Author := 'Virtual PLC examples';
+    P.Comment := AComment;
+  end;
+
+  { a LOGO! project: its program without the empty network }
+  procedure StartLogo(const ModelName, AName, AComment: string);
+  begin
+    K := ModelIndexByName(ModelName);
+    if K < 0 then K := 0;
+    P.NewEmpty(K);
+    P.Block(0).DeleteNet(0);
+    P.Name := AName;
+    P.Author := 'Virtual PLC examples';
+    P.Comment := AComment;
+  end;
+
+  { a VAR (Static) / VAR_INPUT .. of a block }
+  procedure IfVar(Blk: TBlock; const AName, AType, AInit: string; Sec: TVarSection; const AComment: string = '');
+  begin
+    Blk.Iface.AddVar(AName, AType, AInit, AComment);
+    Blk.Iface.Vars[High(Blk.Iface.Vars)].Section := Sec;
+    if Blk.Kind = bkOB then P.SyncObIface(Blk) else Blk.Iface.SortSections;
   end;
 
   procedure Start(Model: Integer; const AName, AComment: string);
@@ -1852,6 +1887,322 @@ begin
         P.AddWatch('"Level_pct"', dfReal);
         P.AddWatch('"Boxes"', dfDec);
         P.AddWatch('"Ctrl".Warn.ET', dfTime);
+      end;
+    35: // ---------- CODESYS: motor start / stop in ST ----------
+      begin
+        StartCs('Control Win V3', 'Motor start / stop (CODESYS)',
+          'CODESYS ST: the I/O variables are on the I/O map (Start_PB AT %IX0.0 ..), the program variables in the ' +
+          'VAR of PLC_PRG, the counters in the GVL; names without quotes or #. %IX0.0 starts, %IX0.1 (a stop ' +
+          'button that opens) stops, %IX0.2 is the overload. A TON gives a 2 s start warning on the horn first.');
+        P.AddTag('Start_PB', 'BOOL', '%IX0.0', 'start button (NO)');
+        P.AddTag('Stop_PB', 'BOOL', '%IX0.1', 'stop button (NC)');
+        P.AddTag('Overload', 'BOOL', '%IX0.2', 'overload relay');
+        P.AddTag('Motor', 'BOOL', '%QX0.0', 'motor contactor');
+        P.AddTag('Horn', 'BOOL', '%QX0.1', 'start warning');
+        P.AddTag('Run_Lamp', 'BOOL', '%QX0.2', 'lamp: the motor runs');
+        Push(0);
+        Push(1, True);
+        D := P.FindDBByName('GVL');
+        D.AddVar('nStarts', 'DINT', '0', 'how often the motor started');
+        D.Vars[High(D.Vars)].Retain := True;
+        D.AddVar('tRunTime', 'TIME', 'T#0S', 'the time it ran');
+        B := P.Block(0);
+        IfVar(B, 'xRequest', 'BOOL', 'FALSE', vsStatic, 'start asked: the warning runs');
+        IfVar(B, 'tonWarn', 'TON', '', vsStatic, 'the start warning');
+        IfVar(B, 'rtStart', 'R_TRIG', '', vsStatic, 'the rising edge of the motor');
+        IfVar(B, 'tLast', 'TIME', 'T#0S', vsStatic, 'the cycle time sum');
+        Scl(B, 'Start warning, self holding', 'Start asks for the motor; after 2 s of horn it runs and holds itself.',
+          L(['// the request holds itself until stop or overload',
+             'xRequest := (Start_PB OR xRequest) AND Stop_PB AND NOT Overload;',
+             'tonWarn(IN := xRequest AND NOT Motor, PT := T#2S);',
+             'Horn := xRequest AND NOT Motor;',
+             'Motor := (tonWarn.Q OR Motor) AND xRequest;',
+             'Run_Lamp := Motor;']));
+        Scl(B, 'Starts and run time', 'R_TRIG counts the starts (retentive in the GVL); the run time adds the cycles.',
+          L(['rtStart(CLK := Motor);',
+             'IF rtStart.Q THEN',
+             '    nStarts := nStarts + 1;',
+             'END_IF;',
+             'IF Motor THEN',
+             '    tRunTime := tRunTime + T#1MS;   // about one cycle (min 1 ms pacing)',
+             'END_IF;']));
+        P.AddWatch('Motor', dfBool);
+        P.AddWatch('PLC_PRG.tonWarn.ET', dfTime);
+        P.AddWatch('nStarts', dfDec);
+        P.AddWatch('tRunTime', dfTime);
+        P.AddMini('Motor', dfBool);
+        P.AddMini('nStarts', dfDec);
+      end;
+    36: // ---------- CODESYS: traffic light, a CASE state machine ----------
+      begin
+        StartCs('WAGO PFC200', 'Traffic light (CODESYS)',
+          'CODESYS ST: a CASE state machine with one TON in the VAR of PLC_PRG: red 4 s, red + yellow 1 s, green 4 s, ' +
+          'yellow 1 s. %IX0.0 switches the light on; off: yellow flashes.');
+        P.AddTag('On_Switch', 'BOOL', '%IX0.0', 'the traffic light on');
+        P.AddTag('Red', 'BOOL', '%QX0.0', '');
+        P.AddTag('Yellow', 'BOOL', '%QX0.1', '');
+        P.AddTag('Green', 'BOOL', '%QX0.2', '');
+        B := P.Block(0);
+        IfVar(B, 'nState', 'INT', '0', vsStatic, '0 red, 1 red + yellow, 2 green, 3 yellow');
+        IfVar(B, 'tonStep', 'TON', '', vsStatic, 'the time of a state');
+        IfVar(B, 'tonBlink', 'TON', '', vsStatic, 'the flashing yellow');
+        IfVar(B, 'xBlink', 'BOOL', 'FALSE', vsStatic, '');
+        Scl(B, 'The states', 'CASE: each state has its time; the TON restarts at every change (IN false for a cycle).',
+          L(['IF NOT On_Switch THEN',
+             '    nState := 0;',
+             '    tonBlink(IN := NOT tonBlink.Q, PT := T#500MS);',
+             '    IF tonBlink.Q THEN xBlink := NOT xBlink; END_IF;',
+             '    Red := FALSE; Green := FALSE; Yellow := xBlink;',
+             '    RETURN;',
+             'END_IF;',
+             'CASE nState OF',
+             '    0: tonStep(IN := TRUE, PT := T#4S);',
+             '    1: tonStep(IN := TRUE, PT := T#1S);',
+             '    2: tonStep(IN := TRUE, PT := T#4S);',
+             '    3: tonStep(IN := TRUE, PT := T#1S);',
+             'END_CASE;',
+             'IF tonStep.Q THEN',
+             '    nState := (nState + 1) MOD 4;',
+             '    tonStep(IN := FALSE, PT := T#1S);',
+             'END_IF;',
+             'Red := (nState = 0) OR (nState = 1);',
+             'Yellow := (nState = 1) OR (nState = 3);',
+             'Green := nState = 2;']));
+        P.AddWatch('PLC_PRG.nState', dfDec);
+        P.AddWatch('PLC_PRG.tonStep.ET', dfTime);
+        P.AddMini('PLC_PRG.nState', dfDec);
+      end;
+    37: // ---------- CODESYS: timers and counters in LD ----------
+      begin
+        StartCs('Schneider M241', 'Timers and counters in LD (CODESYS)',
+          'CODESYS LD: TON, TOF, TP and CTU, CTD as boxes, their instances in the GVL (tonA : TON ..). The inputs ' +
+          '%IX0.0 .. %IX0.4 drive them, the outputs %QX0.0 .. show Q.');
+        P.AddTag('In_TON', 'BOOL', '%IX0.0', '');
+        P.AddTag('In_TOF', 'BOOL', '%IX0.1', '');
+        P.AddTag('In_TP', 'BOOL', '%IX0.2', '');
+        P.AddTag('Count_PB', 'BOOL', '%IX0.3', 'counts up');
+        P.AddTag('Reset_PB', 'BOOL', '%IX0.4', 'resets the counter');
+        P.AddTag('Out_TON', 'BOOL', '%QX0.0', '');
+        P.AddTag('Out_TOF', 'BOOL', '%QX0.1', '');
+        P.AddTag('Out_TP', 'BOOL', '%QX0.2', '');
+        P.AddTag('Out_CTU', 'BOOL', '%QX0.3', 'five counted');
+        Push(2);
+        Push(3);
+        Push(4);
+        D := P.FindDBByName('GVL');
+        D.AddVar('tonA', 'TON', '', 'on delay');
+        D.AddVar('tofA', 'TOF', '', 'off delay');
+        D.AddVar('tpA', 'TP', '', 'pulse');
+        D.AddVar('ctuA', 'CTU', '', 'up counter');
+        D.AddVar('tEtTon', 'TIME', 'T#0S', '');
+        D.AddVar('tEtTof', 'TIME', 'T#0S', '');
+        D.AddVar('tEtTp', 'TIME', 'T#0S', '');
+        D.AddVar('nCount', 'INT', '0', '');
+        B := P.Block(0);
+        LadNet(B, 'TON T#3S', 'on delay: Q 3 s after IN', 1);
+        Lad(0, 0, lkNO, 'In_TON');
+        Box(0, 1, lkTON, 'tonA', 'T#3S', 'tEtTon', '');
+        Wires(0, 2, 6);
+        Lad(0, 7, lkCoil, 'Out_TON');
+        LadNet(B, 'TOF T#3S', 'off delay: Q with IN, off 3 s after it', 1);
+        Lad(0, 0, lkNO, 'In_TOF');
+        Box(0, 1, lkTOF, 'tofA', 'T#3S', 'tEtTof', '');
+        Wires(0, 2, 6);
+        Lad(0, 7, lkCoil, 'Out_TOF');
+        LadNet(B, 'TP T#2S', 'pulse: Q for 2 s from the rising edge', 1);
+        Lad(0, 0, lkNO, 'In_TP');
+        Box(0, 1, lkTP, 'tpA', 'T#2S', 'tEtTp', '');
+        Wires(0, 2, 6);
+        Lad(0, 7, lkCoil, 'Out_TP');
+        LadNet(B, 'CTU PV 5', 'up counter: Q at 5 edges; Reset_PB resets', 1);
+        Lad(0, 0, lkNO, 'Count_PB');
+        Box(0, 1, lkCTU, 'ctuA', '5', 'Reset_PB', 'nCount');
+        Wires(0, 2, 6);
+        Lad(0, 7, lkCoil, 'Out_CTU');
+        P.AddWatch('tEtTon', dfTime);
+        P.AddWatch('tEtTof', dfTime);
+        P.AddWatch('tEtTp', dfTime);
+        P.AddWatch('nCount', dfDec);
+      end;
+    38: // ---------- CODESYS: a FUNCTION_BLOCK, its instances in the GVL ----------
+      begin
+        StartCs('ABB AC500 PM5650', 'Function block and GVL (CODESYS)',
+          'CODESYS: FUNCTION_BLOCK FB_Conveyor (VAR_INPUT, VAR_OUTPUT, VAR with a TON) and two instances in the ' +
+          'GVL, called from PLC_PRG: fbBelt1(xStart := .., xStop := ..). Each instance keeps its own run time and ' +
+          'its own count of starts. %IX0.0 / %IX0.1 start / stop belt 1, %IX0.2 / %IX0.3 belt 2.');
+        P.AddTag('Start1', 'BOOL', '%IX0.0', 'belt 1 start');
+        P.AddTag('Stop1', 'BOOL', '%IX0.1', 'belt 1 stop');
+        P.AddTag('Start2', 'BOOL', '%IX0.2', 'belt 2 start');
+        P.AddTag('Stop2', 'BOOL', '%IX0.3', 'belt 2 stop');
+        P.AddTag('Belt1', 'BOOL', '%QX0.0', 'belt 1 motor');
+        P.AddTag('Belt2', 'BOOL', '%QX0.1', 'belt 2 motor');
+        P.AddTag('Speed1', 'INT', '%QW1', 'belt 1 speed 0..27648');
+        Push(0);
+        Push(1);
+        Push(2);
+        Push(3);
+        B := P.AddBlock(bkFB, 1, 'FB_Conveyor');
+        B.Comment := 'a conveyor belt: start / stop with self holding, soft start, run time, starts';
+        IfVar(B, 'xStart', 'BOOL', 'FALSE', vsInput, 'start (an edge is enough)');
+        IfVar(B, 'xStop', 'BOOL', 'FALSE', vsInput, 'stop');
+        IfVar(B, 'xRun', 'BOOL', 'FALSE', vsOutput, 'the motor');
+        IfVar(B, 'iSpeed', 'INT', '0', vsOutput, 'the speed set point, a ramp in 2 s');
+        IfVar(B, 'nStarts', 'INT', '0', vsStatic, 'how often it started');
+        IfVar(B, 'tonRamp', 'TON', '', vsStatic, 'the soft start');
+        IfVar(B, 'tRun', 'TIME', 'T#0S', vsStatic, 'the run time');
+        Scl(B, 'The belt', 'Self holding, a ramp of the speed, the starts and the run time of this instance.',
+          L(['IF xStart AND NOT xRun AND NOT xStop THEN',
+             '    nStarts := nStarts + 1;',
+             'END_IF;',
+             'xRun := (xStart OR xRun) AND NOT xStop;',
+             'tonRamp(IN := xRun, PT := T#2S);',
+             'iSpeed := DINT_TO_INT(TIME_TO_DINT(tonRamp.ET) * 27648 / 2000);',
+             'IF xRun THEN tRun := tRun + T#1MS; END_IF;']));
+        D := P.FindDBByName('GVL');
+        D.AddVar('fbBelt1', 'FB_Conveyor', '', 'belt 1');
+        D.AddVar('fbBelt2', 'FB_Conveyor', '', 'belt 2');
+        B := P.Block(0);
+        Scl(B, 'Two belts, one FB', 'Each call works on the data of its own instance.',
+          L(['fbBelt1(xStart := Start1, xStop := Stop1, xRun => Belt1, iSpeed => Speed1);',
+             'fbBelt2(xStart := Start2, xStop := Stop2, xRun => Belt2);']));
+        P.AddWatch('fbBelt1.nStarts', dfDec);
+        P.AddWatch('fbBelt1.iSpeed', dfDec);
+        P.AddWatch('fbBelt1.tRun', dfTime);
+        P.AddWatch('fbBelt2.nStarts', dfDec);
+        P.AddWatch('fbBelt2.tRun', dfTime);
+        P.AddMini('Belt1', dfBool);
+        P.AddMini('fbBelt1.iSpeed', dfDec);
+      end;
+    39: // ---------- LOGO!: stairway light ----------
+      begin
+        StartLogo('LOGO! 12/24RCE', 'Stairway light (LOGO!)',
+          'LOGO! FBD: B001 stairway lighting switch: a push button at I1 (or I2 upstairs) switches Q1 on; 10 s after ' +
+          'the button the light goes off, 3 s before it blinks off for 1 s as a warning. B002 pulse relay: I3 switches ' +
+          'the cellar light Q2 on and off (Rem: it keeps its state over STOP / RUN). B003 message text: the display ' +
+          'shows "Stair light is on" while Q1 is on.');
+        P.AddTag('Button_down', 'Bool', 'I1', 'push button downstairs');
+        P.AddTag('Button_up', 'Bool', 'I2', 'push button upstairs');
+        P.AddTag('Cellar_button', 'Bool', 'I3', '');
+        P.AddTag('Stair_light', 'Bool', 'Q1', '');
+        P.AddTag('Cellar_light', 'Bool', 'Q2', '');
+        Push(0);
+        Push(1);
+        Push(2);
+        FNet(nkFBD, 'Stairway light', 'OR: either button; B001 stairway lighting switch: 10 s, a warning 3 s before the end');
+        K := FBox(1, 'or', '');
+        FIn(K, 'IN1', 'I1');
+        FIn(K, 'IN2', 'I2');
+        K := FBox(2, 'lg_stairway', 'B001');
+        FWire(K, 'Trg', 0, 'Q');
+        FIn(K, 'T', 'T#10S');
+        FIn(K, 'TWarn', 'T#3S');
+        FIn(K, 'TLWarn', 'T#1S');
+        FOut(K, 'Q', 'Q1');
+        FNet(nkFBD, 'Cellar light', 'B002 pulse relay: each press of I3 switches Q2');
+        K := FBox(1, 'lg_pulserelay', 'B002');
+        FIn(K, 'Trg', 'I3');
+        FOut(K, 'Q', 'Q2');
+        // Rem: the cellar light stays as it was over a STOP / RUN
+        N.Nodes[K].Rem := True;
+        FNet(nkFBD, 'Display', 'B003 message text: shown on the LOGO! display while the stair light is on');
+        K := FBox(1, 'lg_message', 'B003');
+        FIn(K, 'En', 'Q1');
+        FIn(K, 'Text', '''Stair light|is on''');
+        P.AddWatch('Q1', dfBool);
+        P.AddWatch('Q2', dfBool);
+        P.AddMini('Q1', dfBool);
+      end;
+    40: // ---------- LOGO!: pump with a weekly timer ----------
+      begin
+        StartLogo('LOGO! 24CE', 'Pump with a weekly timer (LOGO!)',
+          'LOGO! FBD: B001 weekly timer runs the pump Q1 Monday to Friday 08:00 .. 17:00 (the PLC clock of the CPU ' +
+          'screen), I1 runs it by hand. B002 on-delay: the pump starts 2 s after the request. B003 operating hours counter ' +
+          'counts its hours; after 100 h Q2 (service lamp) comes on and B004 shows "Service pump" on the display; I2 ' +
+          'acknowledges (resets the interval). B005 softkey: switch the pump off on the display.');
+        P.AddTag('Hand', 'Bool', 'I1', 'run by hand');
+        P.AddTag('Service_ack', 'Bool', 'I2', 'service done');
+        P.AddTag('Pump', 'Bool', 'Q1', '');
+        P.AddTag('Service_lamp', 'Bool', 'Q2', '');
+        Push(1);
+        FNet(nkFBD, 'Pump request', 'B001 weekly timer OR the hand switch, AND NOT the softkey B005 (off)');
+        K := FBox(1, 'lg_weekly', 'B001');
+        FIn(K, 'Days', '16#1F');
+        FIn(K, 'OnTime', '800');
+        FIn(K, 'OffTime', '1700');
+        K := FBox(2, 'or', '');
+        FWire(K, 'IN1', 0, 'Q');
+        FIn(K, 'IN2', 'I1');
+        K := FBox(3, 'lg_softkey', 'B005');
+        FIn(K, 'En', 'hi');
+        K := FBox(4, 'and', '');
+        FWire(K, 'IN1', 1, 'Q');
+        FWire(K, 'IN2', 2, 'Q', True);
+        K := FBox(5, 'lg_ondelay', 'B002');
+        FWire(K, 'Trg', 3, 'Q');
+        FIn(K, 'T', 'T#2S');
+        FOut(K, 'Q', 'Q1');
+        FNet(nkFBD, 'Service', 'B003 operating hours counter: 100 h of running; B004 message text');
+        K := FBox(1, 'lg_hours', 'B003');
+        FIn(K, 'En', 'Q1');
+        FIn(K, 'R', 'I2');
+        FIn(K, 'MI', '100');
+        FOut(K, 'Q', 'Q2');
+        K := FBox(2, 'lg_message', 'B004');
+        FIn(K, 'En', 'Q2');
+        FIn(K, 'Prio', '1');
+        FIn(K, 'Text', '''Service pump|I2: done''');
+        P.AddWatch('Q1', dfBool);
+        P.AddWatch('B003.MN', dfDec);
+        P.AddWatch('B003.OT', dfDec);
+      end;
+    41: // ---------- LOGO!: blinker, counter, analog ----------
+      begin
+        StartLogo('LOGO! 24RCE + DM16', 'Blinker, counter and analog (LOGO!)',
+          'LOGO! FBD: B001 asynchronous pulse generator blinks Q1 while I1 is on; B002 up/down counter counts the ' +
+          'pulses of I2 (I3 counts down), Q2 at 5; I4 resets; B003 analog threshold trigger: Q3 when AI1 is above 600 ' +
+          '(6 V), off below 400; B004 analog amplifier: AI1 * 2 into AM1; B005 PWM: Q4 with the duty of AI1.');
+        P.AddTag('Blink_on', 'Bool', 'I1', '');
+        P.AddTag('Count', 'Bool', 'I2', '');
+        P.AddTag('Down', 'Bool', 'I3', '');
+        P.AddTag('Reset', 'Bool', 'I4', '');
+        P.AddTag('Level', 'Int', 'AI1', '0 .. 1000 = 0 .. 10 V');
+        Push(1);
+        Push(3);
+        P.AIch[0].AiValue := 13824;
+        FNet(nkFBD, 'Blinker', 'B001: 0.5 s on, 0.5 s off while I1');
+        K := FBox(1, 'lg_pulsegen', 'B001');
+        FIn(K, 'En', 'I1');
+        FIn(K, 'TH', 'T#500MS');
+        FIn(K, 'TL', 'T#500MS');
+        FOut(K, 'Q', 'Q1');
+        FNet(nkFBD, 'Counter', 'B002 up/down counter: I2 counts, I3 sets the direction down, Q2 from 5, I4 resets');
+        K := FBox(1, 'lg_updown', 'B002');
+        FIn(K, 'Cnt', 'I2');
+        FIn(K, 'Dir', 'I3');
+        FIn(K, 'R', 'I4');
+        FIn(K, 'On', '5');
+        FIn(K, 'Off', '0');
+        FOut(K, 'Q', 'Q2');
+        FNet(nkFBD, 'Analog', 'B003 threshold 600 / 400, B004 amplifier, B005 PWM 1 s');
+        K := FBox(1, 'lg_athresh', 'B003');
+        FIn(K, 'Ax', 'AI1');
+        FIn(K, 'On', '600');
+        FIn(K, 'Off', '400');
+        FOut(K, 'Q', 'Q3');
+        K := FBox(2, 'lg_aamp', 'B004');
+        FIn(K, 'Ax', 'AI1');
+        FIn(K, 'Gain', '2.0');
+        FOut(K, 'AQ', 'AM1');
+        K := FBox(3, 'lg_pwm', 'B005');
+        FIn(K, 'En', 'hi');
+        FIn(K, 'Ax', 'AI1');
+        FIn(K, 'PT', 'T#1S');
+        FOut(K, 'Q', 'Q4');
+        P.AddWatch('B002.Cv', dfDec);
+        P.AddWatch('AI1', dfDec);
+        P.AddWatch('AM1', dfDec);
+        P.AddMini('B002.Cv', dfDec);
+        P.AddMini('AI1', dfDec);
       end;
   end;
   if I > 3 then

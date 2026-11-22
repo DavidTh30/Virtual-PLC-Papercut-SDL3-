@@ -252,7 +252,30 @@ begin
     'parameters as pins). FBD: boxes whose output feeds no box are the roots, drawn from the top. CFC: "x", "y" (grid 10 px) ' +
     'and "order" (the data flow decides first); without x / y the blocks are placed by the data flow.' + LineEnding +
     'Not available: the S7-1200 has no STL and no S5 timers / counters; the 300/400 have no SInt / USInt / UInt / ' +
-    'UDInt and no optimized DBs.';
+    'UDInt and no optimized DBs.' + LineEnding +
+    'CODESYS projects (get_project family "CODESYS": Control Win V3, WAGO PFC200, Schneider M241, ABB AC500): ' +
+    'IEC 61131-3 as CODESYS writes it. Names have no quotes and no #: a local (VAR_INPUT / VAR_OUTPUT / VAR / ' +
+    'VAR_TEMP of the POU), else a variable of a GVL (a global DB: GVL.x or x), else an I/O variable of the tag table ' +
+    '(the I/O map: Start_PB AT %IX0.0). Addresses: %IX0.0 %QX0.0 %MX0.0, %IB0, %IW1 = bytes 2..3, %ID1 = bytes ' +
+    '4..7, %MW / %MD the same way (a word / double word number, not a byte); a name without % is never an address. ' +
+    'OB1 is PROGRAM PLC_PRG (the MainTask); its interface has VAR (section Static: they keep their values, other ' +
+    'POUs and the watch table read them as PLC_PRG.x) and VAR_TEMP; FB = FUNCTION_BLOCK, FC = FUNCTION. Instances ' +
+    'are variables: tonDelay : TON in a GVL or in a VAR, called tonDelay(IN := x, PT := T#2S); then tonDelay.Q; ' +
+    'CTU / CTD / CTUD / TOF / TP / R_TRIG / F_TRIG / RS / SR the same way, an instance of an own FB as ' +
+    'fbBelt1(xStart := a, xRun => b). Languages: ST (an SCL network), LD (LAD), FBD, CFC; no IL / STL, no S5 ' +
+    'timers, no absolute DB access, no S7 communication (Modbus TCP yes).' + LineEnding +
+    'LOGO! projects (family "LOGO!": 12/24RCE, 24CE, 230RCE, 24RCE + DM16): one program (OB1) of FBD networks (LAD ' +
+    'also). Names: I1..I24, Q1..Q20, M1..M64, AI1..AI8 (0 .. 1000 = 0 .. 10 V), AQ1..AQ8, AM1..AM64, F1..F4 (the ' +
+    'cursor keys), S1.1..S4.8, NI / NQ; hi / lo on a pin = 1 / 0; M8 is 1 in the first cycle. Basic functions: the ' +
+    'boxes and, or, not, nand, nor, xor, lg_andedge, lg_nandedge. Special functions: boxes "lg_..." whose "inst" is ' +
+    'the block number B001, B002 .. (unique in the program; their values: B003.Q, B003.Ta, B003.Cv in read_values): ' +
+    'lg_ondelay (Trg, T), lg_offdelay (Trg, R, T), lg_onoffdelay (Trg, TH, TL), lg_retondelay, lg_interval (Trg, R, T), ' +
+    'lg_edgeinterval (Trg, R, TH, TL, N), lg_pulsegen (En, Inv, TH, TL), lg_random, lg_stairway (Trg, R, T, TWarn, ' +
+    'TLWarn), lg_multiswitch (Trg, R, TH, TL), lg_weekly (Days 16#1F = Mon..Fri, OnTime / OffTime hhmm), lg_yearly ' +
+    '(OnDate / OffDate mmdd), lg_updown (R, Cnt, Dir, On, Off, StartVal; Q, Cv), lg_hours (R, En, Ral, MI; Q, MN, ' +
+    'OT), lg_freq (Fre, On, Off, G_T), lg_athresh lg_adiff lg_acompare lg_awatch lg_aamp lg_amux lg_aramp lg_pi ' +
+    'lg_pwm lg_math (analog), lg_latch (S, R), lg_pulserelay (Trg, S, R), lg_message (En, Prio, Text: shown on the ' +
+    'display of the CPU screen, | starts a line), lg_softkey, lg_shift, lg_stopwatch; outputs Q (and Ta, AQ ..).';
 end;
 
 procedure TClaudeAgent.Ask(const Text: string);
@@ -1017,7 +1040,8 @@ begin
       begin
         B := BlockArg;
         Lang := UpperCase(Need('language'));
-        if (Lang = 'STL') and (Project.Family = cfS71200) then raise Exception.Create('the S7-1200 has no STL: use SCL or LAD');
+        if (Lang = 'STL') and not HasStl(Project.Family) then
+          raise Exception.Create('the ' + FamilyNames[Project.Family] + ' has no STL: use SCL or LAD');
         if (Lang <> 'STL') and (Lang <> 'SCL') and (Lang <> 'LAD') and (Lang <> 'FBD') and (Lang <> 'CFC') then
           raise Exception.Create('language must be SCL, STL, LAD, FBD or CFC');
         NI := Inp.Get('network', 0);

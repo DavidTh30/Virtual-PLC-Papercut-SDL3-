@@ -173,6 +173,14 @@ begin
     end
     else if Nd.Inst <> '' then TxtFit(fkMono, 10.5, BX + BW / 2, BY - InstH + 3, BW, Nd.Inst, cInk, 1)
     else TxtFit(fkUI, 10, BX + BW / 2, BY - InstH + 3, BW, '<' + Bd.InstName + '>', cRed, 1);
+    // LOGO!: a retentive block
+    if Nd.Rem then
+    begin
+      D.Layer := lyControls;
+      RR(BX + BW - 30, BY - InstH + 1, 30, 16, 3, Alpha(cGold, 200));
+      D.Layer := lyText;
+      Txt(fkUIB, 9, BX + BW - 15, BY - InstH + 3, 'Rem', cInk, 1);
+    end;
     if Mon and (Nd.Inst <> '') and (Bd.Inst = fiOperand) then
     begin
       S := LiveOf(Nd.Inst);
@@ -1227,11 +1235,12 @@ begin
   Cf := N.Kind = nkCFC;
   OpenCtx(FMX, FMY, ['Help'#9'F1', 'Add input', 'Remove this input', 'Negate this input', 'Data type ...',
     'Cut the wire', 'Delete the box'#9'Del', 'Run earlier', 'Run later', 'Order by the data flow',
-    'Cross reference'#9'F11'],
+    'Cross reference'#9'F11', IfThen(N.Nodes[K].Rem, 'Rem: retentive (on)', 'Rem: retentive (off)')],
     [Act(acFbdCtx, 0), Act(acFbdCtx, 1), Act(acFbdCtx, 2), Act(acFbdCtx, 3), Act(acFbdCtx, 4), Act(acFbdCtx, 5),
-    Act(acFbdCtx, 6), Act(acFbdCtx, 7), Act(acFbdCtx, 8), Act(acFbdCtx, 9), Act(acFbdCtx, 10)],
+    Act(acFbdCtx, 6), Act(acFbdCtx, 7), Act(acFbdCtx, 8), Act(acFbdCtx, 9), Act(acFbdCtx, 10), Act(acFbdCtx, 11)],
     [True, Bd.Ext, Pin and Bd.Ext and (H.Pin >= Length(Bd.Ins)), Pin and ((H.Pin > High(Bd.Ins)) or (Bd.Ins[Min(H.Pin, High(Bd.Ins))].Ty = 'B')),
-    Bd.HasType or Bd.HasCmp, Pin and (N.Nodes[K].Ins[H.Pin].Src > 0), True, Cf, Cf, Cf, XrefAtCaret <> '']);
+    Bd.HasType or Bd.HasCmp, Pin and (N.Nodes[K].Ins[H.Pin].Src > 0), True, Cf, Cf, Cf, XrefAtCaret <> '',
+    LogoDefIndex(N.Nodes[K].Box) >= 0]);
 end;
 
 procedure TPlcUI.FbdCtx(Par: Integer);
@@ -1242,6 +1251,15 @@ begin
   if not FbdSelNode(N, K) then Exit;
   case Par of
     0: FbdHelp(N.Nodes[K].Box);
+    11:
+      if LogoDefIndex(N.Nodes[K].Box) >= 0 then
+      begin
+        // LOGO!: Rem, the block keeps its values over STOP -> RUN (Download: F8)
+        N.Nodes[K].Rem := not N.Nodes[K].Rem;
+        MarkDirty;
+        if N.Nodes[K].Rem then Toast(N.Nodes[K].Inst + ': Rem on (retentive); download to apply')
+        else Toast(N.Nodes[K].Inst + ': Rem off; download to apply');
+      end;
     1: if FbdAddInput(N.Nodes[K]) then MarkDirty;
     2: if (FFbdPin >= 0) and FbdRemoveInput(N.Nodes[K], FFbdPin) then
        begin

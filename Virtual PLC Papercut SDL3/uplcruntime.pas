@@ -152,6 +152,7 @@ type
     FCmds: array of TPlcCmd;
     FDiag: array of TDiagEntry;
     FFirstScan: Boolean;          // the first cycle of OB1 after STOP -> RUN is still to come
+    FLogoFirst: Boolean;          // LOGO!: M8 still to set (the first cycle)
     FDiagSeq, FDiagSeen: Integer; // diagnostic events (not mode changes) counted / seen by the system memory byte
     FRetired: TList;
     FCtx: TCtx;
@@ -1231,6 +1232,7 @@ begin
   else DiagAdd(dkMode, 'STOP -> STARTUP (complete restart, OB100)');
   CompleteRestart;
   FFirstScan := True;
+  FLogoFirst := True;
   FDiagSeen := FDiagSeq;
   UpdateSysByte(False);
   FErrThisCycle := 0;
@@ -1283,8 +1285,21 @@ begin
 end;
 
 procedure TPlcRuntime.ReadInputs;
+var
+  K, Ofs, Raw: Integer;
 begin
   if Length(I) > 0 then Move(SimIn[0], I[0], Length(I));
+  // LOGO!: an analog input is 0 .. 1000 (0 .. 10 V), the simulated channel 0 .. 27648
+  if IsLogo(Model.Family) then
+    for K := 0 to Model.AI - 1 do
+    begin
+      Ofs := Model.AIWord + K * 2;
+      if Ofs + 1 > High(I) then Break;
+      Raw := SmallInt((Word(I[Ofs]) shl 8) or I[Ofs + 1]);
+      Raw := EnsureRange(Round(Raw * 1000 / 27648), 0, 1000);
+      I[Ofs] := Raw shr 8;
+      I[Ofs + 1] := Raw and $FF;
+    end;
   ApplyForceIn;
 end;
 
@@ -5087,6 +5102,12 @@ begin
   ReadInputs;
   UpdateClock(T0);
   UpdateSysByte(True);
+  // LOGO!: M8, the startup flag, is 1 in the first cycle only
+  if IsLogo(Model.Family) and (Length(M) > 0) then
+  begin
+    if FLogoFirst then M[0] := M[0] or $80 else M[0] := M[0] and $7F;
+    FLogoFirst := False;
+  end;
   FOb80Done := False;
   if FObStProg <> Prog then ObStateReset;
   try

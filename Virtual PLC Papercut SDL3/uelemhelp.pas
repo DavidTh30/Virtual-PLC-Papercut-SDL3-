@@ -46,6 +46,9 @@ function RetainHelpPage(Fam: TCpuFamily): TElemHelpPage;
 { the help of the button Optimized DB of the Data blocks screen }
 function OptimizedHelpPage(Fam: TCpuFamily): TElemHelpPage;
 function LangTitle(Lang: Char): string;
+{ Siemens code as CODESYS writes it: "Tag" / #local / "DB".Var without the quotes and #, %MW20 -> %MW10,
+  %I0.0 -> %IX0.0 (the strings 'text' and the literals T#5S, 16#FF stay) }
+function CodesysText(const S: string): string;
 { the network of a LAD picture (hbLad); the caller frees it. HelpLadErr: the ids that are not known }
 function HelpLadNet(const S: string): TNetwork;
 
@@ -60,6 +63,62 @@ var
   Fm: TCpuFamily;
   { a picture that FnPage puts after its values (the bits of a shift ..) }
   XHead, XBits, XCap: string;
+
+function CodesysText(const S: string): string;
+var
+  K, J: Integer;
+  T, E: string;
+  A: TAddr;
+  Was: Boolean;
+begin
+  Result := '';
+  K := 1;
+  while K <= Length(S) do
+  begin
+    case S[K] of
+      '''':
+        begin
+          // a string: as it is
+          J := K + 1;
+          while (J <= Length(S)) and (S[J] <> '''') do Inc(J);
+          Result := Result + Copy(S, K, J - K + 1);
+          K := J + 1;
+          Continue;
+        end;
+      '"':
+        begin
+          J := PosEx('"', S, K + 1);
+          if J = 0 then J := Length(S) + 1;
+          Result := Result + Copy(S, K + 1, J - K - 1);
+          K := J + 1;
+          Continue;
+        end;
+      '#':
+        // #local: the name alone; T#5S, 16#FF, INT#3 keep it
+        if (K > 1) and (S[K - 1] in ['A'..'Z', 'a'..'z', '0'..'9', '_']) then Result := Result + '#';
+      '%':
+        begin
+          J := K + 1;
+          while (J <= Length(S)) and (S[J] in ['A'..'Z', 'a'..'z', '0'..'9', '.']) do Inc(J);
+          while (J > K + 1) and (S[J - 1] = '.') do Dec(J);
+          T := Copy(S, K, J - K);
+          Was := CodesysAddr;
+          CodesysAddr := False;
+          try
+            if ParseAddr(T, A, E) and (A.Area in [arI, arQ, arM]) then T := FormatAddr(A, cfCodesys);
+          finally
+            CodesysAddr := Was;
+          end;
+          Result := Result + T;
+          K := J;
+          Continue;
+        end;
+    else
+      Result := Result + S[K];
+    end;
+    Inc(K);
+  end;
+end;
 
 function LangTitle(Lang: Char): string;
 begin
@@ -2400,6 +2459,7 @@ end;
 function ElemHelpPage(Lang: Char; const E: TSclElem; Fam: TCpuFamily): TElemHelpPage;
 var
   Cat: string;
+  K: Integer;
 begin
   Pg.Title := E.Cap;
   Pg.Sub := LangTitle(Lang) + '  ·  ' + E.Cat;
@@ -2455,6 +2515,16 @@ begin
     HowTo([]);
   end;
   if (Pg.Example = '') and not (Lang in ['L', 'F', 'K']) and (ElemText(E.Snip) <> '') then Pg.Example := ElemText(E.Snip);
+  if IsCodesys(Fam) then
+  begin
+    // CODESYS: ST / LD, names without quotes and #, its addresses
+    if Lang = 'C' then Pg.Sub := 'ST  ·  ' + E.Cat
+    else if Lang = 'L' then Pg.Sub := 'LD  ·  ' + E.Cat;
+    for K := 0 to High(Pg.Blocks) do
+      if Pg.Blocks[K].K in [hbText, hbStep, hbBullet, hbCode, hbTable, hbLad, hbFbd, hbCfc, hbCaption, hbNote] then
+        Pg.Blocks[K].S := CodesysText(Pg.Blocks[K].S);
+    Pg.Example := CodesysText(Pg.Example);
+  end;
   Result := Pg;
 end;
 

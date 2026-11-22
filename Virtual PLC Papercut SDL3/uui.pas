@@ -25,7 +25,7 @@ interface
 uses
   Classes, SysUtils, Math, Types, StrUtils, DateUtils, TypInfo, LazUTF8, BGRABitmap, BGRABitmapTypes,
   uPaperDL, uUiBase, uPlcTypes, uPlcProject, uPlcCompiler, uPlcRuntime, uPlcServer, uPlcClient, uTextEdit,
-  uClaude, uClaudeHttp, uPlcExport, Dialogs, fpjson, uLocalIp, uIpcServer, uChatPdf, ShellApi, uHelpForm, uExamples, Clipbrd, uSclElems, uSclSource, uObCatalog, uSclSig, uXref, uElemHelp, uFbd;
+  uClaude, uClaudeHttp, uPlcExport, Dialogs, fpjson, uLocalIp, uIpcServer, uChatPdf, ShellApi, uHelpForm, uExamples, Clipbrd, uSclElems, uSclSource, uObCatalog, uSclSig, uXref, uElemHelp, uFbd, uPlcOpen, uLogo, uLogoDefs, uTables;
 
 type
   TScreen = (scCpu, scProgram, scIO, scWatch, scDB, scTags, scPorts, scProject);
@@ -376,6 +376,11 @@ type
     function PortActive: Boolean;
     procedure DrawCpuModule(X, Y: Single);
     procedure Draw1200Module(X, Y: Single);
+    procedure DrawCodesysModule(X, Y: Single);
+    procedure DrawLogoModule(X, Y: Single);
+    function LogoLines(out Soft: TStringArray): TStringArray;
+    procedure LogoSoftkey(I: Integer);
+    procedure LogoExportDialog;
     procedure Draw1500Module(X, Y: Single);
     procedure DrawNetwork(NI: Integer; N: TNetwork; X, Y, W: Single; out H: Single);
     procedure DrawLad(NI: Integer; N: TNetwork; X, Y, W: Single);
@@ -591,6 +596,7 @@ type
     function ExportName(Kind, Fmt, Index: Integer; out Filter, Ext: string): string;
     procedure ChooseExport(Kind, Fmt, Index: Integer);
     procedure WatchMenu(Item: Integer);
+    procedure DbFileMenu(Item: Integer);
     procedure SaveKey(Encrypted: Boolean);
     function ClaudeContext: string;
     procedure ClaudeAsk(const S: string; const Files: TChatAttachments);
@@ -689,8 +695,9 @@ type
   public
     LastShell: string;    // the script: what was given to the Explorer (VPLC_NO_SHELL: only this)
   public
-    function ImportTags(const FileName: string): string;    // the CSV of a tag table: added / updated
-    function ImportWatch(const FileName: string): string;   // the CSV of a watch table: rows added
+    function ImportTags(const FileName: string): string;    // a tag table (CSV / XLSX / XML): added / updated
+    function ImportWatch(const FileName: string): string;   // a watch table (CSV / XLSX / XML): rows added
+    function ImportDbTable(Idx: Integer; const FileName: string): string;  // DB / UDT variables (CSV / XLSX / XML)
     function ExportIpcHelp(const FileName: string): Boolean;   // the IPC help as a PDF
     function ImportIo(const FileName: string): string;        // the CSV of an I/O list: tags, input kinds, values
     function ExportHelpDoc(const FileName, Title, Intro: string; const Doc: THelpDoc): Boolean;   // a help page as PDF
@@ -718,6 +725,8 @@ type
     function ElemFind(const Cap: string; IsCat: Boolean): Integer;
     function ElemSnippet(I: Integer): string;
     { the script: .scl sources without the file dialogs, the views, Find Declaration }
+    function ExportPlcOpenFile(const FileName: string): string;
+    function ImportPlcOpenFile(const FileName: string): string;
     function ImportSclFile(const FileName: string; DataOnly: Boolean = False): string;
     function ExportSclFile(const FileName: string; All: Boolean): string;
     property ViewForm: THelpForm read FViewForm;
@@ -748,6 +757,9 @@ type
     function ModifyText(const Adr, Val: string; Fmt: TDispFmt; out Err: string): Boolean;
     function SubModValue(const Key: string): string;
     procedure SetSubMod(const Key, Val: string; IsOn: Boolean);
+    function IoName(Area: TArea; Size: TOpSize; Ofs, Bit: Integer): string;
+    function ScrName(S: TScreen): string;
+    function SecName(Sc: TVarSection): string;
     function MiniSymbol(const Adr: string): string;
     function MiniAbs(const R: TWTreeRow; const Adr: string): string;
     function MiniValue(const R: TWTreeRow; const Adr: string; Fmt: TDispFmt): string;
@@ -885,11 +897,14 @@ const
     a network converted, the chart scrolled sideways / sized }
   acFbdHit = 349; acCfcChart = 350; acFbdCtx = 351; fdFbd = 352; acFbdType = 353; acFbdCmp = 354; acNetConvert = 355;
   acCfcHS = 356; acCfcSize = 357;
+  acDbTable = 378; acDbFile = 379; acTagExpMenu = 380;                            // Data blocks: the Export / Import menu, an item
   acClkPc = 358; fdClkSet = 359;   // the PLC clock: to the PC time, a time typed
   acRetainHelp = 360; acRetainHead = 361; acRetainCell = 362;   // Data blocks: the help of Retain, its head, a cell
   acOptHelp = 363;                                              // Data blocks: the help of Optimized DB
   acClockOn = 364; acSysOn = 365; fdSysByte = 366;              // Project settings: clock / system memory byte
   acMiniAdd = 367; acMiniShow = 368;                            // the Mini Watch: a row into it, the window on / off
+  acLogoKey = 375; acLogoSoft = 376;                            // LOGO!: a cursor key F1..F4 (pressed), a softkey
+  acLogoExport = 377;                                           // .. the block list as text / CSV
   acWatchSub = 369; fdWatchSubMod = 370; acWatchSubOn = 371;    // watch table: a member / element row, its modify
   acWatchSubAdd = 372;                                          // .. as a row of its own
   acWatchGrip = 373; acWatchSubGrip = 374;                      // the grip of a row / a member row: a drag
@@ -1532,72 +1547,18 @@ begin
   end;
 end;
 
-{ a tag table as CSV (this program's export, or TIA's PLC tags saved as CSV): a tag of the same name
-  is updated, a new one added }
+{ a tag table as CSV / XLSX / XML (this program's export, or TIA's PLC tags saved as CSV or exported as .xlsx):
+  a tag of the same name is updated, a new one added }
 function TPlcUI.ImportTags(const FileName: string): string;
 var
   Rows: TCsvRows;
-  CN, CT, CA, CC, CP, I, J, K, G, Added, Updated, First: Integer;
-  Nm, Gn: string;
-
-  function Cell(R, C: Integer): string;
-  begin
-    if (C >= 0) and (C <= High(Rows[R])) then Result := Trim(Rows[R][C]) else Result := '';
-  end;
-
+  Err: string;
+  Added, Updated: Integer;
 begin
-  Rows := CsvRows(ReadTextFile(FileName));
-  if Length(Rows) = 0 then Exit('the file is empty');
-  CN := CsvColumn(Rows[0], ['name']);
-  CT := CsvColumn(Rows[0], ['data type', 'datatype', 'type']);
-  CA := CsvColumn(Rows[0], ['logical address', 'address']);
-  CC := CsvColumn(Rows[0], ['comment']);
-  CP := CsvColumn(Rows[0], ['path', 'group', 'tag table']);
-  First := 1;
-  if (CN < 0) or (CA < 0) then
-  begin
-    // no head line: Name, Data type, Address, Comment
-    CN := 0;
-    CT := 1;
-    CA := 2;
-    CC := 3;
-    First := 0;
-  end;
-  Added := 0;
-  Updated := 0;
-  for I := First to High(Rows) do
-  begin
-    Nm := Cell(I, CN);
-    if Nm = '' then Continue;
-    K := Project.FindTag(Nm);
-    if K >= 0 then
-    begin
-      if Cell(I, CT) <> '' then Project.Tags[K].TypeText := Cell(I, CT);
-      if Cell(I, CA) <> '' then Project.Tags[K].Address := Cell(I, CA);
-      if CC >= 0 then Project.Tags[K].Comment := Cell(I, CC);
-      Inc(Updated);
-    end
-    else
-    begin
-      if Cell(I, CT) <> '' then Project.AddTag(Nm, Cell(I, CT), Cell(I, CA), Cell(I, CC))
-      else Project.AddTag(Nm, 'Bool', Cell(I, CA), Cell(I, CC));
-      K := High(Project.Tags);
-      Inc(Added);
-    end;
-    // Path / Group: into that group (made when it is new); TIA's default table and the root: none
-    Gn := Cell(I, CP);
-    if (CP >= 0) and (Gn <> '') and not SameText(Gn, AllTagsName) and not SameText(Gn, 'Default tag table') then
-    begin
-      G := -1;
-      for J := 0 to High(Project.TagGroups) do
-        if (G < 0) and SameText(Project.TagGroups[J].Name, Gn) then G := J;
-      if G < 0 then G := GroupAdd(Project.TagGroups, Gn);
-      Project.Tags[K].GroupId := Project.TagGroups[G].Id;
-    end;
-  end;
+  if not ReadTable(FileName, Rows, Err) then Exit(Err);
+  ImportTagRows(Project, Rows, Added, Updated);
   if Added + Updated > 0 then
   begin
-    Project.Modified := True;
     ResetResolver;
     FDirty := True;
   end;
@@ -2012,45 +1973,47 @@ begin
   end;
 end;
 
-{ a watch table as CSV (this program's export, or a column of addresses): the rows go after the table's }
+function RowOf(const Cells: array of string): TCsvRow;
+var
+  K: Integer;
+begin
+  SetLength(Result, Length(Cells));
+  for K := 0 to High(Cells) do Result[K] := Cells[K];
+end;
+
+function TableFilter: string;
+begin
+  Result := 'Tables (*.csv;*.xlsx;*.xml)|*.csv;*.xlsx;*.xml;*.txt|CSV (*.csv)|*.csv;*.txt|' +
+    'Excel workbook (*.xlsx)|*.xlsx|XML (*.xml)|*.xml|All files (*.*)|*.*';
+end;
+
+{ a watch table (CSV / XLSX / XML: this program's export, or a column of addresses): the rows go after the table's }
 function TPlcUI.ImportWatch(const FileName: string): string;
 var
   Rows: TCsvRows;
-  CA, CF, CM, I, Added, First: Integer;
-  F: TDispFmt;
-  A: string;
-
-  function Cell(R, C: Integer): string;
-  begin
-    if (C >= 0) and (C <= High(Rows[R])) then Result := Trim(Rows[R][C]) else Result := '';
-  end;
-
+  Err: string;
 begin
-  Rows := CsvRows(ReadTextFile(FileName));
-  if Length(Rows) = 0 then Exit('the file is empty');
-  CA := CsvColumn(Rows[0], ['address / symbol', 'address', 'operand', 'name']);
-  CF := CsvColumn(Rows[0], ['format', 'display']);
-  CM := CsvColumn(Rows[0], ['modify value', 'modify']);
-  First := 1;
-  if CA < 0 then
-  begin
-    CA := 0;
-    First := 0;
-  end;
-  Added := 0;
-  for I := First to High(Rows) do
-  begin
-    A := Cell(I, CA);
-    if A = '' then Continue;
-    Project.AddWatch(A, dfDec, Cell(I, CM));
-    // the format: as written, else what fits the operand
-    Project.Watch[High(Project.Watch)].Fmt := dfDec;
-    for F := Low(TDispFmt) to High(TDispFmt) do
-      if SameText(DispFmtNames[F], Cell(I, CF)) then Project.Watch[High(Project.Watch)].Fmt := F;
-    Inc(Added);
-  end;
-  if Added > 0 then Project.Modified := True;
-  Result := Format('%d rows added', [Added]);
+  if not ReadTable(FileName, Rows, Err) then Exit(Err);
+  Result := Format('%d rows added', [ImportWatchRows(Project, Rows)]);
+end;
+
+{ the variables of a DB / PLC data type from a table (CSV / XLSX / XML, as exported): by name, a new one added,
+  one there changed (type, start value, retain, comment) }
+function TPlcUI.ImportDbTable(Idx: Integer; const FileName: string): string;
+var
+  Rows: TCsvRows;
+  Err: string;
+  Db: TDataBlock;
+  Added, Changed: Integer;
+begin
+  if (Idx < 0) or (Idx >= Project.DBCount + Project.UdtCount) then Exit('no data block');
+  if Idx < Project.DBCount then Db := Project.DB(Idx) else Db := Project.Udt(Idx - Project.DBCount);
+  if Db.ProgramOf > 0 then Exit('the VAR of a PROGRAM: edit its interface');
+  if not ReadTable(FileName, Rows, Err) then Exit(Err);
+  Result := ImportDbRows(Db, Rows, Added, Changed);
+  if Result <> '' then Exit;
+  if Added + Changed > 0 then MarkDirty;
+  Result := Format('%d added, %d changed', [Added, Changed]);
 end;
 
 procedure TPlcUI.ApplyModel(AIdx: Integer);
@@ -2571,18 +2534,24 @@ begin
       end;
     scDB:
       begin
-        Card(20, 88, 300, 772, 'Data blocks');
+        if IsCodesys(Project.Family) then Card(20, 88, 300, 772, 'Global variable lists')
+        else if IsLogo(Project.Family) then Card(20, 88, 300, 772, 'LOGO! blocks')
+        else Card(20, 88, 300, 772, 'Data blocks');
         Card(336, 88, 1244, 772, 'Variables');
       end;
     scTags:
       begin
         Card(20, 88, 290, 772, 'Tag groups');
-        Card(326, 88, 1254, 772, 'PLC tag table');
+        if IsCodesys(Project.Family) then Card(326, 88, 1254, 772, 'I/O mapping  (name AT %IX / %QX / %IW / %MW)')
+        else if IsLogo(Project.Family) then Card(326, 88, 1254, 772, 'Terminal names  (I1, Q1, AI1, M1 ..)')
+        else Card(326, 88, 1254, 772, 'PLC tag table');
       end;
     scPorts:
       begin
-        Card(20, 88, 500, 300, 'PROFINET interface');
-        Card(536, 88, 520, 300, 'S7 communication  ISO-on-TCP');
+        if IsCodesys(Project.Family) then Card(20, 88, 500, 300, 'Ethernet interface')
+        else Card(20, 88, 500, 300, 'PROFINET interface');
+        if IsCodesys(Project.Family) then Card(536, 88, 520, 300, 'S7 communication')
+        else Card(536, 88, 520, 300, 'S7 communication  ISO-on-TCP');
         Card(1072, 88, 508, 300, 'Modbus TCP server');
         Card(20, 408, 760, 452, 'Connections');
         Card(796, 408, 784, 150, 'Claude Code (MCP)');
@@ -2627,8 +2596,8 @@ begin
       else RR(X, 16, W, 36, 6, Alpha(cSheet2, 225));
     end;
     D.Layer := lyText;
-    if Act0 then Txt(fkUIB, 14, X + W / 2, 25, ScreenNames[S], cRedDark, 1)
-    else Txt(fkUIB, 13, X + W / 2, 24, ScreenNames[S], cRed, 1);
+    if Act0 then Txt(fkUIB, 14, X + W / 2, 25, ScrName(S), cRedDark, 1)
+    else Txt(fkUIB, 13, X + W / 2, 24, ScrName(S), cRed, 1);
     Hit(X, 14, W, 44, Act(acTab, Ord(S)));
     X := X + W + 6;
   end;
@@ -2925,6 +2894,269 @@ begin
   Txt(fkMono, 10, X + 26, Y + 520, M.OrderNo, cSheetDark);
 end;
 
+{ a controller that runs CODESYS: its name, the RUN / STOP / ERR LEDs, the on-board I/O, two Ethernet ports, the
+  SD card }
+procedure TPlcUI.DrawCodesysModule(X, Y: Single);
+var
+  M: TCpuModel;
+  I, B, Bit: Integer;
+  On, Blink2: Boolean;
+  CX: Single;
+begin
+  M := Rt.Model;
+  Blink2 := Frac(FTime * 2) < 0.5;
+  D.Layer := lySheets;
+  Sheet(X, Y, 360, 330, 8, Mixc(cCharcoal, cSheetDark, 0.25), 1.2);
+  RR(X + 8, Y + 8, 344, 314, 6, cCharcoal2);
+  RR(X + 14, Y + 14, 332, 56, 4, cCharcoal);
+  RR(X + 14, Y + 260, 332, 56, 4, cCharcoal);
+  D.Layer := lyText;
+  Txt(fkUIB, 15, X + 110, Y + 90, 'CODESYS Control', cGoldLight);
+  Txt(fkUI, 12, X + 110, Y + 112, M.Name, cSheet);
+  Txt(fkMono, 9.5, X + 110, Y + 132, M.OrderNo, cSheetDark);
+  Txt(fkMono, 9.5, X + 110, Y + 146, M.Firmware, cSheetDark);
+  // RUN green, STOP amber, ERR red (it flashes on an exception)
+  Led(X + 36, Y + 100, 6, cJadeLight, (Rt.Mode = rmRun) or ((Rt.Mode = rmStartup) and Blink2));
+  Led(X + 36, Y + 128, 6, cAmber, Rt.Mode <> rmRun);
+  Led(X + 36, Y + 156, 6, BGRA($FF, $4A, $3A), Rt.SysFault or ((Rt.ErrorUntilMs > PlcNowMs) or Rt.BusFault) and Blink2);
+  D.Layer := lyText;
+  Txt(fkUIB, 10, X + 50, Y + 92, 'RUN', cSheet);
+  Txt(fkUIB, 10, X + 50, Y + 120, 'STOP', cSheet);
+  Txt(fkUIB, 10, X + 50, Y + 148, 'ERR', cSheet);
+  for I := 0 to Min(M.DI, 16) - 1 do
+  begin
+    B := M.DIByte + I div 8;
+    Bit := I mod 8;
+    CX := X + 30 + I * 20;
+    On := (B < Length(Rt.I)) and ((Rt.I[B] shr Bit) and 1 <> 0);
+    Led(CX, Y + 36, 3.6, cJadeLight, On);
+    D.Layer := lyText;
+    Txt(fkMono, 8, CX, Y + 48, Format('%d.%d', [B, Bit]), cSheetDark, 1);
+  end;
+  for I := 0 to Min(M.DQ, 16) - 1 do
+  begin
+    B := M.DQByte + I div 8;
+    Bit := I mod 8;
+    CX := X + 30 + I * 20;
+    Led(CX, Y + 282, 3.6, cJadeLight, Rt.GetOutBit(B, Bit));
+    D.Layer := lyText;
+    Txt(fkMono, 8, CX, Y + 294, Format('%d.%d', [B, Bit]), cSheetDark, 1);
+  end;
+  D.Layer := lyText;
+  Txt(fkUI, 9, X + 340, Y + 16, Format('DI %d  %%IX%d.0 ..', [M.DI, M.DIByte]), cSheetDark, 2);
+  Txt(fkUI, 9, X + 340, Y + 262, Format('DQ %d  %%QX%d.0 ..', [M.DQ, M.DQByte]), cSheetDark, 2);
+  // the Ethernet ports, the SD card
+  D.Layer := lyControls;
+  for I := 0 to 1 do
+  begin
+    RR(X + 200 + I * 70, Y + 170, 60, 50, 3, cCharcoal);
+    RR(X + 207 + I * 70, Y + 180, 46, 28, 2, BGRA(30, 26, 24));
+    Led(X + 211 + I * 70, Y + 228, 3, cJadeLight, (Hub <> nil) and Hub.Listening[prModbus]);
+    Led(X + 249 + I * 70, Y + 228, 3, cAmber, PortActive);
+  end;
+  RR(X + 36, Y + 186, 100, 14, 2, BGRA(30, 26, 24));
+  D.Layer := lyText;
+  Txt(fkUI, 9, X + 230, Y + 234, 'X1', cSheetDark, 1);
+  Txt(fkUI, 9, X + 300, Y + 234, 'X2', cSheetDark, 1);
+  Txt(fkUI, 9, X + 86, Y + 204, 'SD card', cSheetDark, 1);
+  if M.AI > 0 then Txt(fkUI, 9, X + 36, Y + 224, Format('AI %d  from %%IW%d', [M.AI, M.AIWord div 2]), cSheetDark);
+  if M.AQ > 0 then Txt(fkUI, 9, X + 36, Y + 238, Format('AQ %d  from %%QW%d', [M.AQ, M.AQWord div 2]), cSheetDark);
+end;
+
+{ the 6 lines of the LOGO! display (16 characters): the active message text of the highest priority, else the
+  day and time, the inputs and the outputs; Soft: the softkeys (Bxxx) }
+function TPlcUI.LogoLines(out Soft: TStringArray): TStringArray;
+const
+  Days: array[1..7] of string = ('Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa');
+var
+  Db: TDataBlock;
+  K, Best, BestPrio, Pr, N, J: Integer;
+  O: TOperand;
+  E, S, Txt0: string;
+  V: LongWord;
+  M: TCpuModel;
+  Now0: TDateTime;
+begin
+  SetLength(Result, 6);
+  Soft := nil;
+  Db := Project.FindDBByName(LogoInstDB);
+  Best := -1;
+  BestPrio := -32768;
+  Txt0 := '';
+  if (Db <> nil) and (Rt.Prog <> nil) then
+    for K := 0 to High(Db.Vars) do
+    begin
+      if SameText(Db.Vars[K].TypeText, 'LOGO_Softkey') then
+      begin
+        SetLength(Soft, Length(Soft) + 1);
+        Soft[High(Soft)] := Db.Vars[K].Name;
+      end;
+      if not SameText(Db.Vars[K].TypeText, 'LOGO_Message') then Continue;
+      if not (FRes.Resolve(Format('"%s".%s.Q', [LogoInstDB, Db.Vars[K].Name]), O, E, False) and Rt.PeekRaw(O, V) and
+        (V <> 0)) then Continue;
+      Pr := 0;
+      if FRes.Resolve(Format('"%s".%s.Prio', [LogoInstDB, Db.Vars[K].Name]), O, E, False) and Rt.PeekRaw(O, V) then
+        Pr := SmallInt(V);
+      if Pr > BestPrio then
+      begin
+        BestPrio := Pr;
+        Best := K;
+      end;
+    end;
+  if Best >= 0 then
+  begin
+    // the message: its text in lines of 16 (a | starts a line)
+    if FRes.Resolve(Format('"%s".%s.Text', [LogoInstDB, Db.Vars[Best].Name]), O, E, False) then StrLive(O, Txt0);
+    Txt0 := StringReplace(Txt0, '''', '', [rfReplaceAll]);
+    N := 0;
+    for S in Txt0.Split(['|']) do
+    begin
+      J := 1;
+      repeat
+        if N <= 5 then Result[N] := Copy(S, J, 16);
+        Inc(N);
+        Inc(J, 16);
+      until J > Length(S);
+    end;
+    Exit;
+  end;
+  // the start screen: the day and time, the inputs, the outputs
+  M := Rt.Model;
+  Now0 := Rt.ClockLocal;
+  Result[0] := Format('%s %s', [Days[DayOfWeek(Now0)], FormatDateTime('hh:nn', Now0)]);
+  Result[1] := FormatDateTime('yyyy-mm-dd', Now0);
+  S := 'I:';
+  for K := 0 to Min(M.DI, 12) - 1 do S := S + IfThen((Rt.I[K div 8] shr (K mod 8)) and 1 <> 0, '1', '0');
+  Result[2] := S;
+  S := 'Q:';
+  for K := 0 to Min(M.DQ, 12) - 1 do S := S + IfThen(Rt.GetOutBit(K div 8, K mod 8), '1', '0');
+  Result[3] := S;
+  if Rt.Mode = rmRun then Result[5] := 'RUN' else Result[5] := 'STOP';
+end;
+
+{ the LOGO! module: its terminals with the inputs and outputs, the display, the cursor keys (F1 .. F4 while
+  pressed), ESC / OK, the softkeys }
+procedure TPlcUI.DrawLogoModule(X, Y: Single);
+const
+  KeyNames: array[0..3] of string = ('↑', '→', '↓', '←');
+var
+  M: TCpuModel;
+  I, B, Bit: Integer;
+  On: Boolean;
+  CX: Single;
+  Lines, Soft: TStringArray;
+  O: TOperand;
+  E: string;
+  V: LongWord;
+begin
+  M := Rt.Model;
+  D.Layer := lySheets;
+  Sheet(X, Y, 360, 330, 8, BGRA(214, 216, 212), 1.2);
+  RR(X + 8, Y + 8, 344, 314, 6, BGRA(226, 228, 224));
+  // the input terminals (top) and the outputs (bottom)
+  RR(X + 14, Y + 14, 332, 46, 4, BGRA(196, 198, 194));
+  RR(X + 14, Y + 270, 332, 46, 4, BGRA(196, 198, 194));
+  for I := 0 to Min(M.DI, 12) - 1 do
+  begin
+    B := M.DIByte + I div 8;
+    Bit := I mod 8;
+    CX := X + 34 + I * 25;
+    On := (B < Length(Rt.I)) and ((Rt.I[B] shr Bit) and 1 <> 0);
+    D.Layer := lyControls;
+    El(CX, Y + 30, 6, 6, BGRA(120, 122, 118));
+    Led(CX, Y + 30, 3.2, cJadeLight, On);
+    D.Layer := lyText;
+    Txt(fkMono, 8.5, CX, Y + 42, 'I' + IntToStr(I + 1), cCharcoal, 1);
+  end;
+  for I := 0 to Min(M.DQ, 12) - 1 do
+  begin
+    CX := X + 34 + I * 25;
+    D.Layer := lyControls;
+    El(CX, Y + 286, 6, 6, BGRA(120, 122, 118));
+    Led(CX, Y + 286, 3.2, cAmber, Rt.GetOutBit(M.DQByte + I div 8, I mod 8));
+    D.Layer := lyText;
+    Txt(fkMono, 8.5, CX, Y + 298, 'Q' + IntToStr(I + 1), cCharcoal, 1);
+  end;
+  // the name, the display
+  D.Layer := lyText;
+  Txt(fkUIB, 16, X + 24, Y + 70, 'LOGO!', BGRA(0, 120, 140));
+  Txt(fkUI, 10, X + 88, Y + 76, M.Name + '  ' + M.Firmware, cCharcoal);
+  D.Layer := lyControls;
+  RR(X + 24, Y + 96, 210, 122, 4, BGRA(40, 44, 40));
+  RR(X + 30, Y + 102, 198, 110, 2, BGRA(176, 204, 150));
+  Lines := LogoLines(Soft);
+  D.Layer := lyText;
+  for I := 0 to 5 do
+    Txt(fkMono, 11.5, X + 38, Y + 105 + I * 17.5, Lines[I], BGRA(24, 40, 22));
+  // the keys: ESC, OK and the four cursor keys (F1 .. F4 while pressed)
+  for I := 0 to 3 do
+  begin
+    case I of
+      0: CX := X + 290;
+      2: CX := X + 290;
+      1: CX := X + 316;
+    else
+      CX := X + 264;
+    end;
+    On := (Length(Rt.I) > 8) and ((Rt.I[8] shr I) and 1 <> 0);
+    D.Layer := lyControls;
+    if On then RR(CX - 11, Y + 118 + Ord(I = 2) * 52 - Ord(I = 0) * 0 + Ord(I in [1, 3]) * 26 - 11, 22, 22, 4, cGold)
+    else RR(CX - 11, Y + 118 + Ord(I = 2) * 52 + Ord(I in [1, 3]) * 26 - 11, 22, 22, 4, BGRA(90, 94, 92));
+    D.Layer := lyText;
+    Txt(fkUIB, 10, CX, Y + 112 + Ord(I = 2) * 52 + Ord(I in [1, 3]) * 26, KeyNames[I], cSheet, 1);
+    Hit(CX - 11, Y + 118 + Ord(I = 2) * 52 + Ord(I in [1, 3]) * 26 - 11, 22, 22, Act(acLogoKey, I), hkPress);
+  end;
+  D.Layer := lyControls;
+  RR(X + 252, Y + 200, 34, 20, 4, BGRA(90, 94, 92));
+  RR(X + 294, Y + 200, 34, 20, 4, BGRA(90, 94, 92));
+  D.Layer := lyText;
+  Txt(fkUIB, 9, X + 269, Y + 203, 'ESC', cSheet, 1);
+  Txt(fkUIB, 9, X + 311, Y + 203, 'OK', cSheet, 1);
+  Txt(fkUI, 9, X + 290, Y + 226, 'F1..F4 = keys', cCharcoal, 1);
+  // the softkeys: a click switches them
+  for I := 0 to Min(High(Soft), 2) do
+  begin
+    On := FRes.Resolve(Format('"%s".%s.State', [LogoInstDB, Soft[I]]), O, E, False) and Rt.PeekRaw(O, V) and (V <> 0);
+    if On then Button(X + 24 + I * 72, Y + 228, 66, 24, Soft[I] + ' On', Act(acLogoSoft, I), bsToggleOn, Rt.Prog <> nil, 9.5)
+    else Button(X + 24 + I * 72, Y + 228, 66, 24, Soft[I] + ' Off', Act(acLogoSoft, I), bsNormal, Rt.Prog <> nil, 9.5);
+  end;
+end;
+
+{ LOGO!: the block list of the program as text or CSV (Excel) }
+procedure TPlcUI.LogoExportDialog;
+var
+  Sd: TSaveDialog;
+begin
+  Sd := TSaveDialog.Create(nil);
+  try
+    Sd.Title := 'Export the LOGO! block list';
+    Sd.Filter := 'Text (*.txt)|*.txt|CSV (*.csv)|*.csv';
+    Sd.DefaultExt := 'txt';
+    Sd.Options := Sd.Options + [ofOverwritePrompt];
+    Sd.FileName := SafeFileName(Project.Name) + '_blocks.txt';
+    if not Sd.Execute then Exit;
+    WriteUtf8File(Sd.FileName, LogoExport(Project, SameText(ExtractFileExt(Sd.FileName), '.csv')), True);
+    Toast('Exported: ' + Sd.FileName);
+  finally
+    Sd.Free;
+  end;
+end;
+
+{ a softkey of the display switched (its State in the instance) }
+procedure TPlcUI.LogoSoftkey(I: Integer);
+var
+  Soft: TStringArray;
+  O: TOperand;
+  E: string;
+  V: LongWord;
+begin
+  LogoLines(Soft);
+  if (I < 0) or (I > High(Soft)) then Exit;
+  if not FRes.Resolve(Format('"%s".%s.State', [LogoInstDB, Soft[I]]), O, E, False) then Exit;
+  if not Rt.PeekRaw(O, V) then V := 0;
+  Rt.CmdModify(O, Ord(V = 0));
+end;
+
 procedure TPlcUI.Draw1200Module(X, Y: Single);
 var
   M: TCpuModel;
@@ -3012,10 +3244,12 @@ begin
   M := Rt.Model;
   // ---------- front panel ----------
   if M.Family = cfS71200 then Draw1200Module(55, 130)
+  else if IsCodesys(M.Family) then DrawCodesysModule(55, 130)
+  else if IsLogo(M.Family) then DrawLogoModule(55, 130)
   else if M.Family = cfS71500 then Draw1500Module(70, 120)
   else DrawCpuModule(70, 120);
   Y := 700;
-  if M.Family = cfS71200 then Y := 490;
+  if (M.Family = cfS71200) or IsCodesys(M.Family) or IsLogo(M.Family) then Y := 490;
   D.Layer := lyText;
   Txt(fkUIB, 13, 50, Y, 'Operator panel', cRedDark);
   D.Layer := lyOrnament;
@@ -3023,7 +3257,7 @@ begin
   Button(50, Y + 32, 112, 34, 'RUN', Act(acRun, 0), bsGold, Rt.Mode = rmStop);
   Button(172, Y + 32, 112, 34, 'STOP', Act(acStop, 0), bsNormal, Rt.Mode <> rmStop);
   Button(294, Y + 32, 112, 34, 'MRES', Act(acMres, 0), bsDanger, Rt.Mode <> rmMres);
-  if M.Family = cfS71200 then
+  if (M.Family = cfS71200) or IsCodesys(M.Family) or IsLogo(M.Family) then
   begin
     D.Layer := lyText;
     case Rt.Mode of
@@ -3037,11 +3271,30 @@ begin
     if Rt.StopCause <> '' then TxtFit(fkUI, 12, 50, Y + 106, 370, 'Cause: ' + Rt.StopCause, cInkSoft);
     Txt(fkUI, 12, 50, Y + 128, Format('Forces: %d bits   Bus: %s', [Rt.ForceCount,
       IfThen(Rt.BusFault, 'station failure', 'ok')]), cInkSoft);
-    Txt(fkUI, 11, 50, Y + 156, 'The S7-1200 has no mode selector: RUN / STOP', cInkFaint);
-    Txt(fkUI, 11, 50, Y + 172, 'come from the online operator panel, like TIA Portal.', cInkFaint);
-    Txt(fkUI, 11, 50, Y + 196, 'Programming errors: the CPU stays in RUN, ERROR', cInkFaint);
-    Txt(fkUI, 11, 50, Y + 212, 'flashes, the diagnostic buffer gets an entry.', cInkFaint);
-    Txt(fkUI, 11, 50, Y + 236, 'Retentive memory: only DB variables marked Retain.', cInkFaint);
+    if IsLogo(M.Family) then
+    begin
+      Txt(fkUI, 11, 50, Y + 156, 'RUN / STOP like the LOGO! menu (Start, Stop); the', cInkFaint);
+      Txt(fkUI, 11, 50, Y + 172, 'display shows the message texts, the cursor keys are', cInkFaint);
+      Txt(fkUI, 11, 50, Y + 196, 'the inputs F1 .. F4 while pressed. M8 is 1 in the first', cInkFaint);
+      Txt(fkUI, 11, 50, Y + 212, 'cycle; AI1 .. are 0 .. 1000 (0 .. 10 V).', cInkFaint);
+      Txt(fkUI, 11, 50, Y + 236, 'Retentive: the blocks keep their values only with Rem.', cInkFaint);
+    end
+    else if IsCodesys(M.Family) then
+    begin
+      Txt(fkUI, 11, 50, Y + 156, 'Start / Stop of the application, like the online menu', cInkFaint);
+      Txt(fkUI, 11, 50, Y + 172, 'of CODESYS; MRES: Reset origin (all values to their init).', cInkFaint);
+      Txt(fkUI, 11, 50, Y + 196, 'An exception (a division by 0, an index out of range)', cInkFaint);
+      Txt(fkUI, 11, 50, Y + 212, 'stops the application; the log gets an entry.', cInkFaint);
+      Txt(fkUI, 11, 50, Y + 236, 'Retentive: VAR RETAIN (the Retain column of a GVL).', cInkFaint);
+    end
+    else
+    begin
+      Txt(fkUI, 11, 50, Y + 156, 'The S7-1200 has no mode selector: RUN / STOP', cInkFaint);
+      Txt(fkUI, 11, 50, Y + 172, 'come from the online operator panel, like TIA Portal.', cInkFaint);
+      Txt(fkUI, 11, 50, Y + 196, 'Programming errors: the CPU stays in RUN, ERROR', cInkFaint);
+      Txt(fkUI, 11, 50, Y + 212, 'flashes, the diagnostic buffer gets an entry.', cInkFaint);
+      Txt(fkUI, 11, 50, Y + 236, 'Retentive memory: only DB variables marked Retain.', cInkFaint);
+    end;
   end
   else if M.Family = cfS71500 then
   begin
@@ -3061,8 +3314,8 @@ begin
 
   // ---------- CPU model ----------
   for F := Low(TCpuFamily) to High(TCpuFamily) do
-    if F = FFamView then Button(490 + Ord(F) * 120, 112, 112, 30, FamilyNames[F], Act(acFamView, Ord(F)), bsPrimary)
-    else Button(490 + Ord(F) * 120, 112, 112, 30, FamilyNames[F], Act(acFamView, Ord(F)));
+    if F = FFamView then Button(436 + Ord(F) * 79, 112, 75, 30, FamilyNames[F], Act(acFamView, Ord(F)), bsPrimary, True, 10.5)
+    else Button(436 + Ord(F) * 79, 112, 75, 30, FamilyNames[F], Act(acFamView, Ord(F)), bsNormal, True, 10.5);
   Row := 0;
   for I := 0 to ModelCount - 1 do
   begin
@@ -3107,18 +3360,60 @@ begin
           if SM.Timers > 0 then Txt(fkMono, 11, X + 120, Y, Format('%d S5 / %d S5', [SM.Timers, SM.Counters]), cInk)
           else Txt(fkMono, 11, X + 120, Y, 'IEC (TON, CTU) in DBs', cInk);
         end;
-      6: begin ModeS := 'Data blocks'; Txt(fkMono, 11, X + 120, Y, Format('DB1..DB%d, %d KB', [SM.MaxDB, SM.MaxDBSize div 1024]), cInk); end;
-      7: begin ModeS := 'Accumulators'; Txt(fkMono, 11, X + 120, Y, IntToStr(SM.Accus), cInk); end;
+      6:
+        if IsLogo(SM.Family) then
+        begin
+          ModeS := 'Blocks';
+          Txt(fkMono, 11, X + 120, Y, 'B001 .. (special functions)', cInk);
+        end
+        else if IsCodesys(SM.Family) then
+        begin
+          ModeS := 'Global variables';
+          Txt(fkMono, 11, X + 120, Y, Format('GVLs, up to %d KB each', [SM.MaxDBSize div 1024]), cInk);
+        end
+        else
+        begin
+          ModeS := 'Data blocks';
+          Txt(fkMono, 11, X + 120, Y, Format('DB1..DB%d, %d KB', [SM.MaxDB, SM.MaxDBSize div 1024]), cInk);
+        end;
+      7:
+        if IsLogo(SM.Family) then
+        begin
+          ModeS := 'Program';
+          Txt(fkMono, 11, X + 120, Y, 'one, of GF / SF blocks', cInk);
+        end
+        else if IsCodesys(SM.Family) then
+        begin
+          ModeS := 'Tasks';
+          Txt(fkMono, 11, X + 120, Y, 'MainTask + a cyclic task', cInk);
+        end
+        else
+        begin
+          ModeS := 'Accumulators';
+          Txt(fkMono, 11, X + 120, Y, IntToStr(SM.Accus), cInk);
+        end;
       8: begin ModeS := 'Bit / word op'; Txt(fkMono, 11, X + 120, Y, Format('%s / %s us', [FloatToStrDot(SM.BitNs / 1000), FloatToStrDot(SM.WordNs / 1000)]), cInk); end;
       9: begin ModeS := 'Fixed / float'; Txt(fkMono, 11, X + 120, Y, Format('%s / %s us', [FloatToStrDot(SM.FixNs / 1000), FloatToStrDot(SM.FloatNs / 1000)]), cInk); end;
       10:
         begin
           ModeS := 'Languages';
-          if SM.Family = cfS71200 then Txt(fkMono, 11, X + 120, Y, 'LAD (no STL)', cInk)
+          if IsCodesys(SM.Family) then Txt(fkMono, 11, X + 120, Y, 'ST, LD, FBD, CFC', cInk)
+          else if IsLogo(SM.Family) then Txt(fkMono, 11, X + 120, Y, 'FBD, LAD (CFC)', cInk)
+          else if SM.Family = cfS71200 then Txt(fkMono, 11, X + 120, Y, 'LAD (no STL)', cInk)
           else if SM.Family = cfS71500 then Txt(fkMono, 11, X + 120, Y, 'LAD, STL (4 ACCUs)', cInk)
           else Txt(fkMono, 11, X + 120, Y, 'LAD, STL', cInk);
         end;
-      11: begin ModeS := 'Cyclic OB / I/O'; Txt(fkMono, 11, X + 120, Y, Format('OB%d / DI%d DQ%d AI%d AQ%d', [SM.CyclicOB, SM.DI, SM.DQ, SM.AI, SM.AQ]), cInk); end;
+      11:
+        if IsLogo(SM.Family) then
+        begin
+          ModeS := 'I/O';
+          Txt(fkMono, 11, X + 120, Y, Format('I1..I%d Q1..Q%d AI%d AQ%d', [SM.DI, SM.DQ, SM.AI, SM.AQ]), cInk);
+        end
+        else
+        begin
+          ModeS := 'Cyclic OB / I/O';
+          Txt(fkMono, 11, X + 120, Y, Format('OB%d / DI%d DQ%d AI%d AQ%d', [SM.CyclicOB, SM.DI, SM.DQ, SM.AI, SM.AQ]), cInk);
+        end;
     end;
     Txt(fkUI, 11, X, Y, ModeS, cInkSoft);
     Y := Y + 19;
@@ -4778,12 +5073,12 @@ begin
   // the language switches only while the network is empty: code of one language is not another's
   En := not NetHasCode(N);
   case N.Kind of
-    nkLAD: Button(X + W - 190, Y + 6, 52, 22, 'LAD', Act(acNetKind, NI), bsToggleOn, En, 11);
+    nkLAD: Button(X + W - 190, Y + 6, 52, 22, IfThen(IsCodesys(Project.Family), 'LD', 'LAD'), Act(acNetKind, NI), bsToggleOn, En, 11);
     nkSTL: Button(X + W - 190, Y + 6, 52, 22, 'STL', Act(acNetKind, NI), bsGold, En, 11);
     nkFBD: Button(X + W - 190, Y + 6, 52, 22, 'FBD', Act(acNetKind, NI), bsNormal, En, 11);
     nkCFC: Button(X + W - 190, Y + 6, 52, 22, 'CFC', Act(acNetKind, NI), bsDanger, En, 11);
   else
-    Button(X + W - 190, Y + 6, 52, 22, 'SCL', Act(acNetKind, NI), bsPrimary, En, 11);
+    Button(X + W - 190, Y + 6, 52, 22, IfThen(IsCodesys(Project.Family), 'ST', 'SCL'), Act(acNetKind, NI), bsPrimary, En, 11);
   end;
   Button(X + W - 132, Y + 6, 30, 22, '↑', Act(acNetUp, NI), bsNormal, NI > 0, 12);
   Button(X + W - 98, Y + 6, 30, 22, '↓', Act(acNetDown, NI), bsNormal, NI < CurBlock.NetCount - 1, 12);
@@ -4852,7 +5147,7 @@ begin
     K := PalItems[I].K;
     if K = lkEmpty then Continue;
     Ok := True;
-    if (Fam = cfS71200) and (K in [lkSD, lkSE, lkSP, lkSS, lkSF, lkCU, lkCD, lkSC]) then Ok := False;
+    if not HasS5(Fam) and (K in [lkSD, lkSE, lkSP, lkSS, lkSF, lkCU, lkCD, lkSC]) then Ok := False;
     if not IsTia(Fam) and (K = lkTONR) then Ok := False;
     if not Ok then Continue;
     if PalItems[I].G <> G then
@@ -5259,6 +5554,8 @@ begin
   while (K < Length(L)) and (L[K + 1] = ' ') do Inc(K);
   Ind := StringOfChar(' ', K);
   S := StringReplace(Snip, LineEnding, LineEnding + Ind, [rfReplaceAll]);
+  // CODESYS: the names without quotes / #, its addresses
+  if IsCodesys(Project.Family) then S := CodesysText(S);
   P := Pos(ElemCur, S);
   if P = 0 then
   begin
@@ -5828,6 +6125,29 @@ begin
   end;
 end;
 
+function TPlcUI.ExportPlcOpenFile(const FileName: string): string;
+begin
+  WriteUtf8File(FileName, PlcOpenExport(Project, Result), False);
+end;
+
+function TPlcUI.ImportPlcOpenFile(const FileName: string): string;
+var
+  SL: TStringList;
+begin
+  SL := TStringList.Create;
+  try
+    SL.LoadFromFile(FileName);
+    if PlcOpenImport(Project, SL.Text, Result) then
+    begin
+      ResetResolver;
+      MarkDirty;
+      FBlockSel := Min(FBlockSel, Project.BlockCount - 1);
+    end;
+  finally
+    SL.Free;
+  end;
+end;
+
 function TPlcUI.ExportSclFile(const FileName: string; All: Boolean): string;
 var
   SL: TStringList;
@@ -5891,6 +6211,36 @@ begin
       end;
     3: ShowView(0);
     4: ShowView(1);
+    5:
+      begin
+        // PLCopen XML: CODESYS imports it (Project, Import PLCopenXML)
+        Sd := TSaveDialog.Create(nil);
+        try
+          Sd.Title := 'Export the project as PLCopen XML (CODESYS, IEC 61131-10)';
+          Sd.Filter := 'PLCopen XML (*.xml)|*.xml';
+          Sd.DefaultExt := 'xml';
+          Sd.Options := Sd.Options + [ofOverwritePrompt];
+          Sd.FileName := FileSafe(Project.Name) + '.xml';
+          if not Sd.Execute then Exit;
+          R := ExportPlcOpenFile(Sd.FileName);
+          Toast('Exported: ' + R);
+        finally
+          Sd.Free;
+        end;
+      end;
+    6:
+      begin
+        Od := TOpenDialog.Create(nil);
+        try
+          Od.Title := 'Import PLCopen XML (CODESYS Export PLCopenXML)';
+          Od.Filter := 'PLCopen XML (*.xml)|*.xml|All files (*.*)|*.*';
+          if not Od.Execute then Exit;
+          R := ImportPlcOpenFile(Od.FileName);
+          Toast(R, Pos('imported', R) = 0);
+        finally
+          Od.Free;
+        end;
+      end;
   end;
 end;
 
@@ -6645,6 +6995,44 @@ begin
   end;
 end;
 
+{ the name of a screen in its tab: on CODESYS the data blocks are the global variable lists, the tags the I/O
+  mapping }
+function TPlcUI.ScrName(S: TScreen): string;
+begin
+  Result := ScreenNames[S];
+  if IsCodesys(Project.Family) then
+    case S of
+      scDB: Result := 'GVL';
+      scTags: Result := 'I/O map';
+    end;
+  if IsLogo(Project.Family) then
+    case S of
+      scDB: Result := 'Blocks';
+      scTags: Result := 'Terminals';
+    end;
+end;
+
+{ the name of an interface section: Input / Static / Temp .., on CODESYS VAR_INPUT / VAR / VAR_TEMP .. }
+function TPlcUI.SecName(Sc: TVarSection): string;
+const
+  Cs: array[TVarSection] of string = ('VAR_INPUT', 'VAR_OUTPUT', 'VAR_IN_OUT', 'VAR', 'VAR_TEMP', 'Return');
+begin
+  if IsCodesys(Project.Family) then Result := Cs[Sc] else Result := SectionNames[Sc];
+end;
+
+{ an I/O address as the family writes it: %IX0.0 / %IW1 (CODESYS), %I0.0 / %IW64 (S7-1200 / 1500), I0.0 / PIW288
+  (S7-300 / 400: the analog channels on the peripheral) }
+function TPlcUI.IoName(Area: TArea; Size: TOpSize; Ofs, Bit: Integer): string;
+const
+  Sz: array[TOpSize] of string = ('', 'B', 'W', 'D');
+begin
+  if IsCodesys(Project.Family) or IsLogo(Project.Family) then Exit(FormatAddr(MakeAddr(Area, Size, Ofs, Bit), Project.Family));
+  if Size = osBit then Result := Format('%s%d.%d', [AreaNames[Area], Ofs, Bit])
+  else Result := AreaNames[Area] + Sz[Size] + IntToStr(Ofs);
+  if IsTia(Project.Family) then Result := '%' + Result
+  else if Size <> osBit then Result := 'P' + Result;
+end;
+
 { the symbol of a row of the Mini Watch: as typed ("Motor", "DB".Var, #x), else the tag on its address }
 function TPlcUI.MiniSymbol(const Adr: string): string;
 var
@@ -7064,8 +7452,9 @@ var
 begin
   if FPickSrc = 0 then Button(X, Y, 114, 22, 'PLC tags', Act(acPickSrc, 0), bsGold, True, 10.5)
   else Button(X, Y, 114, 22, 'PLC tags', Act(acPickSrc, 0), bsNormal, True, 10.5);
-  if FPickSrc = 1 then Button(X + 122, Y, 114, 22, 'Data blocks', Act(acPickSrc, 1), bsGold, True, 10.5)
-  else Button(X + 122, Y, 114, 22, 'Data blocks', Act(acPickSrc, 1), bsNormal, True, 10.5);
+  if IsCodesys(Project.Family) then E := 'GVLs' else E := 'Data blocks';
+  if FPickSrc = 1 then Button(X + 122, Y, 114, 22, E, Act(acPickSrc, 1), bsGold, True, 10.5)
+  else Button(X + 122, Y, 114, 22, E, Act(acPickSrc, 1), bsNormal, True, 10.5);
   Field(X, Y + 28, W, 22, Act(fdPickFilter, 0), FPickFilter, fkUI, 11, 0, True, 'filter: a part of the name');
   BuildPickList;
   Top := Y + 56;
@@ -7598,7 +7987,8 @@ begin
     if N.Kind = nkSCL then
     begin
       // SCL: the elements of SCL Studio and of the project
-      Txt(fkUIB, 12, X, Y, 'SCL elements', cRedDark);
+      if IsCodesys(Project.Family) then Txt(fkUIB, 12, X, Y, 'ST elements', cRedDark)
+      else Txt(fkUIB, 12, X, Y, 'SCL elements', cRedDark);
       DrawElems(X, Y + 22, W, ElemViewH, 'C');
       Exit;
     end;
@@ -7813,7 +8203,10 @@ begin
     K := 0;
     for I := 0 to High(B.Iface.Vars) do
       if B.Iface.Vars[I].System then Inc(K);
-    S := Format('organization block: %d start information (set by the CPU), local data %d bytes', [K, B.Iface.TempSize]);
+    if IsCodesys(Project.Family) and (B.Number = 1) then
+      S := Format('PROGRAM PLC_PRG: the MainTask calls it every cycle; local data %d bytes', [B.Iface.TempSize])
+    else
+      S := Format('organization block: %d start information (set by the CPU), local data %d bytes', [K, B.Iface.TempSize]);
   end
   else if B.Kind = bkFC then
     S := S + Format('local data %d bytes (parameters and Temp)', [B.Iface.TempSize])
@@ -7878,14 +8271,15 @@ begin
       D.Layer := lyControls;
       RR(X + 24, RY, 70, 21, 4, Alpha(cGoldDark, 60));
       D.Layer := lyText;
-      Txt(fkUIB, 10, X + 59, RY + 4, SectionNames[V.Section], cInkSoft, 1);
+      Txt(fkUIB, 10, X + 59, RY + 4, SecName(V.Section), cInkSoft, 1);
       TxtFit(fkMono, 11.5, X + 102, RY + 3, 162, V.Name, cRedDark);
       TxtFit(fkMono, 11.5, X + 272, RY + 3, 186, V.TypeText, cInk);
       TxtFit(fkUI, 10, X + 468, RY + 4, 120, 'set by the CPU', cInkFaint);
     end
     else
     begin
-      Button(X + 24, RY, 70, 21, SectionNames[V.Section], Act(acIfSec, I), SecBtn[V.Section], B.Kind <> bkOB, 10.5);
+      Button(X + 24, RY, 70, 21, SecName(V.Section), Act(acIfSec, I), SecBtn[V.Section],
+        (B.Kind <> bkOB) or IsCodesys(Project.Family), 10);
       if FIfRows[R].CanOpen then
       begin
         // a struct, an array, a timer / counter: the mark opens it to its members / elements
@@ -7952,8 +8346,9 @@ begin
   begin
     // an FC: no Static (no instance); an FB: no Return value; an OB: Temp only (its Input is the CPU's)
     if (B.Kind = bkFC) and (Sc = vsStatic) or (B.Kind = bkFB) and (Sc = vsReturn) then Continue;
-    if (B.Kind = bkOB) and (Sc <> vsTemp) then Continue;
-    Button(CX, RY, 92, 24, '+ ' + SectionNames[Sc], Act(acIfAdd, Ord(Sc)), bsNormal, True, 11);
+    // CODESYS: a PROGRAM has VAR (kept in its program DB) and VAR_TEMP
+    if (B.Kind = bkOB) and (Sc <> vsTemp) and not (IsCodesys(Project.Family) and (Sc = vsStatic)) then Continue;
+    Button(CX, RY, 92, 24, '+ ' + SecName(Sc), Act(acIfAdd, Ord(Sc)), bsNormal, True, IfThen(IsCodesys(Project.Family), 9.5, 11));
     CX := CX + 98;
   end;
   Button(CX + 10, RY, 110, 24, 'Delete row', Act(acIfDel, 0), bsFlat, (Length(B.Iface.Vars) > 0) and
@@ -7961,7 +8356,10 @@ begin
   NSec := 0;
   if NSec = 0 then ;
   D.Layer := lyText;
-  TxtFit(fkUI, 10.5, CX + 132, RY + 5, X + W - CX - 146, 'drag a row by its grip into the code: #Name, #Name.Member  (or onto a LAD element)', cInkFaint);
+  if IsCodesys(Project.Family) then
+    TxtFit(fkUI, 10.5, CX + 132, RY + 5, X + W - CX - 146, 'drag a row by its grip into the code: Name, Name.Member  (or onto an LD element)', cInkFaint)
+  else
+    TxtFit(fkUI, 10.5, CX + 132, RY + 5, X + W - CX - 146, 'drag a row by its grip into the code: #Name, #Name.Member  (or onto a LAD element)', cInkFaint);
 end;
 
 { ---------- dragging an interface variable ---------- }
@@ -8526,7 +8924,7 @@ begin
       S := 'SCL';
     end;
     if K = FObDlgLang then Button(RX + 80 + K * 70, BY, 64, 26, S, Act(acObDlgLang, K), bsToggleOn, True, 11)
-    else Button(RX + 80 + K * 70, BY, 64, 26, S, Act(acObDlgLang, K), bsNormal, (K <> 1) or (Project.Family <> cfS71200), 11);
+    else Button(RX + 80 + K * 70, BY, 64, 26, S, Act(acObDlgLang, K), bsNormal, (K <> 1) or HasStl(Project.Family), 11);
   end;
   BY := BY + 44;
   // what the OB is and what starts it
@@ -8594,8 +8992,7 @@ begin
         M := Rt.Model;
         case FObDlgEv of
           oeHardware:
-            if IsTia(Project.Family) then B.TrigAddr := Format('%%I%d.0', [M.DIByte])
-            else B.TrigAddr := Format('I%d.0', [M.DIByte]);
+            B.TrigAddr := IoName(arI, osBit, M.DIByte, 0);
           oeTimeOfDay:
             begin
               // the next full minute, every day; switched on in the OB
@@ -8776,6 +9173,7 @@ begin
     'db': Id := Act(acDBSel, Par);
     'file': Id := Act(acLoad, Par);
     'watchmenu': Id := Act(acWatchMenu, 0);
+    'dbtable': Id := Act(acDbTable, 0);
     'ioexport': Id := Act(acExportPc, 5 * 4096);
     'tagexport': Id := Act(acExportPc, 6 * 4096);
     'ctx': Id := Act(acCtx, Par);
@@ -8799,6 +9197,7 @@ begin
     'ipchelp': Id := Act(acIpcHelp, 0);
     'explorer': Id := Act(acExplorer, 0);
     'tagimport': Id := Act(acTagImport, 0);
+    'tagexpmenu': Id := Act(acTagExpMenu, 0);
     'pal': Id := Act(acPal, Par);
     'dtype': Id := Act(acDType, 0);
     'dtype2': Id := Act(acDType2, 0);
@@ -8958,20 +9357,41 @@ begin
         case Fmt of
           0: if Kind = 2 then Ext := 'csv' else Ext := 'txt';
           1: if Kind = 2 then Ext := 'txt' else Ext := 'csv';
+          3: Ext := 'xlsx';
+          4: Ext := 'xml';
         else
           Ext := 'json';
         end;
         if Kind = 2 then Result := SafeName(Format('DB%d_%s', [Project.DB(Index).Number, Project.DB(Index).Name]))
         else Result := SafeName(Format('UDT%d_%s', [Project.Udt(Index).Number, Project.Udt(Index).Name]));
       end;
-    4: begin Ext := 'csv'; Result := 'watch_table'; end;
+    4:
+      begin
+        case Fmt of
+          3: Ext := 'xlsx';
+          4: Ext := 'xml';
+        else
+          Ext := 'csv';
+        end;
+        Result := 'watch_table';
+      end;
     5: begin Ext := 'csv'; Result := 'io_list'; end;
   else
-    begin Ext := 'csv'; Result := 'tag_table'; end;
+    begin
+      case Fmt of
+        3: Ext := 'xlsx';
+        4: Ext := 'xml';
+      else
+        Ext := 'csv';
+      end;
+      Result := 'tag_table';
+    end;
   end;
   case Ext of
     'txt': Filter := 'Text (*.txt)|*.txt';
     'json': Filter := 'JSON (*.json)|*.json';
+    'xlsx': Filter := 'Excel workbook (*.xlsx)|*.xlsx';
+    'xml': Filter := 'XML (*.xml)|*.xml';
   else
     Filter := 'CSV for Excel (*.csv)|*.csv';
   end;
@@ -8993,7 +9413,12 @@ begin
     ForceDirectories(Dl.InitialDir);
     Dl.FileName := Nm;
     Dl.Options := [ofOverwritePrompt, ofPathMustExist, ofEnableSizing];
-    if Dl.Execute then ExportPiece(Kind, Fmt, Index, Dl.FileName);
+    if Dl.Execute then
+    begin
+      Nm := Dl.FileName;
+      if not SameText(ExtractFileExt(Nm), '.' + Ext) then Nm := Nm + '.' + Ext;
+      ExportPiece(Kind, Fmt, Index, Nm);
+    end;
   finally
     Dl.Free;
   end;
@@ -9002,6 +9427,7 @@ end;
 function TPlcUI.ExportPiece(Kind, Fmt, Index: Integer; const FileName: string): Boolean;
 var
   S, Ext, Filter, A, Tg, V, Fc: string;
+  Rows: TCsvRows;
   M: TCpuModel;
   I, B, Bit, Raw, Gk9: Integer;
   O: TOperand;
@@ -9031,6 +9457,8 @@ begin
             if (Index < 0) or (Index >= Project.DBCount) then Exit;
             case Fmt of
               0: WriteUtf8File(FileName, DataBlockCsv(Project.DB(Index), @LiveOf), True);
+              3, 4: WriteTable(FileName, DataBlockRows(Project.DB(Index), @LiveOf), 'Data block',
+                Format('DB%d %s', [Project.DB(Index).Number, Project.DB(Index).Name]));
               1: WriteUtf8File(FileName, DataBlockText(Project, Project.DB(Index), @LiveOf), True);
             else
               WriteUtf8File(FileName, JsonText(DataBlockToJson(Project.DB(Index), False)), False);
@@ -9041,6 +9469,8 @@ begin
             if (Index < 0) or (Index >= Project.UdtCount) then Exit;
             case Fmt of
               0: WriteUtf8File(FileName, DataBlockText(Project, Project.Udt(Index), nil), True);
+              3, 4: WriteTable(FileName, DataBlockRows(Project.Udt(Index), nil), 'PLC data type',
+                Project.Udt(Index).Name);
               1: WriteUtf8File(FileName, DataBlockCsv(Project.Udt(Index), nil), True);
             else
               WriteUtf8File(FileName, JsonText(DataBlockToJson(Project.Udt(Index), True)), False);
@@ -9050,8 +9480,9 @@ begin
       4:
         begin
           // the watch table with what it shows now
-          S := CsvLine(['#', 'Address / symbol', 'Absolute / symbol', 'Format', 'Monitor value', 'Modify value',
-            'Modify', 'Forced']);
+          SetLength(Rows, Length(Project.Watch) + 1);
+          Rows[0] := RowOf(['#', 'Address / symbol', 'Absolute / symbol', 'Format', 'Monitor value',
+            'Modify value', 'Modify', 'Forced']);
           for I := 0 to High(Project.Watch) do
           begin
             Ok := FRes.Resolve(Project.Watch[I].Address, O, E, False) and (O.Kind = okAddr);
@@ -9069,10 +9500,10 @@ begin
               V := '';
               Fc := '';
             end;
-            S := S + CsvLine([IntToStr(I + 1), Project.Watch[I].Address, A, DispFmtNames[Project.Watch[I].Fmt], V,
-              Project.Watch[I].ModifyValue, IfThen(Project.Watch[I].ModifyOn, 'yes', ''), Fc]);
+            Rows[I + 1] := RowOf([IntToStr(I + 1), Project.Watch[I].Address, A, DispFmtNames[Project.Watch[I].Fmt],
+              V, Project.Watch[I].ModifyValue, IfThen(Project.Watch[I].ModifyOn, 'yes', ''), Fc]);
           end;
-          WriteUtf8File(FileName, S, True);
+          WriteTable(FileName, Rows, 'Watch table', 'Watch and force table');
         end;
       5:
         begin
@@ -9083,11 +9514,11 @@ begin
           begin
             B := M.DIByte + I div 8;
             Bit := I mod 8;
-            A := Format('I%d.%d', [B, Bit]);
+            A := IoName(arI, osBit, B, Bit);
             FillChar(O, SizeOf(O), 0);
             O.Kind := okAddr;
             O.A := MakeAddr(arI, osBit, B, Bit);
-            S := S + CsvLine(['DI', IfThen(IsTia(M.Family), '%', '') + A, IoTagFor(A),
+            S := S + CsvLine(['DI', A, IoTagFor(A),
               InTypeNames[Project.DIch[I].InType], IfThen(Rt.GetSimBit(B, Bit), 'TRUE', 'FALSE'), '',
               IfThen(Rt.IsForced(O), 'forced', '')]);
           end;
@@ -9095,11 +9526,11 @@ begin
           begin
             B := M.DQByte + I div 8;
             Bit := I mod 8;
-            A := Format('Q%d.%d', [B, Bit]);
+            A := IoName(arQ, osBit, B, Bit);
             FillChar(O, SizeOf(O), 0);
             O.Kind := okAddr;
             O.A := MakeAddr(arQ, osBit, B, Bit);
-            S := S + CsvLine(['DQ', IfThen(IsTia(M.Family), '%', '') + A, IoTagFor(A), '',
+            S := S + CsvLine(['DQ', A, IoTagFor(A), '',
               IfThen(Rt.GetOutBit(B, Bit), 'TRUE', 'FALSE'), '', IfThen(Rt.IsForced(O), 'forced', '')]);
           end;
           for I := 0 to M.AI - 1 do
@@ -9126,16 +9557,17 @@ begin
     else
       begin
         // the tag table with the values now
-        S := CsvLine(['Name', 'Path', 'Data type', 'Address', 'Monitor value', 'Comment']);
+        SetLength(Rows, Length(Project.Tags) + 1);
+        Rows[0] := RowOf(['Name', 'Path', 'Data type', 'Address', 'Monitor value', 'Comment']);
         for I := 0 to High(Project.Tags) do
         begin
           // Path: the group (as the tag table of TIA)
           Gk9 := GroupOfId(Project.TagGroups, Project.Tags[I].GroupId);
           if Gk9 >= 0 then A := Project.TagGroups[Gk9].Name else A := '';
-          S := S + CsvLine([Project.Tags[I].Name, A, Project.Tags[I].TypeText, Project.Tags[I].Address,
+          Rows[I + 1] := RowOf([Project.Tags[I].Name, A, Project.Tags[I].TypeText, Project.Tags[I].Address,
             LiveOf('"' + Project.Tags[I].Name + '"'), Project.Tags[I].Comment]);
         end;
-        WriteUtf8File(FileName, S, True);
+        WriteTable(FileName, Rows, 'PLC tags', 'PLC tag table');
       end;
     end;
     Toast('Exported ' + ExtractFileName(FileName));
@@ -9174,7 +9606,33 @@ begin
   end;
 end;
 
-{ Table menu: 0 Save, 1 Open, 2 Save As, 3 Export }
+{ the Export / Import menu of the variables: 0 CSV, 1 Excel XLSX, 2 XML, 3 import }
+procedure TPlcUI.DbFileMenu(Item: Integer);
+var
+  Od: TOpenDialog;
+  Idx: Integer;
+begin
+  if CurDB = nil then Exit;
+  Idx := FDBSel;
+  if Item < 3 then
+  begin
+    if Idx < Project.DBCount then ChooseExport(2, IfThen(Item = 0, 0, Item + 2), Idx)
+    else ChooseExport(3, IfThen(Item = 0, 1, Item + 2), Idx - Project.DBCount);
+    Exit;
+  end;
+  Od := TOpenDialog.Create(nil);
+  try
+    Od.Title := 'Import the variables of ' + CurDB.Name;
+    Od.Filter := TableFilter;
+    Od.InitialDir := ExtractFilePath(ParamStr(0)) + 'export';
+    Od.Options := [ofFileMustExist, ofEnableSizing];
+    if Od.Execute then Toast('Import: ' + ImportDbTable(Idx, Od.FileName));
+  finally
+    Od.Free;
+  end;
+end;
+
+{ Table menu: 0 Save, 1 Open, 2 Save As, 3 Export CSV, 4 Import, 5 Export XLSX, 6 Export XML }
 procedure TPlcUI.WatchMenu(Item: Integer);
 var
   Sd: TSaveDialog;
@@ -9185,9 +9643,14 @@ begin
     WatchSaveTo(FWatchFile);
     Exit;
   end;
-  if Item = 3 then
+  if Item in [3, 5, 6] then
   begin
-    ChooseExport(4, 0, 0);
+    case Item of
+      5: ChooseExport(4, 3, 0);
+      6: ChooseExport(4, 4, 0);
+    else
+      ChooseExport(4, 0, 0);
+    end;
     Exit;
   end;
   if Item = 4 then
@@ -9195,7 +9658,7 @@ begin
     Od := TOpenDialog.Create(nil);
     try
       Od.Title := 'Import watch rows';
-      Od.Filter := 'CSV (*.csv;*.txt)|*.csv;*.txt|All files (*.*)|*.*';
+      Od.Filter := TableFilter;
       Od.InitialDir := ExtractFilePath(ParamStr(0)) + 'export';
       Od.Options := [ofFileMustExist, ofEnableSizing];
       if Od.Execute then Toast('Import: ' + ImportWatch(Od.FileName));
@@ -9641,15 +10104,18 @@ begin
           DoClick(Id, '');
           if (Id and $FFFF) < Project.DBCount then
             OpenCtx(FMX, FMY, ['Export data block as CSV ...', 'Export data block as text ...',
-              'Export data block as JSON ...'],
+              'Export data block as JSON ...', 'Export data block as Excel XLSX ...', 'Export data block as XML ...'],
               [Act(acExportPc, 2 * 4096 + 0 * 1024 + (Id and $FFFF)), Act(acExportPc, 2 * 4096 + 1 * 1024 + (Id and $FFFF)),
-              Act(acExportPc, 2 * 4096 + 2 * 1024 + (Id and $FFFF))], [True, True, True])
+              Act(acExportPc, 2 * 4096 + 2 * 1024 + (Id and $FFFF)), Act(acExportPc, 2 * 4096 + 3 * 1024 + (Id and $FFFF)),
+              Act(acExportPc, 2 * 4096 + 4 * 1024 + (Id and $FFFF))], [True, True, True, True, True])
           else
             OpenCtx(FMX, FMY, ['Export data type as text ...', 'Export data type as CSV ...',
-              'Export data type as JSON ...'],
+              'Export data type as JSON ...', 'Export data type as Excel XLSX ...', 'Export data type as XML ...'],
               [Act(acExportPc, 3 * 4096 + 0 * 1024 + (Id and $FFFF) - Project.DBCount),
               Act(acExportPc, 3 * 4096 + 1 * 1024 + (Id and $FFFF) - Project.DBCount),
-              Act(acExportPc, 3 * 4096 + 2 * 1024 + (Id and $FFFF) - Project.DBCount)], [True, True, True]);
+              Act(acExportPc, 3 * 4096 + 2 * 1024 + (Id and $FFFF) - Project.DBCount),
+              Act(acExportPc, 3 * 4096 + 3 * 1024 + (Id and $FFFF) - Project.DBCount),
+              Act(acExportPc, 3 * 4096 + 4 * 1024 + (Id and $FFFF) - Project.DBCount)], [True, True, True, True, True]);
           Exit;
         end;
     end;
@@ -10626,7 +11092,7 @@ end;
 procedure TPlcUI.BuildProgram;
 var
   B: TBlock;
-  I: Integer;
+  I, Vis: Integer;
   Y, H, Top, ViewH, BH, CT, CB: Single;
   Sel: Boolean;
   S, St: string;
@@ -10640,10 +11106,14 @@ begin
   FBlockScroll := EnsureRange(FBlockScroll, 0, Max(0, BH - 666));
   ClipD(28, 112, 210, 668);
   Hit(28, 112, 210, 668, whBlocks, hkWheel);
+  Vis := 0;
   for I := 0 to Project.BlockCount - 1 do
   begin
     B := Project.Block(I);
-    Y := 118 + I * 48 - FBlockScroll;
+    // a block of the LOGO! library: not shown
+    if B.IsLibrary then Continue;
+    Y := 118 + Vis * 48 - FBlockScroll;
+    Inc(Vis);
     Sel := I = FBlockSel;
     D.Layer := lySheets;
     if Sel then
@@ -10657,30 +11127,49 @@ begin
     else RR(36, Y, 188, 42, 5, cSheet2);
     D.Layer := lyText;
     if Sel then C := cSheet else C := cRedDark;
-    Txt(fkUIB, 14, 48, Y + 3, B.Title, C);
+    TxtFit(fkUIB, IfThen(IsCodesys(Project.Family), 11.5, 14), 48, Y + 3, 170, Project.BlockKindText(B), C);
     if Sel then C := cGoldLight else C := cInkSoft;
     TxtFit(fkUI, 11, 48, Y + 22, 170, B.Name + Format('  (%d nw)', [B.NetCount]), C);
     Hit(36, Y, 188, 42, Act(acBlockSel, I));
   end;
-  Y := 118 + Project.BlockCount * 48 + 8 - FBlockScroll;
+  Y := 118 + Vis * 48 + 8 - FBlockScroll;
+  if IsLogo(Project.Family) then
+  begin
+    // LOGO!: one circuit program; its blocks (B001 ..) are in it
+    D.Layer := lyText;
+    Txt(fkUI, 10.5, 40, Y, 'LOGO!: one program of blocks', cInkSoft);
+    Txt(fkUI, 10.5, 40, Y + 16, '(FBD / LAD networks); the special', cInkSoft);
+    Txt(fkUI, 10.5, 40, Y + 32, 'functions get B001, B002 ..', cInkSoft);
+    Txt(fkUI, 10.5, 40, Y + 48, 'Right button on a block: Rem.', cInkSoft);
+    Button(36, Y + 72, 188, 28, 'Export block list ...', Act(acLogoExport, 0), bsGold, True, 12);
+    UnclipD;
+    FVs[2].Range := 0;
+  end
+  else
+  begin
   if Project.FindBlock(bkOB, 1) = nil then
   begin
     Button(36, Y, 188, 28, '+ OB1 Main', Act(acAddOB1, 0), bsPrimary, True, 12);
     Y := Y + 34;
   end;
-  Button(36, Y, 188, 28, '+ FC (function)', Act(acAddFC, 0), bsNormal, True, 12);
+  if IsCodesys(Project.Family) then Button(36, Y, 188, 28, '+ FUNCTION', Act(acAddFC, 0), bsNormal, True, 12)
+  else Button(36, Y, 188, 28, '+ FC (function)', Act(acAddFC, 0), bsNormal, True, 12);
   Y := Y + 34;
-  Button(36, Y, 188, 28, '+ FB (function block)', Act(acAddFB, 0), bsNormal, True, 12);
+  if IsCodesys(Project.Family) then Button(36, Y, 188, 28, '+ FUNCTION_BLOCK', Act(acAddFB, 0), bsNormal, True, 11.5)
+  else Button(36, Y, 188, 28, '+ FB (function block)', Act(acAddFB, 0), bsNormal, True, 12);
   Y := Y + 34;
   // every OB of the family (startup, cyclic, hardware, time of day, error OBs ..), also of its own number
-  Button(36, Y, 188, 28, '+ OB (organization block) ...', Act(acObDlg, 0), bsNormal, True, 11.5);
+  if IsCodesys(Project.Family) then Button(36, Y, 188, 28, '+ Task ...', Act(acObDlg, 0), bsNormal, True, 11.5)
+  else Button(36, Y, 188, 28, '+ OB (organization block) ...', Act(acObDlg, 0), bsNormal, True, 11.5);
   Y := Y + 34;
   Button(36, Y, 188, 28, 'Delete block', Act(acDelBlock, 0), bsFlat, Project.BlockCount > 0, 12);
   Y := Y + 40;
   // .scl sources (TIA), the views of the project
-  Button(36, Y, 188, 28, 'SCL source ▼', Act(acSclSrcMenu, 0), bsGold, True, 12);
+  Button(36, Y, 188, 28, IfThen(IsCodesys(Project.Family), 'Source / PLCopen ▼', 'SCL source ▼'), Act(acSclSrcMenu, 0),
+    bsGold, True, 12);
   UnclipD;
   if BH > 668 then VScrollBar(2, 228, 112, 668, BH, 668, FBlockScroll) else FVs[2].Range := 0;
+  end;
   B := CurBlock;
   if B <> nil then
   begin
@@ -10696,9 +11185,11 @@ begin
     Exit;
   end;
   // a new network goes above or below the selected one (the menu asks)
-  Button(280, 112, 54, 28, '+ LAD', Act(acAddMenu, 0), bsNormal, True, 11);
-  Button(338, 112, 54, 28, '+ STL', Act(acAddMenu, 1), bsNormal, Project.Family <> cfS71200, 11);
-  Button(396, 112, 54, 28, '+ SCL', Act(acAddMenu, 2), bsNormal, True, 11);
+  Button(280, 112, 54, 28, IfThen(IsCodesys(Project.Family), '+ LD', '+ LAD'), Act(acAddMenu, 0), bsNormal, True, 11);
+  Button(338, 112, 54, 28, '+ STL', Act(acAddMenu, 1), bsNormal, HasStl(Project.Family), 11);
+  // LOGO!: no SCL (FBD, LAD, CFC)
+  Button(396, 112, 54, 28, IfThen(IsCodesys(Project.Family), '+ ST', '+ SCL'), Act(acAddMenu, 2), bsNormal,
+    not IsLogo(Project.Family), 11);
   Button(454, 112, 54, 28, '+ FBD', Act(acAddMenu, 3), bsNormal, True, 11);
   Button(512, 112, 54, 28, '+ CFC', Act(acAddMenu, 4), bsNormal, True, 11);
   if FMonitor then Button(572, 112, 86, 28, 'Monitor: on', Act(acMonitor, 0), bsToggleOn, True, 11)
@@ -10986,8 +11477,8 @@ begin
     end;
     Led(X + 46, Y + 15, 4.5, cJadeLight, On);
     D.Layer := lyText;
-    S := Format('I%d.%d', [B, Bit]);
-    Txt(fkMonoB, 12, X + 58, Y + 4, IfThen(IsTia(M.Family), '%', '') + S, cInk);
+    S := IoName(arI, osBit, B, Bit);
+    Txt(fkMonoB, 12, X + 58, Y + 4, S, cInk);
     Tg := TagFor(S);
     if Tg <> '' then TxtFit(fkUI, 10.5, X + 58, Y + 19, CW - 120, Tg, cInkSoft);
     Button(X + CW - 74, Y + 6, 64, 20, InTypeNames[Project.DIch[Ch].InType], Act(acDIType, Ch), bsFlat, True, 9.5);
@@ -11017,8 +11508,8 @@ begin
     Hit(X, Y, CW - 8, 34, Act(acIoOut, I));   // the right button: its cross reference
     Led(X + 16, Y + 15, 8, BGRA($3C, $E0, $5C), OutOn);   // every output a green LED
     D.Layer := lyText;
-    S := Format('Q%d.%d', [B, Bit]);
-    Txt(fkMonoB, 12, X + 40, Y + 4, IfThen(IsTia(M.Family), '%', '') + S, cInk);
+    S := IoName(arQ, osBit, B, Bit);
+    Txt(fkMonoB, 12, X + 40, Y + 4, S, cInk);
     Tg := TagFor(S);
     if Tg <> '' then TxtFit(fkUI, 10.5, X + 40, Y + 19, CW - 60, Tg, cInkSoft);
     FillChar(O, SizeOf(O), 0);
@@ -11041,11 +11532,10 @@ begin
     if M.AI <= 4 then Y := Y0 + I * 40 else Y := Y0 + I * 36;
     Raw := SmallInt((Word(Rt.SimIn[M.AIWord + I * 2]) shl 8) or Rt.SimIn[M.AIWord + I * 2 + 1]);
     D.Layer := lyText;
-    if IsTia(M.Family) then S := Format('%%IW%d', [M.AIWord + I * 2])
-    else S := Format('PIW%d', [M.AIWord + I * 2]);
+    S := IoName(arI, osWord, M.AIWord + I * 2, 0);
     Txt(fkMonoB, 12, 40, Y + 4, S, cInk);
-    Tg := TagFor(Format('IW%d', [M.AIWord + I * 2]));
-    if Tg = '' then Tg := TagFor(Format('PIW%d', [M.AIWord + I * 2]));
+    if IsCodesys(M.Family) or IsLogo(M.Family) then Tg := TagFor(S) else Tg := TagFor(Format('IW%d', [M.AIWord + I * 2]));
+    if (Tg = '') and not (IsCodesys(M.Family) or IsLogo(M.Family)) then Tg := TagFor(Format('PIW%d', [M.AIWord + I * 2]));
     if Tg <> '' then TxtFit(fkUI, 10, 40, Y + 20, 110, Tg, cInkSoft);
     SX := 160;
     SW := 420;
@@ -11079,7 +11569,7 @@ begin
       Raw := Rt.GetOutWord(M.AQWord + I * 2);
       Y := Y0 + I * 32;
       D.Layer := lyText;
-      if IsTia(M.Family) then S := Format('%%QW%d', [M.AQWord + I * 2]) else S := Format('PQW%d', [M.AQWord + I * 2]);
+      S := IoName(arQ, osWord, M.AQWord + I * 2, 0);
       Txt(fkMonoB, 12, 1036, Y + 4, S, cInk);
       Hit(1030, Y, 530, 30, Act(acIoOut, 1000 + I));
       Tg := TagFor(Copy(S, Pos('W', S) - 1, MaxInt));
@@ -11931,7 +12421,9 @@ begin
         // the struct / array row: where it starts, its type, the first members now
         Db0 := Project.FindDB(DbNr);
         D.Layer := lyText;
-        if (Db0 <> nil) and Db0.Optimized and IsTia(Project.Family) then
+        if (Db0 <> nil) and IsCodesys(Project.Family) then
+          TxtFit(fkMono, 10.5, ColX[2], Y + 5, 134, Db0.Name, cInkSoft)
+        else if (Db0 <> nil) and Db0.Optimized and IsTia(Project.Family) then
         begin
           if Hot(ColX[2] - 2, Y, 100, 24) then TxtFit(fkUI, 10, ColX[2], Y + 5, 134, 'optimized DB ›', cRed)
           else TxtFit(fkUI, 10, ColX[2], Y + 5, 134, 'optimized DB ›', cRedDark);
@@ -11949,7 +12441,14 @@ begin
       end;
     Ok := FRes.Resolve(Project.Watch[I].Address, O, E, False) and (O.Kind = okAddr);
     D.Layer := lyText;
-    if Ok and (FWatchMode = 0) and (O.A.Area = arDB) and (Project.FindDB(O.A.DB) <> nil) and
+    if Ok and (FWatchMode = 0) and (O.A.Area = arDB) and (Project.FindDB(O.A.DB) <> nil) and IsCodesys(Project.Family) then
+    begin
+      // CODESYS: a variable of a GVL / of a program: no address, its list
+      TxtFit(fkMono, 10.5, ColX[2], Y + 5, 134, Project.FindDB(O.A.DB).Name, cInkSoft);
+      if O.DType <> dtNone then S := DataTypeNames[O.DType] else S := '';
+      TxtFit(fkMono, 10, SortX[3], Y + 5, 56, S, cInkFaint);
+    end
+    else if Ok and (FWatchMode = 0) and (O.A.Area = arDB) and (Project.FindDB(O.A.DB) <> nil) and
       Project.FindDB(O.A.DB).Optimized and IsTia(Project.Family) then
     begin
       // a variable of an optimized DB has no absolute address: the link to the DB and its setting
@@ -12034,6 +12533,7 @@ begin
   case F of
     cfS7300: E := 'S7-300: I, Q (and PI / PQ)';
     cfS7400: E := 'S7-400: I, Q, M (and PI / PQ)';
+    cfCodesys: E := 'CODESYS: %IX, %QX, %MX ..';
   else
     E := FamilyNames[F] + ': peripheral I:P and Q:P';
   end;
@@ -12041,7 +12541,8 @@ begin
   Txt(fkUI, 10.5, 1236, 634, 'A forced input is fixed in the input', cInkFaint);
   Txt(fkUI, 10.5, 1236, 648, 'image every cycle; a forced output is', cInkFaint);
   Txt(fkUI, 10.5, 1236, 662, 'fixed on the module, also in STOP.', cInkFaint);
-  if IsTia(F) then Txt(fkUI, 10.5, 1236, 676, 'MAINT shows forces on the ' + FamilyNames[F] + '.', cInkFaint)
+  if IsCodesys(F) then Txt(fkUI, 10.5, 1236, 676, 'CODESYS marks forced values with an F.', cInkFaint)
+  else if IsTia(F) then Txt(fkUI, 10.5, 1236, 676, 'MAINT shows forces on the ' + FamilyNames[F] + '.', cInkFaint)
   else Txt(fkUI, 10.5, 1236, 676, 'The FRCE LED shows active forces.', cInkFaint);
   Txt(fkUI, 10.5, 1236, 696, 'Modify now writes every row with Mod', cInkFaint);
   Txt(fkUI, 10.5, 1236, 710, 'checked once, at the cycle check point.', cInkFaint);
@@ -12101,21 +12602,31 @@ begin
     else RR(36, Y, 268, 40, 5, cSheet2);
     D.Layer := lyText;
     if Sel then C := cSheet else C := cRedDark;
-    Txt(fkUIB, 14, 48, Y + 3, Format('DB%d', [Db.Number]), C);
+    if IsCodesys(Project.Family) or (Db.ProgramOf < 0) then TxtFit(fkUIB, 14, 48, Y + 3, 250, Db.Name, C)
+    else Txt(fkUIB, 14, 48, Y + 3, Format('DB%d', [Db.Number]), C);
     if Sel then C := cGoldLight else C := cInkSoft;
-    if Db.InstanceOf > 0 then TxtFit(fkUI, 11, 48, Y + 21, 250, Format('"%s"  %d bytes, instance of FB%d', [Db.Name, Db.Size, Db.InstanceOf]), C)
+    if Db.ProgramOf < 0 then TxtFit(fkUI, 11, 48, Y + 21, 250, Format('%d special functions: their values', [Length(Db.Vars)]), C)
+    else if IsCodesys(Project.Family) then
+    begin
+      if Db.ProgramOf > 0 then S := Format('VAR of the PROGRAM, %d variables', [Length(Db.Vars)])
+      else S := Format('GVL, %d variables, %d bytes', [Length(Db.Vars), Db.Size]);
+      TxtFit(fkUI, 11, 48, Y + 21, 250, S, C);
+    end
+    else if Db.InstanceOf > 0 then TxtFit(fkUI, 11, 48, Y + 21, 250, Format('"%s"  %d bytes, instance of FB%d', [Db.Name, Db.Size, Db.InstanceOf]), C)
     else if Db.Optimized and IsTia(Project.Family) then
       TxtFit(fkUI, 11, 48, Y + 21, 250, Format('"%s"  %d bytes, optimized', [Db.Name, Db.Size]), C)
     else TxtFit(fkUI, 11, 48, Y + 21, 250, Format('"%s"  %d bytes', [Db.Name, Db.Size]), C);
     Hit(36, Y, 268, 40, Act(acDBSel, I));
   end;
   Y := 118 + Project.DBCount * 46 + 6 - FDBListScroll;
-  Button(36, Y, 130, 28, '+ DB', Act(acDBAdd, 0), bsNormal, True, 12);
-  Button(174, Y, 130, 28, 'Delete DB', Act(acDBDel, 0), bsFlat, (Project.DBCount > 0) and not SelIsUdt, 12);
+  Button(36, Y, 130, 28, IfThen(IsCodesys(Project.Family), '+ GVL', '+ DB'), Act(acDBAdd, 0), bsNormal, True, 12);
+  Button(174, Y, 130, 28, IfThen(IsCodesys(Project.Family), 'Delete GVL', 'Delete DB'), Act(acDBDel, 0), bsFlat,
+    (Project.DBCount > 0) and not SelIsUdt and not ((CurDB <> nil) and (CurDB.ProgramOf > 0)), 12);
   // PLC data types
   Y := Y + 48;
   D.Layer := lyText;
-  if IsTia(Project.Family) then Txt(fkUIB, 12, 40, Y, 'PLC data types', cRedDark)
+  if IsCodesys(Project.Family) then Txt(fkUIB, 12, 40, Y, 'DUTs (TYPE .. STRUCT)', cRedDark)
+  else if IsTia(Project.Family) then Txt(fkUIB, 12, 40, Y, 'PLC data types', cRedDark)
   else Txt(fkUIB, 12, 40, Y, 'Data types (UDT)', cRedDark);
   D.Layer := lyOrnament;
   Ln(40, Y + 20, 300, Y + 20, 0.8, Alpha(cGoldDark, 160));
@@ -12159,9 +12670,12 @@ begin
   Db.Layout;
   // DB header
   D.Layer := lyText;
-  if Db.IsUdt then Txt(fkUI, 10, 372, 110, 'UDT number', cInkSoft)
-  else Txt(fkUI, 10, 372, 110, 'number', cInkSoft);
-  Field(372, 124, 70, 24, Act(fdDBNum, 0), IntToStr(Db.Number), fkMono, 12);
+  if not IsCodesys(Project.Family) and not IsLogo(Project.Family) then
+  begin
+    if Db.IsUdt then Txt(fkUI, 10, 372, 110, 'UDT number', cInkSoft)
+    else Txt(fkUI, 10, 372, 110, 'number', cInkSoft);
+    Field(372, 124, 70, 24, Act(fdDBNum, 0), IntToStr(Db.Number), fkMono, 12);
+  end;
   Txt(fkUI, 10, 452, 110, 'name', cInkSoft);
   Field(452, 124, 220, 24, Act(fdDBName, 0), Db.Name, fkUI, 12);
   Txt(fkUI, 10, 682, 110, 'comment', cInkSoft);
@@ -12169,9 +12683,12 @@ begin
   else
   begin
     Field(682, 124, 250, 24, Act(fdDBComment, 0), Db.Comment, fkUI, 12);
-    D.Layer := lyText;
-    Txt(fkUI, 10, 944, 110, 'instance of FB', cInkSoft);
-    Field(944, 124, 80, 24, Act(fdDBInst, 0), IfThen(Db.InstanceOf > 0, IntToStr(Db.InstanceOf), '0'), fkMono, 12);
+    if not IsCodesys(Project.Family) and not IsLogo(Project.Family) then
+    begin
+      D.Layer := lyText;
+      Txt(fkUI, 10, 944, 110, 'instance of FB', cInkSoft);
+      Field(944, 124, 80, 24, Act(fdDBInst, 0), IfThen(Db.InstanceOf > 0, IntToStr(Db.InstanceOf), '0'), fkMono, 12);
+    end;
   end;
   Opt := Db.Optimized and (IsTia(Project.Family));
   if Db.IsUdt then
@@ -12179,6 +12696,27 @@ begin
     D.Layer := lyText;
     Txt(fkUI, 11, 1040, 120, Format('struct, %d bytes; use as type', [Db.Size]), cInkSoft);
     Txt(fkMonoB, 11.5, 1040, 136, Project.UdtTypeName(Db), cRedDark);
+  end
+  else if Db.ProgramOf < 0 then
+  begin
+    // LOGO!: the instances of the special functions (made at the compile from the program)
+    D.Layer := lyText;
+    TxtFit(fkUI, 10.5, 944, 112, 300, 'the special functions of the program (B001 ..):', cJade);
+    TxtFit(fkUI, 10.5, 944, 128, 300, 'their parameters and values; ▸ opens one', cJade);
+  end
+  else if IsCodesys(Project.Family) then
+  begin
+    D.Layer := lyText;
+    if Db.ProgramOf > 0 then
+    begin
+      TxtFit(fkUI, 10.5, 944, 112, 300, 'the VAR of PROGRAM ' + Db.Name + ': edit them in its', cJade);
+      TxtFit(fkUI, 10.5, 944, 128, 300, 'interface (Program editor); here their values', cJade);
+    end
+    else
+    begin
+      TxtFit(fkUI, 10.5, 944, 112, 300, 'used by name (xStart) or GVL.xStart; no address:', cInkSoft);
+      TxtFit(fkUI, 10.5, 944, 128, 300, 'an I/O variable AT %IX0.0 is on the I/O map', cInkSoft);
+    end;
   end
   else if IsTia(Project.Family) then
   begin
@@ -12191,9 +12729,10 @@ begin
   end
   else
     Txt(fkUI, 11, 1040, 128, 'standard DB, retentive', cInkSoft);
-  Button(1254, 122, 140, 28, IfThen(Db.IsUdt, '+ Member', '+ Variable'), Act(acVarAdd, 0), bsNormal, Db.InstanceOf = 0, 12);
+  Button(1254, 122, 140, 28, IfThen(Db.IsUdt, '+ Member', '+ Variable'), Act(acVarAdd, 0), bsNormal,
+    (Db.InstanceOf = 0) and (Db.ProgramOf = 0), 12);
   Button(1400, 122, 150, 28, IfThen(Db.IsUdt, 'Delete member', 'Delete variable'), Act(acVarDel, 0), bsNormal,
-    (Length(Db.Vars) > 0) and (Db.InstanceOf = 0), 12);
+    (Length(Db.Vars) > 0) and (Db.InstanceOf = 0) and (Db.ProgramOf = 0), 12);
   if Db.InstanceOf > 0 then
   begin
     D.Layer := lyText;
@@ -12202,6 +12741,8 @@ begin
     else
       Txt(fkUI, 11, 1254, 154, Format('FB%d does not exist', [Db.InstanceOf]), cRed);
   end;
+  // the variables as a table file: CSV / Excel XLSX / XML, out and in
+  Button(1400, 152, 150, 26, 'Export / Import ▼', Act(acDbTable, 0), bsGold, True, 11);
   D.Layer := lyText;
   Txt(fkUIB, 11, ColX[0], 164, '#', cInkSoft);
   if Db.IsUdt then Txt(fkUIB, 11, ColX[1], 164, 'Name', cInkSoft)
@@ -12409,7 +12950,7 @@ begin
   D.Layer := lyText;
   Txt(fkUI, 10.5, 380, 818, 'Types: Bool Byte Word DWord Char Int DInt Real Time S5Time Date Time_Of_Day String[n] IEC_TIMER ' +
     IfThen(IsTia(Project.Family), 'SInt USInt UInt UDInt LReal WChar WString DTL TON_TIME CTU_INT R_TRIG  ', '') +
-    IfThen(Project.Family = cfS71500, 'LInt ULInt LWord LTime LTOD LDT  ', '') +
+    IfThen(Has64(Project.Family), 'LInt ULInt LWord LTime LTOD LDT  ', '') +
     'Array[lo..hi, ..] of <type>.  Download to apply.', cInkFaint);
   Txt(fkUI, 10.5, 380, 834, 'PLC data types: ' + IfThen(IsTia(Project.Family), '"Name"', 'UDTn or "Name"') +
     ', also Array[0..3] of ' + IfThen(IsTia(Project.Family), '"Name"', 'UDTn') +
@@ -12708,8 +13249,8 @@ begin
   G := FTagGrpSel;
   Button(ColX[0] - 2, 112, 110, 28, '+ Tag', Act(acTagAdd, 0), bsNormal, True, 12);
   Button(ColX[0] + 114, 112, 110, 28, 'Delete tag', Act(acTagDel, 0), bsNormal, Length(Project.Tags) > 0, 12);
-  Button(1404, 112, 160, 28, 'Export (CSV) ...', Act(acExportPc, 6 * 4096), bsGold, Length(Project.Tags) > 0, 12);
-  Button(1236, 112, 160, 28, 'Import (CSV) ...', Act(acTagImport, 0), bsGold, True, 12);
+  Button(1404, 112, 160, 28, 'Export ▼', Act(acTagExpMenu, 0), bsGold, Length(Project.Tags) > 0, 12);
+  Button(1236, 112, 160, 28, 'Import ...', Act(acTagImport, 0), bsGold, True, 12);
   D.Layer := lyText;
   if G >= 0 then
     TxtFit(fkUI, 11, 576, 118, 320, Format('Group "%s": %d tags; + Tag adds into it', [Project.TagGroups[G].Name,
@@ -13375,7 +13916,7 @@ begin
     if IsTia(Project.Family) then L.Add('WChar');
     if IsTia(Project.Family) then L.Add('WString[20]');
     if IsTia(Project.Family) then L.Add('LReal');
-    if Project.Family = cfS71500 then
+    if Has64(Project.Family) then
     begin
       L.Add('LInt');
       L.Add('ULInt');
@@ -13400,7 +13941,7 @@ begin
         L.Add('CTD_INT');
         L.Add('CTUD_INT');
         L.Add('CTU_DINT');
-        if Project.Family = cfS71500 then L.Add('TON_LTIME');
+        if Has64(Project.Family) then L.Add('TON_LTIME');
       end;
       L.Add('R_TRIG');
       L.Add('F_TRIG');
@@ -13534,10 +14075,11 @@ var
   X, Y: Single;
   F: TCpuFamily;
   On, Tia: Boolean;
+  S: string;
 
   function BitAddr(B, Bit: Integer): string;
   begin
-    Result := Format('%sM%d.%d', [IfThen(IsTia(Project.Family), '%', ''), B, Bit]);
+    Result := IoName(arM, osBit, B, Bit);
   end;
 
 begin
@@ -13568,6 +14110,20 @@ begin
   Txt(fkUI, 10.5, 44, 400, 'Export: PNG / GIF / MP4 / SVG of the main picture and of every layer', cInkFaint);
   Txt(fkUI, 10.5, 44, 416, '(paper, sheets, ornaments, controls, text, overlay) in the info window.', cInkFaint);
 
+  // settings (LOGO!: none of them: M8 is its startup flag, the clock is the one of the CPU screen)
+  if IsLogo(Project.Family) then
+  begin
+    D.Layer := lyText;
+    Txt(fkUIB, 12, 44, 520, 'LOGO!', cInk);
+    Txt(fkUI, 11, 44, 544, 'No cyclic interrupt, no clock / system memory byte: the LOGO! has', cInkSoft);
+    Txt(fkUI, 11, 44, 562, 'M8 (1 in the first cycle), the asynchronous pulse generator for a', cInkSoft);
+    Txt(fkUI, 11, 44, 580, 'blink, the weekly / yearly timers on the PLC clock (CPU screen).', cInkSoft);
+    Txt(fkUI, 11, 44, 610, 'Names: I1 .. I24, Q1 .. Q20, M1 .. M64, AI1 .. AI8 (0 .. 1000),', cInkSoft);
+    Txt(fkUI, 11, 44, 628, 'AQ1 .. AQ8, AM1 .. AM64, F1 .. F4 (the cursor keys), S1.1 .. S4.8,', cInkSoft);
+    Txt(fkUI, 11, 44, 646, 'NI1 .., NQ1 .. (network); hi / lo: 1 / 0 on a pin.', cInkSoft);
+  end
+  else
+  begin
   // settings
   Txt(fkUIB, 12, 54, 520, 'Cyclic interrupt OB' + IntToStr(Project.CyclicOB), cInk);
   Txt(fkUI, 10, 44, 540, 'interval in ms', cInkSoft);
@@ -13608,35 +14164,39 @@ begin
     Txt(fkUI, 10.5, 344, 559, 'the ' + FamilyNames[Project.Family] + ' has no system memory byte', cInkFaint);
   end;
 
-  // new project: every CPU of the four families
+  end;
+
+  // new project: every CPU of every family, a column each
   D.Layer := lyText;
-  for I := 0 to 3 do
+  for F := Low(TCpuFamily) to High(TCpuFamily) do
   begin
-    F := TCpuFamily(I);
-    X := 700 + I * 220;
+    X := 690 + Ord(F) * 147;
     Y := 112;
     D.Layer := lySheets;
-    Shad(X, Y, 208, 250, 6, 2, 5, 70);
-    RR(X, Y, 208, 250, 6, cSheet2);
+    Shad(X, Y, 141, 250, 6, 2, 5, 70);
+    RR(X, Y, 141, 250, 6, cSheet2);
     D.Layer := lyOrnament;
-    RRL(X + 4, Y + 4, 200, 242, 4, 0.8, Alpha(cRed, 150));
+    RRL(X + 4, Y + 4, 133, 242, 4, 0.8, Alpha(cRed, 150));
     D.Layer := lyText;
-    Txt(fkUIB, 15, X + 14, Y + 10, FamilyNames[F], cRedDark);
+    Txt(fkUIB, 14, X + 10, Y + 10, FamilyNames[F], cRedDark);
     case F of
-      cfS7300: Txt(fkUI, 10, X + 14, Y + 32, 'STL + LAD, S5 timers, 2 ACCUs', cInkSoft);
-      cfS7400: Txt(fkUI, 10, X + 14, Y + 32, 'STL + LAD, 4 ACCUs (ENT)', cInkSoft);
-      cfS71500: Txt(fkUI, 10, X + 14, Y + 32, 'LAD + SCL + STL, IEC timers', cInkSoft);
+      cfS7300: S := 'STL + LAD, S5 timers, 2 ACCUs';
+      cfS7400: S := 'STL + LAD, 4 ACCUs (ENT)';
+      cfS71500: S := 'LAD + SCL + STL, IEC timers';
+      cfCodesys: S := 'IEC 61131-3: ST, LD, FBD, CFC';
+      cfLogo: S := 'FBD / LAD, GF + SF blocks';
     else
-      Txt(fkUI, 10, X + 14, Y + 32, 'LAD + SCL, TON / CTU, NORM_X', cInkSoft);
+      S := 'LAD + SCL, TON / CTU, NORM_X';
     end;
+    TxtFit(fkUI, 9, X + 10, Y + 32, 124, S, cInkSoft);
     Y := Y + 56;
     for K := 0 to ModelCount - 1 do
       if Models[K].Family = F then
       begin
         if K = Project.ModelIdx then
-          Button(X + 12, Y, 184, 30, Models[K].Name, Act(acNew, K), bsToggleOn, True, 11)
+          Button(X + 7, Y, 127, 30, Models[K].Name, Act(acNew, K), bsToggleOn, True, 9.5)
         else
-          Button(X + 12, Y, 184, 30, Models[K].Name, Act(acNew, K), bsNormal, True, 11);
+          Button(X + 7, Y, 127, 30, Models[K].Name, Act(acNew, K), bsNormal, True, 9.5);
         Y := Y + 36;
       end;
   end;
@@ -13874,6 +14434,19 @@ begin
 
   // ---------- S7 ----------
   X := 560;
+  if IsCodesys(M.Family) then
+  begin
+    // a CODESYS controller speaks no S7: Modbus TCP (right), the IPC pipe (left); OPC UA is not simulated
+    D.Layer := lyText;
+    Txt(fkUIB, 13, X, 119, 'Not on CODESYS', cInkSoft);
+    Txt(fkUI, 11, X, 146, 'A CODESYS controller has no S7 server (PUT / GET, snap7).', cInkSoft);
+    Txt(fkUI, 11, X, 164, 'HMI / SCADA reach it here with Modbus TCP (right) or', cInkSoft);
+    Txt(fkUI, 11, X, 182, 'a program on this PC through the IPC pipe (left).', cInkSoft);
+    Txt(fkUI, 10.5, X, 214, 'A real one also has OPC UA and its own protocol (CODESYS', cInkFaint);
+    Txt(fkUI, 10.5, X, 230, 'gateway); the Virtual PLC simulates neither.', cInkFaint);
+  end
+  else
+  begin
   Switch(X, 118, 46, 22, Project.Comm.S7On, Act(acS7On, 0));
   D.Layer := lyText;
   Txt(fkUIB, 13, X + 56, 119, 'S7 server (PUT / GET, HMI, snap7)', cInk);
@@ -13906,6 +14479,7 @@ begin
   Button(X, 326, 150, 30, 'S7 self test', Act(acTestS7, 0), bsPrimary, Hub.Listening[prS7], 12);
   D.Layer := lyText;
   Txt(fkUI, 10.5, X + 160, 334, 'connects to ' + TestIp + ', writes / reads MW100', cInkFaint);
+  end;
 
   // ---------- Modbus ----------
   X := 1096;
@@ -13923,6 +14497,17 @@ begin
   El(X + 4, 206, 5, 5, C);
   D.Layer := lyText;
   TxtFit(fkUI, 11, X + 16, 198, 460, Hub.Status[prModbus], C);
+  if IsCodesys(M.Family) then
+  begin
+    // the same registers as CODESYS writes them: a word number
+    Txt(fkMono, 10.5, X, 222, 'coil n            = %QX n/8 . n mod 8 (FC 1 5 15)', cInk);
+    Txt(fkMono, 10.5, X, 238, 'discrete input n  = %IX n/8 . n mod 8 (FC 2)', cInk);
+    Txt(fkMono, 10.5, X, 254, 'input register n  = %IW n             (FC 4)', cInk);
+    Txt(fkMono, 10.5, X, 270, 'holding reg. n    = %MW n             (FC 3 6 16)', cInk);
+    Txt(fkUI, 10.5, X, 290, 'e.g. %IW1 = input register 1, %MW10 = holding register 10', cInkSoft);
+  end
+  else
+  begin
   Txt(fkMono, 10.5, X, 222, 'coil n            = Q n/8 . n mod 8   (FC 1 5 15)', cInk);
   Txt(fkMono, 10.5, X, 238, 'discrete input n  = I n/8 . n mod 8   (FC 2)', cInk);
   Txt(fkMono, 10.5, X, 254, 'input register n  = IW 2n             (FC 4)', cInk);
@@ -13932,6 +14517,7 @@ begin
     Txt(fkMono, 10.5, X, 270, 'holding reg. n    = MW 2n             (FC 3 6 16)', cInk);
   Txt(fkUI, 10.5, X, 290, Format('e.g. %%IW%d = input register %d, MW20 = holding register 10', [M.AIWord, M.AIWord div 2]),
     cInkSoft);
+  end;
   Button(X, 326, 170, 30, 'Modbus self test', Act(acTestMb, 0), bsPrimary, Hub.Listening[prModbus], 12);
   D.Layer := lyText;
   Txt(fkUI, 10.5, X + 180, 334, 'writes / reads register 50', cInkFaint);
@@ -14220,7 +14806,19 @@ begin
         MarkDirty;
       end;
     acIfSec:
-      if (CurBlock <> nil) and (CurBlock.Kind <> bkOB) then
+      if (CurBlock <> nil) and (CurBlock.Kind = bkOB) and IsCodesys(Project.Family) then
+      begin
+        // a PROGRAM: VAR <-> VAR_TEMP
+        B := CurBlock;
+        if (Par > High(B.Iface.Vars)) or B.Iface.Vars[Par].System then Exit;
+        Nm := B.Iface.Vars[Par].Name;
+        if B.Iface.Vars[Par].Section = vsStatic then B.Iface.Vars[Par].Section := vsTemp
+        else B.Iface.Vars[Par].Section := vsStatic;
+        Project.SyncObIface(B);
+        FIfSel := Max(0, B.Iface.FindVar(Nm));
+        MarkDirty;
+      end
+      else if (CurBlock <> nil) and (CurBlock.Kind <> bkOB) then
       begin
         B := CurBlock;
         if Par > High(B.Iface.Vars) then Exit;
@@ -14719,7 +15317,7 @@ begin
           Exit;
         end;
         Ok := O.A.Area in [arI, arQ, arPI, arPQ];
-        if (Project.Family = cfS7400) and (O.A.Area = arM) then Ok := True;
+        if ((Project.Family = cfS7400) or IsCodesys(Project.Family)) and (O.A.Area = arM) then Ok := True;
         if not Ok then
         begin
           Toast(Format('%s: only %s can be forced on the %s', [Project.Watch[FWatchSel].Address,
@@ -14950,16 +15548,26 @@ begin
     acExportPc: ChooseExport(Par div 4096, (Par mod 4096) div 1024, Par mod 1024);
     acNetHead: DoClick(Act(acNetSel, Par), '');
     acWatchMenu:
-      OpenCtx(830, 142, ['Save', 'Open ...', 'Save As ...', 'Export (CSV) ...', 'Import (CSV) ...',
+      OpenCtx(830, 142, ['Save', 'Open ...', 'Save As ...', 'Export (CSV) ...', 'Export (Excel XLSX) ...',
+        'Export (XML) ...', 'Import (CSV / XLSX / XML) ...',
         IfThen(MiniOpen, 'Close the Mini Watch', 'Mini Watch (a window of its own)') + #9'Ctrl+M'],
-        [Act(acWatchFile, 0), Act(acWatchFile, 1), Act(acWatchFile, 2), Act(acWatchFile, 3), Act(acWatchFile, 4),
-        Act(acMiniShow, 0)],
-        [Length(Project.Watch) > 0, True, Length(Project.Watch) > 0, Length(Project.Watch) > 0, True, True]);
+        [Act(acWatchFile, 0), Act(acWatchFile, 1), Act(acWatchFile, 2), Act(acWatchFile, 3), Act(acWatchFile, 5),
+        Act(acWatchFile, 6), Act(acWatchFile, 4), Act(acMiniShow, 0)],
+        [Length(Project.Watch) > 0, True, Length(Project.Watch) > 0, Length(Project.Watch) > 0,
+        Length(Project.Watch) > 0, Length(Project.Watch) > 0, True, True]);
     acWatchFile: WatchMenu(Par);
+    acDbTable:
+      if CurDB <> nil then
+        OpenCtx(FMX - 150, FMY + 14, ['Export (CSV) ...', 'Export (Excel XLSX) ...', 'Export (XML) ...',
+          'Import (CSV / XLSX / XML) ...'],
+          [Act(acDbFile, 0), Act(acDbFile, 1), Act(acDbFile, 2), Act(acDbFile, 3)],
+          [True, True, True, (CurDB.InstanceOf = 0) and (CurDB.ProgramOf = 0)]);
+    acDbFile: DbFileMenu(Par);
     acSclSrcMenu:
       OpenCtx(FMX, FMY, ['Import .scl source ...', 'Export this block as .scl ...', 'Export the project as .scl ...',
-        'All variables ...', 'All elements ...'], [Act(acSclSrc, 0), Act(acSclSrc, 1), Act(acSclSrc, 2),
-        Act(acSclSrc, 3), Act(acSclSrc, 4)], [True, CurBlock <> nil, True, True, True]);
+        'All variables ...', 'All elements ...', 'Export PLCopen XML (CODESYS) ...', 'Import PLCopen XML (CODESYS) ...'],
+        [Act(acSclSrc, 0), Act(acSclSrc, 1), Act(acSclSrc, 2), Act(acSclSrc, 3), Act(acSclSrc, 4), Act(acSclSrc, 5),
+        Act(acSclSrc, 6)], [True, CurBlock <> nil, True, True, True, True, True]);
     acSclSrc: SclSourceMenu(Par);
     acGrpSel..acDbScl: GroupAction(Code, Par);
     acRightTab: FRightTab := Par;
@@ -15066,6 +15674,8 @@ begin
     acXrefRow: XrefJump(Par);
     acXrefOpen: XrefOpen(FXrefAsk, CurBlock);
     acMiniAdd: MiniAdd(FXrefAsk);
+    acLogoSoft: LogoSoftkey(Par);
+    acLogoExport: LogoExportDialog;
     acWatchSub: if Par <= High(FWRows) then FWatchSel := FWRows[Par].WI;
     acWatchSubOn:
       if (Par <= High(FWRows)) and FWRows[Par].Sub then
@@ -15329,7 +15939,7 @@ begin
             SL.Add('LReal');
             SL.Add('WChar');
           end;
-          if Project.Family = cfS71500 then
+          if Has64(Project.Family) then
           begin
             SL.Add('LInt');
             SL.Add('ULInt');
@@ -15458,12 +16068,16 @@ begin
           0: DoClick(Act(acLoad, FFileCtx), '');
           1: ShowInExplorer(ProjectsDir + FFiles[FFileCtx], True);
         end;
+    acTagExpMenu:
+      OpenCtx(1404, 142, ['Export (CSV) ...', 'Export (Excel XLSX) ...', 'Export (XML) ...'],
+        [Act(acExportPc, 6 * 4096), Act(acExportPc, 6 * 4096 + 3 * 1024), Act(acExportPc, 6 * 4096 + 4 * 1024)],
+        [True, True, True]);
     acTagImport:
       begin
         Od := TOpenDialog.Create(nil);
         try
           Od.Title := 'Import tags';
-          Od.Filter := 'CSV (*.csv;*.txt)|*.csv;*.txt|All files (*.*)|*.*';
+          Od.Filter := TableFilter;
           Od.InitialDir := ExtractFilePath(ParamStr(0)) + 'export';
           Od.Options := [ofFileMustExist, ofEnableSizing];
           if Od.Execute then Toast('Import: ' + ImportTags(Od.FileName));
@@ -15496,6 +16110,12 @@ var
   I: Integer;
   V: Boolean;
 begin
+  // LOGO!: a cursor key is F1 .. F4 (I8.0 .. I8.3) while it is pressed
+  if Id shr 16 = acLogoKey then
+  begin
+    Rt.SetSimBit(8, Id and 3, Down);
+    Exit;
+  end;
   if Id shr 16 <> acDI then Exit;
   I := Id and $FFFF;
   FDIPressed[I] := Down;
@@ -15684,7 +16304,7 @@ begin
       FVarDragOn := False;
       FDropKind := 0;
       if (CurBlock = nil) or (I > High(CurBlock.Iface.Vars)) then Exit;
-      FVarDrag := '#' + CurBlock.Iface.Vars[I].Name;
+      FVarDrag := IfThen(IsCodesys(Project.Family), '', '#') + CurBlock.Iface.Vars[I].Name;
       FVarX0 := X;
       FVarY0 := Y;
       Exit;
@@ -15705,7 +16325,7 @@ begin
       FDropKind := 0;
       if (CurBlock = nil) or (I > High(FIfRows)) or (FIfRows[I].Vi > High(CurBlock.Iface.Vars)) then Exit;
       FIfSel := FIfRows[I].Vi;
-      FVarDrag := '#' + CurBlock.Iface.Vars[FIfRows[I].Vi].Name + FIfRows[I].Path;
+      FVarDrag := IfThen(IsCodesys(Project.Family), '', '#') + CurBlock.Iface.Vars[FIfRows[I].Vi].Name + FIfRows[I].Path;
       FVarX0 := X;
       FVarY0 := Y;
       Exit;

@@ -32,7 +32,9 @@ uses
   Classes, SysUtils, Math;
 
 type
-  TCpuFamily = (cfS7300, cfS7400, cfS71200, cfS71500);
+  TCpuFamily = (cfS7300, cfS7400, cfS71200, cfS71500,
+    cfCodesys,    // CODESYS V3 (IEC 61131-3): %IX / %MW addresses, GVLs, PLC_PRG, no STL, no S5
+    cfLogo);      // Siemens LOGO! 8: I1 Q1 M1 AI1 AQ1 AM1, FBD with the blocks B001 .. (basic / special functions)
   TArea = (arNone, arI, arQ, arM, arDB, arDI, arL, arT, arC, arPI, arPQ);
   TOpSize = (osBit, osByte, osWord, osDWord);
   TDataType = (dtNone, dtBool, dtByte, dtWord, dtDWord, dtChar, dtSInt, dtUSInt, dtInt, dtUInt,
@@ -98,7 +100,7 @@ type
   end;
 
 const
-  FamilyNames: array[TCpuFamily] of string = ('S7-300', 'S7-400', 'S7-1200', 'S7-1500');
+  FamilyNames: array[TCpuFamily] of string = ('S7-300', 'S7-400', 'S7-1200', 'S7-1500', 'CODESYS', 'LOGO!');
   AreaNames: array[TArea] of string = ('', 'I', 'Q', 'M', 'DB', 'DI', 'L', 'T', 'C', 'PI', 'PQ');
   DataTypeNames: array[TDataType] of string = ('', 'Bool', 'Byte', 'Word', 'DWord', 'Char', 'SInt',
     'USInt', 'Int', 'UInt', 'DInt', 'UDInt', 'Real', 'Time', 'S5Time', 'Date', 'Time_Of_Day',
@@ -108,7 +110,7 @@ const
   Int64Types = [dtLWord, dtLInt, dtULInt, dtLTime, dtLTOD, dtLDT, dtDT];
   RealTypes = [dtReal, dtLReal];
 
-  ModelCount = 15;
+  ModelCount = 23;
   Models: array[0..ModelCount - 1] of TCpuModel = (
     (Family: cfS7300; Name: 'CPU 314'; OrderNo: '6ES7 314-1AG14-0AB0'; Firmware: 'V3.3';
      WorkMem: 128 * 1024; LoadMem: 8 * 1024 * 1024; InBytes: 1024; OutBytes: 1024; MBytes: 256;
@@ -200,13 +202,77 @@ const
      LBytes: 65536; Timers: 2048; Counters: 2048; MaxDB: 60999; MaxDBSize: 16 * 1024 * 1024; Accus: 4;
      BitNs: 1; WordNs: 2; FixNs: 1; FloatNs: 6; OsUs: 20; CyclicOB: 30; WatchdogMs: 150;
      ForceAreas: [arPI, arPQ];
-     DI: 32; DQ: 32; AI: 8; AQ: 4; DIByte: 0; DQByte: 0; AIWord: 4; AQWord: 4));
+     DI: 32; DQ: 32; AI: 8; AQ: 4; DIByte: 0; DQByte: 0; AIWord: 4; AQWord: 4),
+    // CODESYS V3: a soft PLC on the PC and controllers that run CODESYS (I/O from %IX0.0 / %QX0.0, analog from
+    // %IW1 / %QW1); no S5 timers, the IEC ones of the Standard library
+    (Family: cfCodesys; Name: 'Control Win V3'; OrderNo: 'CODESYS Control Win V3 x64'; Firmware: 'V3.5 SP19';
+     WorkMem: 64 * 1024 * 1024; LoadMem: 64 * 1024 * 1024; InBytes: 4096; OutBytes: 4096; MBytes: 65536;
+     LBytes: 65536; Timers: 0; Counters: 0; MaxDB: 255; MaxDBSize: 1048576; Accus: 4;
+     BitNs: 2; WordNs: 2; FixNs: 3; FloatNs: 4; OsUs: 25; CyclicOB: 30; WatchdogMs: 1000;
+     ForceAreas: [arI, arQ, arM];
+     DI: 16; DQ: 16; AI: 4; AQ: 2; DIByte: 0; DQByte: 0; AIWord: 2; AQWord: 2),
+    (Family: cfCodesys; Name: 'WAGO PFC200'; OrderNo: '750-8212 (PFC200 G2)'; Firmware: 'FW 26';
+     WorkMem: 60 * 1024 * 1024; LoadMem: 4 * 1024 * 1024; InBytes: 2048; OutBytes: 2048; MBytes: 65536;
+     LBytes: 65536; Timers: 0; Counters: 0; MaxDB: 255; MaxDBSize: 1048576; Accus: 4;
+     BitNs: 8; WordNs: 8; FixNs: 10; FloatNs: 14; OsUs: 60; CyclicOB: 30; WatchdogMs: 1000;
+     ForceAreas: [arI, arQ, arM];
+     DI: 8; DQ: 8; AI: 4; AQ: 2; DIByte: 0; DQByte: 0; AIWord: 2; AQWord: 2),
+    (Family: cfCodesys; Name: 'Schneider M241'; OrderNo: 'TM241CE24R'; Firmware: 'V5.2';
+     WorkMem: 8 * 1024 * 1024; LoadMem: 128 * 1024 * 1024; InBytes: 1024; OutBytes: 1024; MBytes: 32768;
+     LBytes: 32768; Timers: 0; Counters: 0; MaxDB: 255; MaxDBSize: 262144; Accus: 4;
+     BitNs: 22; WordNs: 22; FixNs: 30; FloatNs: 60; OsUs: 120; CyclicOB: 30; WatchdogMs: 1000;
+     ForceAreas: [arI, arQ, arM];
+     DI: 14; DQ: 10; AI: 0; AQ: 0; DIByte: 0; DQByte: 0; AIWord: 2; AQWord: 2),
+    (Family: cfCodesys; Name: 'ABB AC500 PM5650'; OrderNo: 'PM5650-2ETH'; Firmware: 'V3.6';
+     WorkMem: 80 * 1024 * 1024; LoadMem: 64 * 1024 * 1024; InBytes: 4096; OutBytes: 4096; MBytes: 65536;
+     LBytes: 65536; Timers: 0; Counters: 0; MaxDB: 255; MaxDBSize: 1048576; Accus: 4;
+     BitNs: 4; WordNs: 4; FixNs: 6; FloatNs: 8; OsUs: 40; CyclicOB: 30; WatchdogMs: 1000;
+     ForceAreas: [arI, arQ, arM];
+     DI: 8; DQ: 8; AI: 4; AQ: 2; DIByte: 0; DQByte: 0; AIWord: 2; AQWord: 2),
+    // LOGO! 8.3: the inputs I1 .. from byte 0, the outputs Q1 .. from byte 0, AI1 .. AI8 from IW64 (0 .. 1000),
+    // AQ1 .. from QW64, M1 .. M64 bytes 0..7, AM1 .. AM64 from MW16, the cursor keys F1 .. F4 in I8.0 .. I8.3
+    (Family: cfLogo; Name: 'LOGO! 12/24RCE'; OrderNo: '6ED1052-1MD08-0BA1'; Firmware: '8.3';
+     WorkMem: 256 * 1024; LoadMem: 400 * 1024; InBytes: 128; OutBytes: 128; MBytes: 256;
+     LBytes: 4096; Timers: 0; Counters: 0; MaxDB: 2; MaxDBSize: 65535; Accus: 2;
+     BitNs: 200; WordNs: 400; FixNs: 400; FloatNs: 800; OsUs: 400; CyclicOB: 30; WatchdogMs: 1000;
+     ForceAreas: [arI, arQ, arM];
+     DI: 8; DQ: 4; AI: 4; AQ: 0; DIByte: 0; DQByte: 0; AIWord: 64; AQWord: 64),
+    (Family: cfLogo; Name: 'LOGO! 24CE'; OrderNo: '6ED1052-1CC08-0BA1'; Firmware: '8.3';
+     WorkMem: 256 * 1024; LoadMem: 400 * 1024; InBytes: 128; OutBytes: 128; MBytes: 256;
+     LBytes: 4096; Timers: 0; Counters: 0; MaxDB: 2; MaxDBSize: 65535; Accus: 2;
+     BitNs: 200; WordNs: 400; FixNs: 400; FloatNs: 800; OsUs: 400; CyclicOB: 30; WatchdogMs: 1000;
+     ForceAreas: [arI, arQ, arM];
+     DI: 8; DQ: 4; AI: 4; AQ: 0; DIByte: 0; DQByte: 0; AIWord: 64; AQWord: 64),
+    (Family: cfLogo; Name: 'LOGO! 230RCE'; OrderNo: '6ED1052-1FB08-0BA1'; Firmware: '8.3';
+     WorkMem: 256 * 1024; LoadMem: 400 * 1024; InBytes: 128; OutBytes: 128; MBytes: 256;
+     LBytes: 4096; Timers: 0; Counters: 0; MaxDB: 2; MaxDBSize: 65535; Accus: 2;
+     BitNs: 200; WordNs: 400; FixNs: 400; FloatNs: 800; OsUs: 400; CyclicOB: 30; WatchdogMs: 1000;
+     ForceAreas: [arI, arQ, arM];
+     DI: 8; DQ: 4; AI: 0; AQ: 0; DIByte: 0; DQByte: 0; AIWord: 64; AQWord: 64),
+    (Family: cfLogo; Name: 'LOGO! 24RCE + DM16'; OrderNo: '6ED1052-1HB08-0BA1 + DM16 24R + AM2 AQ'; Firmware: '8.3';
+     WorkMem: 256 * 1024; LoadMem: 400 * 1024; InBytes: 128; OutBytes: 128; MBytes: 256;
+     LBytes: 4096; Timers: 0; Counters: 0; MaxDB: 2; MaxDBSize: 65535; Accus: 2;
+     BitNs: 200; WordNs: 400; FixNs: 400; FloatNs: 800; OsUs: 400; CyclicOB: 30; WatchdogMs: 1000;
+     ForceAreas: [arI, arQ, arM];
+     DI: 16; DQ: 12; AI: 6; AQ: 2; DIByte: 0; DQByte: 0; AIWord: 64; AQWord: 64));
 
 function NoAddr: TAddr;
 function MakeAddr(AArea: TArea; ASize: TOpSize; AOfs: Integer; ABit: Integer = 0; ADB: Integer = 0): TAddr;
 { absolute address; Err is empty on success }
 function ParseAddr(const S: string; out A: TAddr; out Err: string): Boolean;
 function FormatAddr(const A: TAddr; Family: TCpuFamily): string;
+{ the CODESYS addresses: %IX0.0, %IB1, %IW1 (= bytes 2..3), %ID1 (= bytes 4..7), %QX, %MX, %MW ..; only % forms }
+function ParseCodesysAddr(const S: string; out A: TAddr; out Err: string): Boolean;
+{ the LOGO! names: I1..I24, Q1..Q20, M1..M64, AI1..AI8, AQ1..AQ8, AM1..AM64, F1..F4, S1.1..S4.8, NI1..NI64, NQ1..NQ64 }
+function ParseLogoAddr(const S: string; out A: TAddr; out Err: string): Boolean;
+function FormatLogoAddr(const A: TAddr): string;
+
+var
+  { the addresses are read the CODESYS way (TResolver.Create sets it from the project): only %IX0.0 / %MW1
+    forms, %MW / %MD count words / double words; a name without % is a variable }
+  CodesysAddr: Boolean = False;
+  { the same for LOGO! (I1, Q1, AI1 ..) }
+  LogoAddr: Boolean = False;
 { the address after A: the next bit, the next byte / word / double word (Bytes: the size of A's value),
   the next timer / counter }
 function NextAddr(const A: TAddr; Bytes: Integer): TAddr;
@@ -268,8 +334,13 @@ function StrToFloatDot(const S: string; out V: Double): Boolean;
 function FloatToStrDot(V: Double): string;
 function ModelIndexByName(const AName: string): Integer;
 { family rules }
-function IsTia(F: TCpuFamily): Boolean;          // S7-1200 / 1500: %addresses, optimized DBs, PUT/GET, retain flags
-function HasStl(F: TCpuFamily): Boolean;         // all but the S7-1200
+function IsTia(F: TCpuFamily): Boolean;          // IEC style (S7-1200 / 1500, CODESYS): %addresses, IEC timers, symbolic, retain flags
+function IsCodesys(F: TCpuFamily): Boolean;      // CODESYS V3: GVLs, PLC_PRG, %MW = a word number
+function IsLogo(F: TCpuFamily): Boolean;         // LOGO! 8: I1 / Q1 / AI1 .., the blocks B001 .. of one FBD program
+function HasStl(F: TCpuFamily): Boolean;         // S7-300 / 400 / 1500
+function HasS5(F: TCpuFamily): Boolean;          // the S5 timers / counters (T, C): S7-300 / 400 / 1500
+function Has64(F: TCpuFamily): Boolean;          // LInt, ULInt, LWord, LTime, LTOD, LDT: S7-1500, CODESYS
+function HasDBs(F: TCpuFamily): Boolean;         // data blocks DBn (the others: GVLs, no absolute DB access)
 function StopOnProgError(F: TCpuFamily): Boolean;  // no OB121: STOP (the S7-1200 goes on)
 function StopOnStationFailure(F: TCpuFamily): Boolean;  // no OB86: STOP on S7-300/400 only
 
@@ -277,12 +348,37 @@ implementation
 
 function IsTia(F: TCpuFamily): Boolean;
 begin
-  Result := F in [cfS71200, cfS71500];
+  Result := F in [cfS71200, cfS71500, cfCodesys, cfLogo];
+end;
+
+function IsCodesys(F: TCpuFamily): Boolean;
+begin
+  Result := F = cfCodesys;
+end;
+
+function IsLogo(F: TCpuFamily): Boolean;
+begin
+  Result := F = cfLogo;
 end;
 
 function HasStl(F: TCpuFamily): Boolean;
 begin
-  Result := F <> cfS71200;
+  Result := F in [cfS7300, cfS7400, cfS71500];
+end;
+
+function HasS5(F: TCpuFamily): Boolean;
+begin
+  Result := F in [cfS7300, cfS7400, cfS71500];
+end;
+
+function Has64(F: TCpuFamily): Boolean;
+begin
+  Result := F in [cfS71500, cfCodesys];
+end;
+
+function HasDBs(F: TCpuFamily): Boolean;
+begin
+  Result := F in [cfS7300, cfS7400, cfS71200, cfS71500];
 end;
 
 function StopOnProgError(F: TCpuFamily): Boolean;
@@ -413,6 +509,8 @@ var
   end;
 
 begin
+  if CodesysAddr then Exit(ParseCodesysAddr(S, A, Err));
+  if LogoAddr then Exit(ParseLogoAddr(S, A, Err));
   Result := False;
   Err := '';
   A := NoAddr;
@@ -593,13 +691,245 @@ begin
   until not Taken(Result);
 end;
 
+function ParseCodesysAddr(const S: string; out A: TAddr; out Err: string): Boolean;
+var
+  T: string;
+  P, N, I: Integer;
+begin
+  Result := False;
+  Err := '';
+  A := NoAddr;
+  T := '';
+  for I := 1 to Length(S) do
+    if not (S[I] in [' ', #9]) then T := T + UpCase(S[I]);
+  if (T = '') or (T[1] <> '%') then
+  begin
+    Err := 'an address starts with % (%IX0.0, %QW1, %MD2)';
+    Exit;
+  end;
+  if Length(T) < 3 then
+  begin
+    Err := 'address expected: %IX0.0, %QW1, %MD2';
+    Exit;
+  end;
+  case T[2] of
+    'I': A.Area := arI;
+    'Q': A.Area := arQ;
+    'M': A.Area := arM;
+  else
+    begin
+      Err := 'area I, Q or M expected (%IX0.0, %QX0.0, %MW0)';
+      Exit;
+    end;
+  end;
+  P := 3;
+  case T[3] of
+    'X': begin A.Size := osBit; Inc(P); end;
+    'B': begin A.Size := osByte; Inc(P); end;
+    'W': begin A.Size := osWord; Inc(P); end;
+    'D': begin A.Size := osDWord; Inc(P); end;
+    '0'..'9': A.Size := osBit;   // %I0.0: a bit
+  else
+    begin
+      Err := 'size X, B, W or D expected (%IX0.0, %IB0, %IW0, %ID0)';
+      Exit;
+    end;
+  end;
+  N := ReadNum(T, P);
+  if N < 0 then
+  begin
+    Err := 'number expected';
+    Exit;
+  end;
+  case A.Size of
+    osWord: A.Ofs := N * 2;
+    osDWord: A.Ofs := N * 4;
+  else
+    A.Ofs := N;
+  end;
+  if A.Size = osBit then
+  begin
+    if (P > Length(T)) or (T[P] <> '.') then
+    begin
+      Err := 'bit number expected (%IX0.0)';
+      Exit;
+    end;
+    Inc(P);
+    N := ReadNum(T, P);
+    if (N < 0) or (N > 7) then
+    begin
+      Err := 'bit number must be 0..7';
+      Exit;
+    end;
+    A.Bit := N;
+  end;
+  if P <= Length(T) then
+  begin
+    Err := 'unexpected "' + Copy(T, P, MaxInt) + '"';
+    Exit;
+  end;
+  Result := True;
+end;
+
+{ LOGO!: the memory as the simulator keeps it (byte offsets) }
+const
+  LogoAIOfs = 64;    // AI1 = IW64, AQ1 = QW64
+  LogoAMOfs = 16;    // AM1 = MW16 .. AM64 = MW142
+  LogoFByte = 8;     // F1 .. F4 = I8.0 .. I8.3
+  LogoSByte = 8;     // S1.1 .. S4.8 = M8.0 .. M11.7
+  LogoNByte = 10;    // NI1 .. NI64 = I10.0 .., NQ1 .. = Q10.0 ..
+
+function ParseLogoAddr(const S: string; out A: TAddr; out Err: string): Boolean;
+var
+  T, Pre: string;
+  P, N, N2, I: Integer;
+
+  function Bits(Area: TArea; Base, Count: Integer): Boolean;
+  begin
+    Result := (N >= 1) and (N <= Count);
+    if not Result then
+    begin
+      Err := Format('%s%d: %s1 .. %s%d', [Pre, N, Pre, Pre, Count]);
+      Exit;
+    end;
+    A.Area := Area;
+    A.Size := osBit;
+    A.Ofs := Base + (N - 1) div 8;
+    A.Bit := (N - 1) mod 8;
+  end;
+
+  function Words(Area: TArea; Base, Count: Integer): Boolean;
+  begin
+    Result := (N >= 1) and (N <= Count);
+    if not Result then
+    begin
+      Err := Format('%s%d: %s1 .. %s%d', [Pre, N, Pre, Pre, Count]);
+      Exit;
+    end;
+    A.Area := Area;
+    A.Size := osWord;
+    A.Ofs := Base + (N - 1) * 2;
+  end;
+
+begin
+  Result := False;
+  Err := '';
+  A := NoAddr;
+  T := '';
+  for I := 1 to Length(S) do
+    if not (S[I] in [' ', #9]) then T := T + UpCase(S[I]);
+  P := 1;
+  while (P <= Length(T)) and (T[P] in ['A'..'Z']) do Inc(P);
+  Pre := Copy(T, 1, P - 1);
+  N := ReadNum(T, P);
+  if (Pre = '') or (N < 0) then
+  begin
+    Err := 'a LOGO! name: I1, Q1, M1, AI1, AQ1, AM1, F1, S1.1, NI1, NQ1';
+    Exit;
+  end;
+  // S1.1 .. S4.8: the bits of the shift registers
+  if Pre = 'S' then
+  begin
+    if (P > Length(T)) or (T[P] <> '.') then
+    begin
+      Err := 'S<register>.<bit>: S1.1 .. S4.8';
+      Exit;
+    end;
+    Inc(P);
+    N2 := ReadNum(T, P);
+    if (N < 1) or (N > 4) or (N2 < 1) or (N2 > 8) or (P <= Length(T)) then
+    begin
+      Err := 'S<register>.<bit>: S1.1 .. S4.8';
+      Exit;
+    end;
+    A.Area := arM;
+    A.Size := osBit;
+    A.Ofs := LogoSByte + N - 1;
+    A.Bit := N2 - 1;
+    Exit(True);
+  end;
+  if P <= Length(T) then
+  begin
+    Err := 'unexpected "' + Copy(T, P, MaxInt) + '"';
+    Exit;
+  end;
+  if Pre = 'I' then Result := Bits(arI, 0, 24)
+  else if Pre = 'Q' then Result := Bits(arQ, 0, 20)
+  else if Pre = 'M' then Result := Bits(arM, 0, 64)
+  else if Pre = 'F' then Result := Bits(arI, LogoFByte, 4)
+  else if Pre = 'NI' then Result := Bits(arI, LogoNByte, 64)
+  else if Pre = 'NQ' then Result := Bits(arQ, LogoNByte, 64)
+  else if Pre = 'AI' then Result := Words(arI, LogoAIOfs, 8)
+  else if Pre = 'AQ' then Result := Words(arQ, LogoAIOfs, 8)
+  else if Pre = 'AM' then Result := Words(arM, LogoAMOfs, 64)
+  else if Pre = 'NAI' then Result := Words(arI, LogoAIOfs + 16, 32)
+  else if Pre = 'NAQ' then Result := Words(arQ, LogoAIOfs + 16, 16)
+  else Err := 'a LOGO! name: I1, Q1, M1, AI1, AQ1, AM1, F1, S1.1, NI1, NQ1';
+end;
+
+function FormatLogoAddr(const A: TAddr): string;
+var
+  N: Integer;
+begin
+  Result := '?';
+  N := A.Ofs * 8 + A.Bit + 1;
+  if A.Size = osBit then
+    case A.Area of
+      arI:
+        if A.Ofs < 3 then Result := 'I' + IntToStr(N)
+        else if A.Ofs = LogoFByte then Result := 'F' + IntToStr(A.Bit + 1)
+        else if (A.Ofs >= LogoNByte) and (A.Ofs < LogoNByte + 8) then Result := 'NI' + IntToStr((A.Ofs - LogoNByte) * 8 + A.Bit + 1);
+      arQ:
+        if A.Ofs < 3 then Result := 'Q' + IntToStr(N)
+        else if (A.Ofs >= LogoNByte) and (A.Ofs < LogoNByte + 8) then Result := 'NQ' + IntToStr((A.Ofs - LogoNByte) * 8 + A.Bit + 1);
+      arM:
+        if A.Ofs < 8 then Result := 'M' + IntToStr(N)
+        else if A.Ofs < 12 then Result := Format('S%d.%d', [A.Ofs - LogoSByte + 1, A.Bit + 1]);
+    end
+  else if A.Size = osWord then
+    case A.Area of
+      arI:
+        if (A.Ofs >= LogoAIOfs) and (A.Ofs < LogoAIOfs + 16) then Result := 'AI' + IntToStr((A.Ofs - LogoAIOfs) div 2 + 1)
+        else if (A.Ofs >= LogoAIOfs + 16) and (A.Ofs < LogoAIOfs + 80) then Result := 'NAI' + IntToStr((A.Ofs - LogoAIOfs - 16) div 2 + 1);
+      arQ:
+        if (A.Ofs >= LogoAIOfs) and (A.Ofs < LogoAIOfs + 16) then Result := 'AQ' + IntToStr((A.Ofs - LogoAIOfs) div 2 + 1)
+        else if (A.Ofs >= LogoAIOfs + 16) and (A.Ofs < LogoAIOfs + 48) then Result := 'NAQ' + IntToStr((A.Ofs - LogoAIOfs - 16) div 2 + 1);
+      arM:
+        if (A.Ofs >= LogoAMOfs) and (A.Ofs < LogoAMOfs + 128) then Result := 'AM' + IntToStr((A.Ofs - LogoAMOfs) div 2 + 1);
+    end;
+  if A.Area = arDB then Result := '';
+end;
+
 function FormatAddr(const A: TAddr; Family: TCpuFamily): string;
 const
   SizeCh: array[TOpSize] of string = ('X', 'B', 'W', 'D');
   SizeCh2: array[TOpSize] of string = ('', 'B', 'W', 'D');
+  CsArea: array[TArea] of string = ('', 'I', 'Q', 'M', '', '', '', '', '', 'I', 'Q');
 var
   Sp, Pre, Ob: string;
 begin
+  if IsLogo(Family) then Exit(FormatLogoAddr(A));
+  if IsCodesys(Family) then
+  begin
+    // %IX0.0, %IB1, %IW1 (bytes 2..3), %ID1 (bytes 4..7); a word / double word not on its own boundary as bytes
+    if CsArea[A.Area] = '' then
+    begin
+      if A.Area = arDB then Result := '' else Result := '?';
+      Exit;
+    end;
+    Result := '%' + CsArea[A.Area];
+    case A.Size of
+      osBit: Result := Result + Format('X%d.%d', [A.Ofs, A.Bit]);
+      osByte: Result := Result + 'B' + IntToStr(A.Ofs);
+      osWord:
+        if A.Ofs mod 2 = 0 then Result := Result + 'W' + IntToStr(A.Ofs div 2)
+        else Result := Result + 'B' + IntToStr(A.Ofs);
+    else
+      if A.Ofs mod 4 = 0 then Result := Result + 'D' + IntToStr(A.Ofs div 4)
+      else Result := Result + 'B' + IntToStr(A.Ofs);
+    end;
+    Exit;
+  end;
   if IsTia(Family) then
   begin
     Sp := '';
