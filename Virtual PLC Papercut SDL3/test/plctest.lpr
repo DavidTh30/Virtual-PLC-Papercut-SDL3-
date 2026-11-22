@@ -8,7 +8,7 @@ program plctest;
 
 uses
   Classes, SysUtils, Math, DateUtils, fpjson, jsonparser, uPlcTypes, uPlcProject, uPlcCompiler, uPlcRuntime, uPlcServer,
-  uPlcClient, uClaude, uExamples, uSclSource, uObCatalog, uSclSig, uXref, uFbd;
+  uPlcClient, uClaude, uExamples, uSclSource, uObCatalog, uSclSig, uXref, uFbd, uPlcOpen, uLogo, uLogoDefs, uPlcExport, uTables;
 
 var
   Fails, Passes: Integer;
@@ -2970,6 +2970,8 @@ begin
     P2 := TPlcProject.Create;
     try
       BuildExample(I, P);
+      // LOGO!: its program is of blocks (FBD), no SCL source
+      if IsLogo(P.Family) then Continue;
       Txt := SclExportAll(P, Rep);
       P2.NewEmpty(P.ModelIdx);
       for Sk := 0 to High(P.Tags) do P2.AddTag(P.Tags[Sk].Name, P.Tags[Sk].TypeText, P.Tags[Sk].Address, P.Tags[Sk].Comment);
@@ -3636,6 +3638,143 @@ end;
 { the cross reference: where an operand is read (a decision) and written (a destination) }
 { the S5 timers / counters of SCL (S_ODT .., S_CU ..) on an S7-300, refused on the S7-1200; as FBD boxes, also from a
   LAD coil converted }
+{ the variables of a DB and the watch table as CSV / Excel XLSX / XML: out and back in }
+procedure TestTables;
+const
+  Exts: array[0..2] of string = ('csv', 'xlsx', 'xml');
+var
+  P, Q: TPlcProject;
+  D, E: TDataBlock;
+  Rows: TCsvRows;
+  Err, Fn, Msg: string;
+  K, Added, Changed, I: Integer;
+
+  function Row(const A: array of string): TCsvRow;
+  var
+    J: Integer;
+  begin
+    SetLength(Result, Length(A));
+    for J := 0 to High(A) do Result[J] := A[J];
+  end;
+
+begin
+  WriteLn('== tables: CSV / XLSX / XML');
+  P := TPlcProject.Create;
+  try
+    D := P.AddDB(1, 'Motor');
+    D.AddVar('Speed', 'Int', '1500', 'set speed, "rpm" & <limit>');
+    D.AddVar('Level', 'Real', '2.5', 'level in %');
+    D.AddVar('Running', 'Bool', 'FALSE', '');
+    D.Vars[0].Retain := True;
+    D.Layout;
+    P.AddWatch('MW10', dfDec, '42');
+    P.AddWatch('"Motor".Speed', dfHex, '');
+    P.Watch[0].ModifyOn := True;
+    for K := 0 to 2 do
+    begin
+      Fn := ExpandFileName('lib\zz_table.' + Exts[K]);
+      WriteTable(Fn, DataBlockRows(D, nil), 'Data block', 'DB1 Motor');
+      Check(ReadTable(Fn, Rows, Err), Exts[K] + ': the DB table reads back ' + Err);
+      Check((Length(Rows) = 4) and (TableColumn(Rows[0], ['Data type']) >= 0), Format('%s: head + 3 rows (%d)', [Exts[K], Length(Rows)]));
+      if Length(Rows) = 4 then
+        Check((Rows[1][TableColumn(Rows[0], ['Comment'])] = 'set speed, "rpm" & <limit>') and
+          (Rows[2][TableColumn(Rows[0], ['Start value'])] = '2.5'), Exts[K] + ': the cells as written');
+      // into a new DB: all added; then again: all changed
+      Q := TPlcProject.Create;
+      try
+        E := Q.AddDB(2, 'Copy');
+        E.AddVar('Old', 'Word', '16#0', '');
+        Msg := ImportDbRows(E, Rows, Added, Changed);
+        Check((Msg = '') and (Added = 3) and (Changed = 0) and (Length(E.Vars) = 4), Format('%s: import adds 3 (%s %d %d)', [Exts[K], Msg, Added, Changed]));
+        I := E.FindVar('Speed');
+        Check((I >= 0) and (E.Vars[I].TypeText = 'Int') and (E.Vars[I].Start = '1500') and E.Vars[I].Retain and
+          (E.Vars[I].Comment = 'set speed, "rpm" & <limit>'), Exts[K] + ': Speed as exported');
+        E.Vars[I].Start := '7';
+        ImportDbRows(E, Rows, Added, Changed);
+        Check((Added = 0) and (Changed = 3) and (E.Vars[E.FindVar('Speed')].Start = '1500'), Exts[K] + ': again: 3 changed');
+        E.InstanceOf := 5;
+        Check(ImportDbRows(E, Rows, Added, Changed) <> '', Exts[K] + ': an instance DB refuses');
+      finally
+        Q.Free;
+      end;
+      // the watch table
+      SetLength(Rows, 3);
+      Rows[0] := Row(['#', 'Address / symbol', 'Format', 'Modify value', 'Modify']);
+      Rows[1] := Row(['1', 'MW10', 'DEC', '42', 'yes']);
+      Rows[2] := Row(['2', '"Motor".Speed', 'HEX', '', '']);
+      WriteTable(Fn, Rows, 'Watch table', 'Watch');
+      Check(ReadTable(Fn, Rows, Err) and (Length(Rows) = 3), Exts[K] + ': the watch table reads back');
+      Q := TPlcProject.Create;
+      try
+        Check(ImportWatchRows(Q, Rows) = 2, Exts[K] + ': 2 watch rows');
+        if Length(Q.Watch) = 2 then
+          Check((Q.Watch[0].Address = 'MW10') and Q.Watch[0].ModifyOn and (Q.Watch[0].ModifyValue = '42') and
+            (Q.Watch[1].Address = '"Motor".Speed') and (Q.Watch[1].Fmt = dfHex), Exts[K] + ': the watch rows as written');
+      finally
+        Q.Free;
+      end;
+      DeleteFile(Fn);
+    end;
+    // a workbook as Excel writes it: shared strings (one rich text), a number, a bool, a gap row, another sheet name
+    Check(ReadTable(ExpandFileName('excel_vars.xlsx'), Rows, Err), 'Excel xlsx reads ' + Err);
+    Check(Length(Rows) >= 4, Format('Excel xlsx: %d rows', [Length(Rows)]));
+    Q := TPlcProject.Create;
+    try
+      E := Q.AddDB(3, 'FromExcel');
+      Msg := ImportDbRows(E, Rows, Added, Changed);
+      Check((Msg = '') and (Added = 3), Format('Excel xlsx: 3 variables (%s %d)', [Msg, Added]));
+      I := E.FindVar('Speed');
+      Check((I >= 0) and (E.Vars[I].Start = '1500') and E.Vars[I].Retain, 'Excel: Speed 1500, retain (a bool cell)');
+      I := E.FindVar('Level');
+      Check((I >= 0) and (E.Vars[I].Comment = 'level in %') and (E.Vars[I].Start = '2.5'), 'Excel: Level, the rich text comment');
+      I := E.FindVar('Tags');
+      Check((I >= 0) and (E.Vars[I].TypeText = 'Array[0..3] of Int'), 'Excel: the array type');
+    finally
+      Q.Free;
+    end;
+    Check(not ReadTable(ExpandFileName('no_such_table.xlsx'), Rows, Err) and (Err <> ''), 'a missing file: an error');
+    // the PLC tags: as this program exports them, in every format; then TIA's head (Logical Address, Data Type)
+    for K := 0 to 2 do
+    begin
+      Fn := ExpandFileName('lib\zz_tags.' + Exts[K]);
+      SetLength(Rows, 3);
+      Rows[0] := Row(['Name', 'Path', 'Data type', 'Address', 'Monitor value', 'Comment']);
+      Rows[1] := Row(['Start', 'Buttons', 'Bool', '%I0.0', 'FALSE', 'start <NO> & "go"']);
+      Rows[2] := Row(['Speed', '', 'Int', '%MW10', '0', '']);
+      WriteTable(Fn, Rows, 'PLC tags', 'PLC tag table');
+      Check(ReadTable(Fn, Rows, Err), Exts[K] + ': the tag table reads back ' + Err);
+      Q := TPlcProject.Create;
+      try
+        Q.AddTag('Speed', 'Word', '%MW20', 'old');
+        ImportTagRows(Q, Rows, Added, Changed);
+        Check((Added = 1) and (Changed = 1), Format('%s: tags 1 added, 1 updated (%d %d)', [Exts[K], Added, Changed]));
+        I := Q.FindTag('Start');
+        Check((I >= 0) and (Q.Tags[I].Address = '%I0.0') and (Q.Tags[I].Comment = 'start <NO> & "go"') and
+          (GroupOfId(Q.TagGroups, Q.Tags[I].GroupId) >= 0), Exts[K] + ': Start, its comment, its group Buttons');
+        I := Q.FindTag('Speed');
+        Check((I >= 0) and (Q.Tags[I].TypeText = 'Int') and (Q.Tags[I].Address = '%MW10'), Exts[K] + ': Speed updated');
+      finally
+        Q.Free;
+      end;
+      DeleteFile(Fn);
+    end;
+    SetLength(Rows, 2);
+    Rows[0] := Row(['Name', 'Path', 'Data Type', 'Logical Address', 'Comment', 'Hmi Visible']);
+    Rows[1] := Row(['Lamp', 'Default tag table', 'Bool', '%Q0.1', 'the lamp', 'True']);
+    Q := TPlcProject.Create;
+    try
+      ImportTagRows(Q, Rows, Added, Changed);
+      I := Q.FindTag('Lamp');
+      Check((Added = 1) and (I >= 0) and (Q.Tags[I].Address = '%Q0.1') and (Length(Q.TagGroups) = 0),
+        'TIA head: Lamp %Q0.1, no group for the default tag table');
+    finally
+      Q.Free;
+    end;
+  finally
+    P.Free;
+  end;
+end;
+
 procedure TestS5Scl;
 var
   P: TPlcProject;
@@ -3751,6 +3890,440 @@ end;
 
 { the PLC clock: RD_LOC_T / RD_SYS_T into a DTL, a DT, an LDT; WR_LOC_T sets it; TIME_TCK; READ_CLK / SET_CLK on
   the S7-300 (also as STL CALL); a 1500 instruction on the 300 refused }
+procedure TestCodesys;
+var
+  P: TPlcProject;
+  B, Fb: TBlock;
+  N: TNetwork;
+  G: TDataBlock;
+  Pr: TCProgram;
+  Rt: TPlcRuntime;
+  A: TAddr;
+  E: string;
+  Ok: Boolean;
+  K: Integer;
+begin
+  WriteLn('== CODESYS');
+  K := ModelIndexByName('Control Win V3');
+  Check((K >= 0) and IsCodesys(Models[K].Family), 'the CODESYS models (Control Win V3)');
+  // the addresses: %IX0.0, %MW1 = bytes 2..3, %MD2 = bytes 8..11; a name without % is no address
+  CodesysAddr := True;
+  try
+    Ok := ParseAddr('%IX0.3', A, E) and (A.Area = arI) and (A.Size = osBit) and (A.Ofs = 0) and (A.Bit = 3);
+    Check(Ok, '%IX0.3: input bit 0.3');
+    Ok := ParseAddr('%MW1', A, E) and (A.Area = arM) and (A.Size = osWord) and (A.Ofs = 2);
+    Check(Ok, '%MW1: the word of bytes 2 and 3');
+    Ok := ParseAddr('%MD2', A, E) and (A.Size = osDWord) and (A.Ofs = 8);
+    Check(Ok, '%MD2: the double word of bytes 8..11');
+    Ok := ParseAddr('%QB5', A, E) and (A.Area = arQ) and (A.Size = osByte) and (A.Ofs = 5);
+    Check(Ok, '%QB5: output byte 5');
+    Check(not ParseAddr('M1', A, E) and not ParseAddr('I0.0', A, E), 'M1, I0.0: no CODESYS addresses (names)');
+    ParseAddr('%IW3', A, E);
+    Check(FormatAddr(A, cfCodesys) = '%IW3', 'FormatAddr: %IW3 back (' + FormatAddr(A, cfCodesys) + ')');
+    ParseAddr('%QX1.7', A, E);
+    Check(FormatAddr(A, cfCodesys) = '%QX1.7', 'FormatAddr: %QX1.7 back');
+  finally
+    CodesysAddr := False;
+  end;
+  // a program: PLC_PRG in ST, the variables in the GVL, the I/O as tags with their % address
+  P := TPlcProject.Create;
+  P.NewEmpty(K);
+  B := P.Block(0);
+  Check((B.Name = 'PLC_PRG') and (P.FindDBByName('GVL') <> nil) and (P.BlockKindText(B) = 'PROGRAM'),
+    'a new CODESYS project: PROGRAM PLC_PRG and the GVL');
+  G := P.FindDBByName('GVL');
+  G.AddVar('xMotor', 'BOOL', 'FALSE', '');
+  G.AddVar('tonDelay', 'TON', '', '');
+  G.AddVar('ctuParts', 'CTU', '', '');
+  G.AddVar('iCycles', 'INT', '0', '');
+  G.AddVar('iParts', 'INT', '0', '');
+  P.AddTag('Start_PB', 'BOOL', '%IX0.0', '');
+  P.AddTag('Sensor', 'BOOL', '%IX0.1', '');
+  P.AddTag('Motor', 'BOOL', '%QX0.0', '');
+  P.AddTag('Level', 'INT', '%MW1', '');
+  N := B.Net(0);
+  N.Stl.Text := 'tonDelay(IN := Start_PB, PT := T#50MS);' + LineEnding +
+    'xMotor := tonDelay.Q;' + LineEnding + 'Motor := xMotor;' + LineEnding +
+    'ctuParts(CU := Sensor, PV := 3);' + LineEnding + 'iParts := ctuParts.CV;' + LineEnding +
+    'IF iCycles < 30000 THEN iCycles := iCycles + 1; END_IF;' + LineEnding +
+    'Level := 1234;' + LineEnding + 'GVL.iCycles := GVL.iCycles;' + LineEnding +
+    'nRuns := nRuns + 1;' + LineEnding + 'nTemp := 7;' + LineEnding + 'nSum := nSum + nTemp;';
+  // the VAR of the PROGRAM keep their values (in the program DB "PLC_PRG"), a VAR_TEMP does not
+  B.Iface.AddVar('nRuns', 'DINT', '0', '');
+  B.Iface.Vars[High(B.Iface.Vars)].Section := vsStatic;
+  B.Iface.AddVar('nSum', 'DINT', '0', '');
+  B.Iface.Vars[High(B.Iface.Vars)].Section := vsStatic;
+  B.Iface.AddVar('nTemp', 'INT', '0', '');
+  B.Iface.Vars[High(B.Iface.Vars)].Section := vsTemp;
+  P.SyncObIface(B);
+  Pr := Compile(P);
+  ShowMsgs(Pr);
+  Check(Pr.ErrorCount = 0, 'CODESYS ST: names without quotes / #, GVL.Var, TON / CTU instances in the GVL');
+  Rt := TPlcRuntime.Create(K);
+  try
+    Rt.CmdDownload(Pr);
+    Rt.CmdRun;
+    Wait(30);
+    Check(Rt.Mode = rmRun, 'RUN');
+    Rt.SetSimBit(0, 0, True);
+    Wait(120);
+    CodesysAddr := True;
+    Check(Peek(Rt, P, 'Motor') <> 0, 'tonDelay: Motor (%QX0.0) on 50 ms after Start_PB (%IX0.0)');
+    Check(Peek(Rt, P, '%MW1') = 1234, Format('Level := 1234 into %%MW1 (%d)', [Peek(Rt, P, '%MW1')]));
+    Check(Peek(Rt, P, 'iCycles') > 1, Format('iCycles counts the cycles (%d)', [Peek(Rt, P, 'iCycles')]));
+    Check((Peek(Rt, P, 'PLC_PRG.nRuns') > 1) and (Peek(Rt, P, 'PLC_PRG.nSum') = 7 * Peek(Rt, P, 'PLC_PRG.nRuns')),
+      Format('the VAR of PLC_PRG keep their values: nRuns %d, nSum %d (PLC_PRG.x)', [Peek(Rt, P, 'PLC_PRG.nRuns'),
+      Peek(Rt, P, 'PLC_PRG.nSum')]));
+    Check((P.FindDBByName('PLC_PRG') <> nil) and (P.FindDBByName('PLC_PRG').ProgramOf = 1),
+      'the program DB PLC_PRG of OB1');
+    Rt.SetSimBit(0, 1, True);
+    Wait(30);
+    Rt.SetSimBit(0, 1, False);
+    Wait(30);
+    Rt.SetSimBit(0, 1, True);
+    Wait(30);
+    Check(Peek(Rt, P, 'iParts') = 2, Format('ctuParts counts the edges of Sensor (%d)', [Peek(Rt, P, 'iParts')]));
+  finally
+    CodesysAddr := False;
+    Rt.Free;
+  end;
+  P.Free;
+  // a FUNCTION_BLOCK of the project: its instances in the GVL and in the VAR of PLC_PRG
+  P := TPlcProject.Create;
+  P.NewEmpty(K);
+  Fb := P.AddBlock(bkFB, 1, 'FB_Motor');
+  Fb.Iface.AddVar('xStart', 'BOOL', 'FALSE', '');
+  Fb.Iface.Vars[High(Fb.Iface.Vars)].Section := vsInput;
+  Fb.Iface.AddVar('xRun', 'BOOL', 'FALSE', '');
+  Fb.Iface.Vars[High(Fb.Iface.Vars)].Section := vsOutput;
+  Fb.Iface.AddVar('nStarts', 'INT', '0', '');
+  Fb.Iface.Vars[High(Fb.Iface.Vars)].Section := vsStatic;
+  Fb.Iface.AddVar('xOld', 'BOOL', 'FALSE', '');
+  Fb.Iface.Vars[High(Fb.Iface.Vars)].Section := vsStatic;
+  Fb.Iface.SortSections;
+  N := Fb.AddNet(nkSCL);
+  N.Stl.Text := 'xRun := xStart;' + LineEnding + 'IF xStart AND NOT xOld THEN nStarts := nStarts + 1; END_IF;' +
+    LineEnding + 'xOld := xStart;';
+  G := P.FindDBByName('GVL');
+  G.AddVar('fbConveyor', 'FB_Motor', '', '');
+  G.AddVar('xA', 'BOOL', 'FALSE', '');
+  G.AddVar('xB', 'BOOL', 'FALSE', '');
+  B := P.Block(0);
+  B.Iface.AddVar('fbPump', 'FB_Motor', '', '');
+  B.Iface.Vars[High(B.Iface.Vars)].Section := vsStatic;
+  P.SyncObIface(B);
+  P.AddTag('Start1', 'BOOL', '%IX0.0', '');
+  P.AddTag('Start2', 'BOOL', '%IX0.1', '');
+  B.Net(0).Stl.Text := 'fbConveyor(xStart := Start1, xRun => xA);' + LineEnding +
+    'fbPump(xStart := Start2);' + LineEnding + 'xB := fbPump.xRun;';
+  Pr := Compile(P);
+  ShowMsgs(Pr);
+  Check(Pr.ErrorCount = 0, 'a FUNCTION_BLOCK: instances in the GVL and in the VAR of PLC_PRG compile');
+  Rt := TPlcRuntime.Create(K);
+  try
+    Rt.CmdDownload(Pr);
+    Rt.CmdRun;
+    Wait(30);
+    Rt.SetSimBit(0, 0, True);
+    Rt.SetSimBit(0, 1, True);
+    Wait(40);
+    CodesysAddr := True;
+    Check((Peek(Rt, P, 'xA') <> 0) and (Peek(Rt, P, 'xB') <> 0), 'both instances run: xA, xB');
+    Check((Peek(Rt, P, 'GVL.fbConveyor.nStarts') = 1) and (Peek(Rt, P, 'PLC_PRG.fbPump.nStarts') = 1),
+      Format('each instance its own statics: nStarts %d / %d', [Peek(Rt, P, 'GVL.fbConveyor.nStarts'),
+      Peek(Rt, P, 'PLC_PRG.fbPump.nStarts')]));
+  finally
+    CodesysAddr := False;
+    Rt.Free;
+  end;
+  P.Free;
+end;
+
+procedure TestPlcOpen;
+var
+  P, P2: TPlcProject;
+  I: Integer;
+  Xml, Rep: string;
+  Pr: TCProgram;
+begin
+  WriteLn('== PLCopen XML');
+  // every CODESYS example: export, import into a new CODESYS project, compile
+  for I := 0 to ExampleCount - 1 do
+  begin
+    P := TPlcProject.Create;
+    P2 := TPlcProject.Create;
+    try
+      BuildExample(I, P);
+      if not IsCodesys(P.Family) then Continue;
+      Xml := PlcOpenExport(P, Rep);
+      Check(Pos('<pou name="PLC_PRG" pouType="program">', Xml) > 0, ExampleFile(I) + ': PLCopen XML export (' + Rep + ')');
+      P2.NewEmpty(P.ModelIdx);
+      P2.Block(0).DeleteNet(0);
+      Check(PlcOpenImport(P2, Xml, Rep), ExampleFile(I) + ': import ' + Rep);
+      Pr := Compile(P2);
+      if Pr.ErrorCount > 0 then ShowMsgs(Pr);
+      Check(Pr.ErrorCount = 0, ExampleFile(I) + ': the imported project compiles');
+      Pr.Free;
+    finally
+      P.Free;
+      P2.Free;
+    end;
+  end;
+  // a Siemens project: written as CODESYS writes it
+  P := TPlcProject.Create;
+  try
+    BuildExample(0, P);
+    Xml := PlcOpenExport(P, Rep);
+    // the code without the quotes of the tags (a comment may keep them)
+    Check((Pos('address="%QX', Xml) > 0) and (Pos('&quot;Motor&quot;', Xml) = 0) and (Pos('Motor', Xml) > 0),
+      'a Siemens project exports with CODESYS addresses and no quotes in its code: ' + Rep);
+  finally
+    P.Free;
+  end;
+  Check(not PlcOpenImport(nil, '<x/>', Rep), 'not PLCopen: ' + Rep);
+end;
+
+procedure TestLogo;
+var
+  P, P2: TPlcProject;
+  B: TBlock;
+  N: TNetwork;
+  Pr: TCProgram;
+  Rt: TPlcRuntime;
+  A: TAddr;
+  E: string;
+  K, I1, I2, I3, K2: Integer;
+  Nd: TFbdNode;
+
+  function Box(const Id: string): Integer;
+  begin
+    Nd := NewFbdNode(N, Id, P, '');
+    SetLength(N.Nodes, Length(N.Nodes) + 1);
+    N.Nodes[High(N.Nodes)] := Nd;
+    Result := High(N.Nodes);
+  end;
+
+  procedure Pin(Node: Integer; const Name, Op: string);
+  var
+    J: Integer;
+  begin
+    for J := 0 to High(N.Nodes[Node].Ins) do
+      if SameText(N.Nodes[Node].Ins[J].Name, Name) then N.Nodes[Node].Ins[J].Opnd := Op;
+  end;
+
+  procedure OutPin(Node: Integer; const Name, Op: string);
+  var
+    J: Integer;
+  begin
+    for J := 0 to High(N.Nodes[Node].Outs) do
+      if SameText(N.Nodes[Node].Outs[J].Name, Name) then N.Nodes[Node].Outs[J].Opnd := Op;
+  end;
+
+begin
+  WriteLn('== LOGO!');
+  K := ModelIndexByName('LOGO! 12/24RCE');
+  Check((K >= 0) and IsLogo(Models[K].Family), 'the LOGO! models (12/24RCE)');
+  CodesysAddr := False;
+  LogoAddr := True;
+  try
+    Check(ParseAddr('I1', A, E) and (A.Area = arI) and (A.Ofs = 0) and (A.Bit = 0), 'I1 = input bit 0.0');
+    Check(ParseAddr('I10', A, E) and (A.Ofs = 1) and (A.Bit = 1), 'I10 = input bit 1.1');
+    Check(ParseAddr('Q4', A, E) and (A.Area = arQ) and (A.Bit = 3), 'Q4 = output bit 0.3');
+    Check(ParseAddr('AI2', A, E) and (A.Size = osWord) and (A.Ofs = 66), 'AI2 = input word 66');
+    Check(ParseAddr('AM3', A, E) and (A.Area = arM) and (A.Ofs = 20), 'AM3 = flag word 20');
+    Check(ParseAddr('S2.3', A, E) and (A.Ofs = 9) and (A.Bit = 2), 'S2.3: shift register 2 bit 3');
+    Check(not ParseAddr('I25', A, E), 'I25: no such input (' + E + ')');
+    ParseAddr('NQ12', A, E);
+    Check(FormatAddr(A, cfLogo) = 'NQ12', 'FormatAddr: NQ12 back (' + FormatAddr(A, cfLogo) + ')');
+    ParseAddr('AQ1', A, E);
+    Check(FormatAddr(A, cfLogo) = 'AQ1', 'FormatAddr: AQ1 back');
+  finally
+    LogoAddr := False;
+  end;
+  Check(LogoLibSource('LOGO_OnDelay') <> '', Format('the LOGO! library: %d blocks', [LogoDefCount]));
+  // every block of the library compiles
+  P := TPlcProject.Create;
+  try
+    P.NewEmpty(K);
+    N := P.Block(0).Net(0);
+    for I1 := 0 to LogoDefCount - 1 do
+    begin
+      I2 := Box(LogoDef(I1).Id);
+      for I3 := 0 to High(N.Nodes[I2].Ins) do
+        if N.Nodes[I2].Ins[I3].Opnd = '' then
+        begin
+          if (Pos(':B', LogoDef(I1).Ins) > 0) and (FbdBoxDefOf(LogoDef(I1).Id).Ins[I3].Ty = 'B') then
+            N.Nodes[I2].Ins[I3].Opnd := 'I' + IntToStr(1 + I3 mod 8)
+          else if FbdBoxDefOf(LogoDef(I1).Id).Ins[I3].Ty = 'I' then N.Nodes[I2].Ins[I3].Opnd := 'AI1';
+        end;
+    end;
+    Pr := Compile(P);
+    if Pr.ErrorCount > 0 then ShowMsgs(Pr);
+    Check(Pr.ErrorCount = 0, Format('all %d LOGO! blocks in one program compile (B001 .. %s)', [LogoDefCount,
+      N.Nodes[High(N.Nodes)].Inst]));
+    Pr.Free;
+  finally
+    P.Free;
+  end;
+  // a program: B001 on-delay I1 -> Q1, B002 up/down counter I2 (on at 3) -> Q2, NAND I3 I4 -> Q3, M8 -> AM1
+  P := TPlcProject.Create;
+  P.NewEmpty(K);
+  B := P.Block(0);
+  N := B.Net(0);
+  I1 := Box('lg_ondelay');
+  Pin(I1, 'Trg', 'I1');
+  Pin(I1, 'T', 'T#50MS');
+  OutPin(I1, 'Q', 'Q1');
+  I2 := Box('lg_updown');
+  Pin(I2, 'Cnt', 'I2');
+  Pin(I2, 'On', '3');
+  OutPin(I2, 'Q', 'Q2');
+  I3 := Box('nand');
+  Pin(I3, 'IN1', 'I3');
+  Pin(I3, 'IN2', 'I4');
+  OutPin(I3, 'Q', 'Q3');
+  Box('set');
+  N.Nodes[High(N.Nodes)].Inst := 'M1';
+  N.Nodes[High(N.Nodes)].Ins[0].Opnd := 'M8';
+  // B003 latching relay I5 / I6 -> M2, B004 pulse relay I7 -> M3, B005 pulse generator 40 ms / 40 ms -> M4,
+  // counted by B006 (up/down counter)
+  K2 := Box('lg_latch');
+  Pin(K2, 'S', 'I5');
+  Pin(K2, 'R', 'I6');
+  OutPin(K2, 'Q', 'M2');
+  K2 := Box('lg_pulserelay');
+  Pin(K2, 'Trg', 'I7');
+  OutPin(K2, 'Q', 'M3');
+  K2 := Box('lg_pulsegen');
+  Pin(K2, 'En', 'hi');
+  Pin(K2, 'TH', 'T#40MS');
+  Pin(K2, 'TL', 'T#40MS');
+  OutPin(K2, 'Q', 'M4');
+  K2 := Box('lg_updown');
+  Pin(K2, 'Cnt', 'M4');
+  Pin(K2, 'On', '1000');
+  Box('move');
+  N.Nodes[High(N.Nodes)].Ins[1].Opnd := 'AI1';
+  N.Nodes[High(N.Nodes)].Outs[0].Opnd := 'AM1';
+  Check((N.Nodes[I1].Inst = 'B001') and (N.Nodes[I2].Inst = 'B002'), 'the block numbers: B001, B002');
+  Pr := Compile(P);
+  if Pr.ErrorCount > 0 then ShowMsgs(Pr);
+  Check(Pr.ErrorCount = 0, 'a LOGO! program in FBD compiles: ' + IntToStr(Pr.ErrorCount) + ' errors');
+  Check((P.FindDBByName(LogoInstDB) <> nil) and (P.FindDBByName(LogoInstDB).FindVar('B002') >= 0),
+    'the instances in LOGO_B: B001, B002');
+  Rt := TPlcRuntime.Create(K);
+  try
+    Rt.CmdDownload(Pr);
+    Rt.CmdRun;
+    Wait(40);
+    LogoAddr := True;
+    Check(Peek(Rt, P, 'Q3') <> 0, 'NAND of two open inputs: Q3 = 1');
+    Check(Peek(Rt, P, 'M1') = 1, 'M8 (the startup flag) is 1 in the first cycle: M1 kept it');
+    Rt.SetSimBit(0, 0, True);
+    Rt.SetSimBit(0, 2, True);
+    Rt.SetSimBit(0, 3, True);
+    Wait(100);
+    Check((Peek(Rt, P, 'Q1') <> 0) and (Peek(Rt, P, 'Q3') = 0), 'B001 on-delay: Q1 50 ms after I1; NAND: Q3 = 0');
+    for I3 := 1 to 3 do
+    begin
+      Rt.SetSimBit(0, 1, True);
+      Wait(20);
+      Rt.SetSimBit(0, 1, False);
+      Wait(20);
+    end;
+    Check((Peek(Rt, P, 'Q2') <> 0) and (Peek(Rt, P, 'B002.Cv') = 3), Format('B002 counter: 3 pulses, Q2 (Cv %d)',
+      [Peek(Rt, P, 'B002.Cv')]));
+    Rt.SetSimBit(0, 4, True);
+    Wait(20);
+    Rt.SetSimBit(0, 4, False);
+    Wait(20);
+    Check(Peek(Rt, P, 'M2') <> 0, 'B003 latching relay: set by a pulse at I5');
+    Rt.SetSimBit(0, 5, True);
+    Wait(20);
+    Check(Peek(Rt, P, 'M2') = 0, 'B003: reset by I6');
+    Rt.SetSimBit(0, 6, True);
+    Wait(20);
+    Rt.SetSimBit(0, 6, False);
+    Wait(20);
+    I1 := Peek(Rt, P, 'M3');
+    Rt.SetSimBit(0, 6, True);
+    Wait(20);
+    Rt.SetSimBit(0, 6, False);
+    Wait(20);
+    Check((I1 <> 0) and (Peek(Rt, P, 'M3') = 0), 'B004 pulse relay: on with the first pulse, off with the second');
+    I1 := Peek(Rt, P, 'B006.Cv');
+    Wait(400);
+    I2 := Peek(Rt, P, 'B006.Cv') - I1;
+    Check((I2 >= 3) and (I2 <= 7), Format('B005 pulse generator 40 / 40 ms: %d pulses in 400 ms', [I2]));
+    Rt.SetSimWord(Models[K].AIWord, 13824);
+    Wait(30);
+    Check(Abs(Integer(SmallInt(Peek(Rt, P, 'AM1'))) - 500) <= 1, Format('AI1 is 0 .. 1000: half of 27648 = %d',
+      [SmallInt(Peek(Rt, P, 'AM1'))]));
+  finally
+    LogoAddr := False;
+    Rt.Free;
+  end;
+  P.Free;
+  // Rem: B001 retentive, B002 not; the astronomical clock B003; the export of the block list
+  P := TPlcProject.Create;
+  P.NewEmpty(K);
+  N := P.Block(0).Net(0);
+  I1 := Box('lg_updown');
+  Pin(I1, 'Cnt', 'I1');
+  N.Nodes[I1].Rem := True;
+  I2 := Box('lg_updown');
+  Pin(I2, 'Cnt', 'I1');
+  I3 := Box('lg_astro');
+  OutPin(I3, 'Q', 'Q1');
+  Pr := Compile(P);
+  if Pr.ErrorCount > 0 then ShowMsgs(Pr);
+  Check(Pr.ErrorCount = 0, 'Rem and the astronomical clock compile');
+  Rt := TPlcRuntime.Create(K);
+  try
+    Rt.CmdDownload(Pr);
+    Rt.CmdRun;
+    Wait(30);
+    for K2 := 1 to 2 do
+    begin
+      Rt.SetSimBit(0, 0, True);
+      Wait(20);
+      Rt.SetSimBit(0, 0, False);
+      Wait(20);
+    end;
+    LogoAddr := True;
+    Check((Peek(Rt, P, 'B001.Cv') = 2) and (Peek(Rt, P, 'B002.Cv') = 2), 'both counters: 2');
+    Rt.CmdStop;
+    Wait(20);
+    Rt.CmdRun;
+    Wait(40);
+    Check((Peek(Rt, P, 'B001.Cv') = 2) and (Peek(Rt, P, 'B002.Cv') = 0),
+      Format('STOP -> RUN: B001 with Rem keeps 2, B002 without starts at 0 (%d / %d)', [Peek(Rt, P, 'B001.Cv'),
+      Peek(Rt, P, 'B002.Cv')]));
+    I1 := SmallInt(Peek(Rt, P, 'B003.Sunrise'));
+    I2 := SmallInt(Peek(Rt, P, 'B003.Sunset'));
+    Check((I1 >= 540) and (I1 <= 700) and (I2 >= 1740) and (I2 <= 1900),
+      Format('the astronomical clock (Bangkok): sunrise %d, sunset %d (hhmm)', [I1, I2]));
+  finally
+    LogoAddr := False;
+    Rt.Free;
+  end;
+  // Rem is kept in the project file
+  P2 := TPlcProject.Create;
+  try
+    P2.LoadFromJsonText(P.ToJsonText);
+    Check(P2.Block(0).Net(0).Nodes[0].Rem and not P2.Block(0).Net(0).Nodes[1].Rem, 'Rem saved and loaded');
+  finally
+    P2.Free;
+  end;
+  E := LogoExport(P, False);
+  Check((Pos('B001  Up/down counter  Rem', E) > 0) and (Pos('Cnt      = I1', E) > 0) and (Pos('B003  Astronomical clock', E) > 0),
+    'the block list as text: B001 (Rem), its inputs, B003');
+  E := LogoExport(P, True);
+  Check((Pos('Network;Block;Function;Rem;Pin;Direction;Operand', E) = 1) and (Pos('"B003";"Astronomical clock";;Q;out;"Q1"', E) > 0),
+    'the block list as CSV');
+  P.Free;
+end;
+
 procedure TestSysByte;
 var
   P: TPlcProject;
@@ -4202,7 +4775,11 @@ end;
 begin
   TestClock;
   TestSysByte;
+  TestCodesys;
+  TestPlcOpen;
+  TestLogo;
   TestS5Scl;
+  TestTables;
   TestFbd;
   TestXref;
   TestArrayStart;
