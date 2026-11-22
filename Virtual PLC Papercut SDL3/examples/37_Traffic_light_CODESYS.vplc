@@ -1,0 +1,282 @@
+{
+  "format" : "VirtualPLC",
+  "version" : 1,
+  "name" : "Traffic light (CODESYS)",
+  "author" : "Virtual PLC examples",
+  "comment" : "CODESYS ST: a CASE state machine with one TON in the VAR of PLC_PRG: red 4 s, red + yellow 1 s, green 4 s, yellow 1 s. %IX0.0 switches the light on; off: yellow flashes.",
+  "cpu" : "WAGO PFC200",
+  "family" : "CODESYS",
+  "cyclicMs" : 100,
+  "clockByte" : -1,
+  "clockAddr" : 0,
+  "sysByte" : -1,
+  "sysAddr" : 1,
+  "blocks" : [
+    {
+      "kind" : "OB",
+      "number" : 1,
+      "name" : "PLC_PRG",
+      "comment" : "PROGRAM PLC_PRG, called by the MainTask",
+      "interface" : [
+        {
+          "section" : "Static",
+          "name" : "nState",
+          "type" : "INT",
+          "start" : "0",
+          "comment" : "0 red, 1 red + yellow, 2 green, 3 yellow"
+        },
+        {
+          "section" : "Static",
+          "name" : "tonStep",
+          "type" : "TON",
+          "start" : "",
+          "comment" : "the time of a state"
+        },
+        {
+          "section" : "Static",
+          "name" : "tonBlink",
+          "type" : "TON",
+          "start" : "",
+          "comment" : "the flashing yellow"
+        },
+        {
+          "section" : "Static",
+          "name" : "xBlink",
+          "type" : "BOOL",
+          "start" : "FALSE",
+          "comment" : ""
+        }
+      ],
+      "networks" : [
+        {
+          "title" : "The states",
+          "comment" : "CASE: each state has its time; the TON restarts at every change (IN false for a cycle).",
+          "lang" : "SCL",
+          "scl" : [
+            "IF NOT On_Switch THEN",
+            "    nState := 0;",
+            "    tonBlink(IN := NOT tonBlink.Q, PT := T#500MS);",
+            "    IF tonBlink.Q THEN xBlink := NOT xBlink; END_IF;",
+            "    Red := FALSE; Green := FALSE; Yellow := xBlink;",
+            "    RETURN;",
+            "END_IF;",
+            "CASE nState OF",
+            "    0: tonStep(IN := TRUE, PT := T#4S);",
+            "    1: tonStep(IN := TRUE, PT := T#1S);",
+            "    2: tonStep(IN := TRUE, PT := T#4S);",
+            "    3: tonStep(IN := TRUE, PT := T#1S);",
+            "END_CASE;",
+            "IF tonStep.Q THEN",
+            "    nState := (nState + 1) MOD 4;",
+            "    tonStep(IN := FALSE, PT := T#1S);",
+            "END_IF;",
+            "Red := (nState = 0) OR (nState = 1);",
+            "Yellow := (nState = 1) OR (nState = 3);",
+            "Green := nState = 2;"
+          ]
+        }
+      ]
+    }
+  ],
+  "dbs" : [
+    {
+      "number" : 1,
+      "name" : "GVL",
+      "comment" : "the global variable list",
+      "optimized" : true,
+      "vars" : [
+      ]
+    }
+  ],
+  "tags" : [
+    {
+      "name" : "On_Switch",
+      "type" : "BOOL",
+      "address" : "%IX0.0",
+      "comment" : "the traffic light on"
+    },
+    {
+      "name" : "Red",
+      "type" : "BOOL",
+      "address" : "%QX0.0",
+      "comment" : ""
+    },
+    {
+      "name" : "Yellow",
+      "type" : "BOOL",
+      "address" : "%QX0.1",
+      "comment" : ""
+    },
+    {
+      "name" : "Green",
+      "type" : "BOOL",
+      "address" : "%QX0.2",
+      "comment" : ""
+    }
+  ],
+  "watch" : [
+    {
+      "address" : "PLC_PRG.nState",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "PLC_PRG.tonStep.ET",
+      "format" : "TIME",
+      "modify" : ""
+    }
+  ],
+  "miniWatch" : [
+    {
+      "address" : "PLC_PRG.nState",
+      "format" : "DEC"
+    }
+  ],
+  "miniWatchShown" : false,
+  "diTypes" : [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "aiChannels" : [
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    }
+  ],
+  "comm" : {
+    "s7" : false,
+    "s7Port" : 102,
+    "modbus" : true,
+    "modbusPort" : 502,
+    "modbusUnit" : 1,
+    "holding" : "M",
+    "putGet" : true,
+    "allInterfaces" : false,
+    "ip" : "127.0.0.1",
+    "mask" : "255.255.255.0",
+    "ipc" : false,
+    "mcpWrite" : false
+  }
+}

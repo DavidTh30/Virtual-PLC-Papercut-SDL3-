@@ -1,0 +1,321 @@
+{
+  "format" : "VirtualPLC",
+  "version" : 1,
+  "name" : "Motor start / stop (CODESYS)",
+  "author" : "Virtual PLC examples",
+  "comment" : "CODESYS ST: the I/O variables are on the I/O map (Start_PB AT %IX0.0 ..), the program variables in the VAR of PLC_PRG, the counters in the GVL; names without quotes or #. %IX0.0 starts, %IX0.1 (a stop button that opens) stops, %IX0.2 is the overload. A TON gives a 2 s start warning on the horn first.",
+  "cpu" : "Control Win V3",
+  "family" : "CODESYS",
+  "cyclicMs" : 100,
+  "clockByte" : -1,
+  "clockAddr" : 0,
+  "sysByte" : -1,
+  "sysAddr" : 1,
+  "blocks" : [
+    {
+      "kind" : "OB",
+      "number" : 1,
+      "name" : "PLC_PRG",
+      "comment" : "PROGRAM PLC_PRG, called by the MainTask",
+      "interface" : [
+        {
+          "section" : "Static",
+          "name" : "xRequest",
+          "type" : "BOOL",
+          "start" : "FALSE",
+          "comment" : "start asked: the warning runs"
+        },
+        {
+          "section" : "Static",
+          "name" : "tonWarn",
+          "type" : "TON",
+          "start" : "",
+          "comment" : "the start warning"
+        },
+        {
+          "section" : "Static",
+          "name" : "rtStart",
+          "type" : "R_TRIG",
+          "start" : "",
+          "comment" : "the rising edge of the motor"
+        },
+        {
+          "section" : "Static",
+          "name" : "tLast",
+          "type" : "TIME",
+          "start" : "T#0S",
+          "comment" : "the cycle time sum"
+        }
+      ],
+      "networks" : [
+        {
+          "title" : "Start warning, self holding",
+          "comment" : "Start asks for the motor; after 2 s of horn it runs and holds itself.",
+          "lang" : "SCL",
+          "scl" : [
+            "// the request holds itself until stop or overload",
+            "xRequest := (Start_PB OR xRequest) AND Stop_PB AND NOT Overload;",
+            "tonWarn(IN := xRequest AND NOT Motor, PT := T#2S);",
+            "Horn := xRequest AND NOT Motor;",
+            "Motor := (tonWarn.Q OR Motor) AND xRequest;",
+            "Run_Lamp := Motor;"
+          ]
+        },
+        {
+          "title" : "Starts and run time",
+          "comment" : "R_TRIG counts the starts (retentive in the GVL); the run time adds the cycles.",
+          "lang" : "SCL",
+          "scl" : [
+            "rtStart(CLK := Motor);",
+            "IF rtStart.Q THEN",
+            "    nStarts := nStarts + 1;",
+            "END_IF;",
+            "IF Motor THEN",
+            "    tRunTime := tRunTime + T#1MS;   // about one cycle (min 1 ms pacing)",
+            "END_IF;"
+          ]
+        }
+      ]
+    }
+  ],
+  "dbs" : [
+    {
+      "number" : 1,
+      "name" : "GVL",
+      "comment" : "the global variable list",
+      "optimized" : true,
+      "vars" : [
+        {
+          "name" : "nStarts",
+          "type" : "DINT",
+          "start" : "0",
+          "comment" : "how often the motor started",
+          "retain" : true
+        },
+        {
+          "name" : "tRunTime",
+          "type" : "TIME",
+          "start" : "T#0S",
+          "comment" : "the time it ran"
+        }
+      ]
+    }
+  ],
+  "tags" : [
+    {
+      "name" : "Start_PB",
+      "type" : "BOOL",
+      "address" : "%IX0.0",
+      "comment" : "start button (NO)"
+    },
+    {
+      "name" : "Stop_PB",
+      "type" : "BOOL",
+      "address" : "%IX0.1",
+      "comment" : "stop button (NC)"
+    },
+    {
+      "name" : "Overload",
+      "type" : "BOOL",
+      "address" : "%IX0.2",
+      "comment" : "overload relay"
+    },
+    {
+      "name" : "Motor",
+      "type" : "BOOL",
+      "address" : "%QX0.0",
+      "comment" : "motor contactor"
+    },
+    {
+      "name" : "Horn",
+      "type" : "BOOL",
+      "address" : "%QX0.1",
+      "comment" : "start warning"
+    },
+    {
+      "name" : "Run_Lamp",
+      "type" : "BOOL",
+      "address" : "%QX0.2",
+      "comment" : "lamp: the motor runs"
+    }
+  ],
+  "watch" : [
+    {
+      "address" : "Motor",
+      "format" : "BOOL",
+      "modify" : ""
+    },
+    {
+      "address" : "PLC_PRG.tonWarn.ET",
+      "format" : "TIME",
+      "modify" : ""
+    },
+    {
+      "address" : "nStarts",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "tRunTime",
+      "format" : "TIME",
+      "modify" : ""
+    }
+  ],
+  "miniWatch" : [
+    {
+      "address" : "Motor",
+      "format" : "BOOL"
+    },
+    {
+      "address" : "nStarts",
+      "format" : "DEC"
+    }
+  ],
+  "miniWatchShown" : false,
+  "diTypes" : [
+    1,
+    2,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "aiChannels" : [
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    }
+  ],
+  "comm" : {
+    "s7" : false,
+    "s7Port" : 102,
+    "modbus" : true,
+    "modbusPort" : 502,
+    "modbusUnit" : 1,
+    "holding" : "M",
+    "putGet" : true,
+    "allInterfaces" : false,
+    "ip" : "127.0.0.1",
+    "mask" : "255.255.255.0",
+    "ipc" : false,
+    "mcpWrite" : false
+  }
+}

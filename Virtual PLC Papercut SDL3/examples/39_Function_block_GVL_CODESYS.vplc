@@ -1,0 +1,356 @@
+{
+  "format" : "VirtualPLC",
+  "version" : 1,
+  "name" : "Function block and GVL (CODESYS)",
+  "author" : "Virtual PLC examples",
+  "comment" : "CODESYS: FUNCTION_BLOCK FB_Conveyor (VAR_INPUT, VAR_OUTPUT, VAR with a TON) and two instances in the GVL, called from PLC_PRG: fbBelt1(xStart := .., xStop := ..). Each instance keeps its own run time and its own count of starts. %IX0.0 / %IX0.1 start / stop belt 1, %IX0.2 / %IX0.3 belt 2.",
+  "cpu" : "ABB AC500 PM5650",
+  "family" : "CODESYS",
+  "cyclicMs" : 100,
+  "clockByte" : -1,
+  "clockAddr" : 0,
+  "sysByte" : -1,
+  "sysAddr" : 1,
+  "blocks" : [
+    {
+      "kind" : "OB",
+      "number" : 1,
+      "name" : "PLC_PRG",
+      "comment" : "PROGRAM PLC_PRG, called by the MainTask",
+      "networks" : [
+        {
+          "title" : "Two belts, one FB",
+          "comment" : "Each call works on the data of its own instance.",
+          "lang" : "SCL",
+          "scl" : [
+            "fbBelt1(xStart := Start1, xStop := Stop1, xRun => Belt1, iSpeed => Speed1);",
+            "fbBelt2(xStart := Start2, xStop := Stop2, xRun => Belt2);"
+          ]
+        }
+      ]
+    },
+    {
+      "kind" : "FB",
+      "number" : 1,
+      "name" : "FB_Conveyor",
+      "comment" : "a conveyor belt: start / stop with self holding, soft start, run time, starts",
+      "interface" : [
+        {
+          "section" : "Input",
+          "name" : "xStart",
+          "type" : "BOOL",
+          "start" : "FALSE",
+          "comment" : "start (an edge is enough)"
+        },
+        {
+          "section" : "Input",
+          "name" : "xStop",
+          "type" : "BOOL",
+          "start" : "FALSE",
+          "comment" : "stop"
+        },
+        {
+          "section" : "Output",
+          "name" : "xRun",
+          "type" : "BOOL",
+          "start" : "FALSE",
+          "comment" : "the motor"
+        },
+        {
+          "section" : "Output",
+          "name" : "iSpeed",
+          "type" : "INT",
+          "start" : "0",
+          "comment" : "the speed set point, a ramp in 2 s"
+        },
+        {
+          "section" : "Static",
+          "name" : "nStarts",
+          "type" : "INT",
+          "start" : "0",
+          "comment" : "how often it started"
+        },
+        {
+          "section" : "Static",
+          "name" : "tonRamp",
+          "type" : "TON",
+          "start" : "",
+          "comment" : "the soft start"
+        },
+        {
+          "section" : "Static",
+          "name" : "tRun",
+          "type" : "TIME",
+          "start" : "T#0S",
+          "comment" : "the run time"
+        }
+      ],
+      "networks" : [
+        {
+          "title" : "The belt",
+          "comment" : "Self holding, a ramp of the speed, the starts and the run time of this instance.",
+          "lang" : "SCL",
+          "scl" : [
+            "IF xStart AND NOT xRun AND NOT xStop THEN",
+            "    nStarts := nStarts + 1;",
+            "END_IF;",
+            "xRun := (xStart OR xRun) AND NOT xStop;",
+            "tonRamp(IN := xRun, PT := T#2S);",
+            "iSpeed := DINT_TO_INT(TIME_TO_DINT(tonRamp.ET) * 27648 / 2000);",
+            "IF xRun THEN tRun := tRun + T#1MS; END_IF;"
+          ]
+        }
+      ]
+    }
+  ],
+  "dbs" : [
+    {
+      "number" : 1,
+      "name" : "GVL",
+      "comment" : "the global variable list",
+      "optimized" : true,
+      "vars" : [
+        {
+          "name" : "fbBelt1",
+          "type" : "FB_Conveyor",
+          "start" : "",
+          "comment" : "belt 1"
+        },
+        {
+          "name" : "fbBelt2",
+          "type" : "FB_Conveyor",
+          "start" : "",
+          "comment" : "belt 2"
+        }
+      ]
+    }
+  ],
+  "tags" : [
+    {
+      "name" : "Start1",
+      "type" : "BOOL",
+      "address" : "%IX0.0",
+      "comment" : "belt 1 start"
+    },
+    {
+      "name" : "Stop1",
+      "type" : "BOOL",
+      "address" : "%IX0.1",
+      "comment" : "belt 1 stop"
+    },
+    {
+      "name" : "Start2",
+      "type" : "BOOL",
+      "address" : "%IX0.2",
+      "comment" : "belt 2 start"
+    },
+    {
+      "name" : "Stop2",
+      "type" : "BOOL",
+      "address" : "%IX0.3",
+      "comment" : "belt 2 stop"
+    },
+    {
+      "name" : "Belt1",
+      "type" : "BOOL",
+      "address" : "%QX0.0",
+      "comment" : "belt 1 motor"
+    },
+    {
+      "name" : "Belt2",
+      "type" : "BOOL",
+      "address" : "%QX0.1",
+      "comment" : "belt 2 motor"
+    },
+    {
+      "name" : "Speed1",
+      "type" : "INT",
+      "address" : "%QW1",
+      "comment" : "belt 1 speed 0..27648"
+    }
+  ],
+  "watch" : [
+    {
+      "address" : "fbBelt1.nStarts",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "fbBelt1.iSpeed",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "fbBelt1.tRun",
+      "format" : "TIME",
+      "modify" : ""
+    },
+    {
+      "address" : "fbBelt2.nStarts",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "fbBelt2.tRun",
+      "format" : "TIME",
+      "modify" : ""
+    }
+  ],
+  "miniWatch" : [
+    {
+      "address" : "Belt1",
+      "format" : "BOOL"
+    },
+    {
+      "address" : "fbBelt1.iSpeed",
+      "format" : "DEC"
+    }
+  ],
+  "miniWatchShown" : false,
+  "diTypes" : [
+    1,
+    1,
+    1,
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "aiChannels" : [
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    }
+  ],
+  "comm" : {
+    "s7" : false,
+    "s7Port" : 102,
+    "modbus" : true,
+    "modbusPort" : 502,
+    "modbusUnit" : 1,
+    "holding" : "M",
+    "putGet" : true,
+    "allInterfaces" : false,
+    "ip" : "127.0.0.1",
+    "mask" : "255.255.255.0",
+    "ipc" : false,
+    "mcpWrite" : false
+  }
+}

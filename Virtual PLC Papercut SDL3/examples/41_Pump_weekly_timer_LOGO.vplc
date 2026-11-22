@@ -1,0 +1,403 @@
+{
+  "format" : "VirtualPLC",
+  "version" : 1,
+  "name" : "Pump with a weekly timer (LOGO!)",
+  "author" : "Virtual PLC examples",
+  "comment" : "LOGO! FBD: B001 weekly timer runs the pump Q1 Monday to Friday 08:00 .. 17:00 (the PLC clock of the CPU screen), I1 runs it by hand. B002 on-delay: the pump starts 2 s after the request. B003 operating hours counter counts its hours; after 100 h Q2 (service lamp) comes on and B004 shows \"Service pump\" on the display; I2 acknowledges (resets the interval). B005 softkey: switch the pump off on the display.",
+  "cpu" : "LOGO! 24CE",
+  "family" : "LOGO!",
+  "cyclicMs" : 100,
+  "clockByte" : -1,
+  "clockAddr" : 0,
+  "sysByte" : -1,
+  "sysAddr" : 1,
+  "blocks" : [
+    {
+      "kind" : "OB",
+      "number" : 1,
+      "name" : "LOGO! program",
+      "comment" : "the circuit program of the LOGO!",
+      "interface" : [
+      ],
+      "networks" : [
+        {
+          "title" : "Pump request",
+          "comment" : "B001 weekly timer OR the hand switch, AND NOT the softkey B005 (off)",
+          "lang" : "FBD",
+          "nodes" : [
+            {
+              "id" : 1,
+              "box" : "lg_weekly",
+              "inst" : "B001",
+              "type" : "Bool",
+              "in" : [
+                {
+                  "pin" : "Days",
+                  "op" : "16#1F"
+                },
+                {
+                  "pin" : "OnTime",
+                  "op" : "800"
+                },
+                {
+                  "pin" : "OffTime",
+                  "op" : "1700"
+                }
+              ],
+              "out" : [
+                {
+                  "pin" : "Q"
+                }
+              ]
+            },
+            {
+              "id" : 2,
+              "box" : "or",
+              "type" : "Bool",
+              "in" : [
+                {
+                  "pin" : "IN1",
+                  "from" : "1.Q"
+                },
+                {
+                  "pin" : "IN2",
+                  "op" : "I1"
+                }
+              ],
+              "out" : [
+                {
+                  "pin" : "Q"
+                }
+              ]
+            },
+            {
+              "id" : 3,
+              "box" : "lg_softkey",
+              "inst" : "B005",
+              "type" : "Bool",
+              "in" : [
+                {
+                  "pin" : "En",
+                  "op" : "hi"
+                },
+                {
+                  "pin" : "Switch",
+                  "op" : "hi"
+                }
+              ],
+              "out" : [
+                {
+                  "pin" : "Q"
+                }
+              ]
+            },
+            {
+              "id" : 4,
+              "box" : "and",
+              "type" : "Bool",
+              "in" : [
+                {
+                  "pin" : "IN1",
+                  "from" : "2.Q"
+                },
+                {
+                  "pin" : "IN2",
+                  "from" : "3.Q",
+                  "neg" : true
+                }
+              ],
+              "out" : [
+                {
+                  "pin" : "Q"
+                }
+              ]
+            },
+            {
+              "id" : 5,
+              "box" : "lg_ondelay",
+              "inst" : "B002",
+              "type" : "Bool",
+              "in" : [
+                {
+                  "pin" : "Trg",
+                  "from" : "4.Q"
+                },
+                {
+                  "pin" : "T",
+                  "op" : "T#2S"
+                }
+              ],
+              "out" : [
+                {
+                  "pin" : "Q",
+                  "op" : "Q1"
+                },
+                {
+                  "pin" : "Ta"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "title" : "Service",
+          "comment" : "B003 operating hours counter: 100 h of running; B004 message text",
+          "lang" : "FBD",
+          "nodes" : [
+            {
+              "id" : 1,
+              "box" : "lg_hours",
+              "inst" : "B003",
+              "type" : "Bool",
+              "in" : [
+                {
+                  "pin" : "R",
+                  "op" : "I2"
+                },
+                {
+                  "pin" : "En",
+                  "op" : "Q1"
+                },
+                {
+                  "pin" : "Ral"
+                },
+                {
+                  "pin" : "MI",
+                  "op" : "100"
+                }
+              ],
+              "out" : [
+                {
+                  "pin" : "Q",
+                  "op" : "Q2"
+                },
+                {
+                  "pin" : "MN"
+                },
+                {
+                  "pin" : "OT"
+                }
+              ]
+            },
+            {
+              "id" : 2,
+              "box" : "lg_message",
+              "inst" : "B004",
+              "type" : "Bool",
+              "in" : [
+                {
+                  "pin" : "En",
+                  "op" : "Q2"
+                },
+                {
+                  "pin" : "Prio",
+                  "op" : "1"
+                },
+                {
+                  "pin" : "Text",
+                  "op" : "'Service pump|I2: done'"
+                }
+              ],
+              "out" : [
+                {
+                  "pin" : "Q"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "dbs" : [
+  ],
+  "tags" : [
+    {
+      "name" : "Hand",
+      "type" : "Bool",
+      "address" : "I1",
+      "comment" : "run by hand"
+    },
+    {
+      "name" : "Service_ack",
+      "type" : "Bool",
+      "address" : "I2",
+      "comment" : "service done"
+    },
+    {
+      "name" : "Pump",
+      "type" : "Bool",
+      "address" : "Q1",
+      "comment" : ""
+    },
+    {
+      "name" : "Service_lamp",
+      "type" : "Bool",
+      "address" : "Q2",
+      "comment" : ""
+    }
+  ],
+  "watch" : [
+    {
+      "address" : "Q1",
+      "format" : "BOOL",
+      "modify" : ""
+    },
+    {
+      "address" : "B003.MN",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "B003.OT",
+      "format" : "DEC",
+      "modify" : ""
+    }
+  ],
+  "diTypes" : [
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "aiChannels" : [
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    }
+  ],
+  "comm" : {
+    "s7" : true,
+    "s7Port" : 102,
+    "modbus" : true,
+    "modbusPort" : 502,
+    "modbusUnit" : 1,
+    "holding" : "M",
+    "putGet" : true,
+    "allInterfaces" : false,
+    "ip" : "127.0.0.1",
+    "mask" : "255.255.255.0",
+    "ipc" : false,
+    "mcpWrite" : false
+  }
+}

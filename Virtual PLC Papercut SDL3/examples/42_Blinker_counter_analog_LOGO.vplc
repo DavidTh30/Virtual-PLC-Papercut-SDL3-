@@ -1,0 +1,419 @@
+{
+  "format" : "VirtualPLC",
+  "version" : 1,
+  "name" : "Blinker, counter and analog (LOGO!)",
+  "author" : "Virtual PLC examples",
+  "comment" : "LOGO! FBD: B001 asynchronous pulse generator blinks Q1 while I1 is on; B002 up/down counter counts the pulses of I2 (I3 counts down), Q2 at 5; I4 resets; B003 analog threshold trigger: Q3 when AI1 is above 600 (6 V), off below 400; B004 analog amplifier: AI1 * 2 into AM1; B005 PWM: Q4 with the duty of AI1.",
+  "cpu" : "LOGO! 24RCE + DM16",
+  "family" : "LOGO!",
+  "cyclicMs" : 100,
+  "clockByte" : -1,
+  "clockAddr" : 0,
+  "sysByte" : -1,
+  "sysAddr" : 1,
+  "blocks" : [
+    {
+      "kind" : "OB",
+      "number" : 1,
+      "name" : "LOGO! program",
+      "comment" : "the circuit program of the LOGO!",
+      "interface" : [
+      ],
+      "networks" : [
+        {
+          "title" : "Blinker",
+          "comment" : "B001: 0.5 s on, 0.5 s off while I1",
+          "lang" : "FBD",
+          "nodes" : [
+            {
+              "id" : 1,
+              "box" : "lg_pulsegen",
+              "inst" : "B001",
+              "type" : "Bool",
+              "in" : [
+                {
+                  "pin" : "En",
+                  "op" : "I1"
+                },
+                {
+                  "pin" : "Inv"
+                },
+                {
+                  "pin" : "TH",
+                  "op" : "T#500MS"
+                },
+                {
+                  "pin" : "TL",
+                  "op" : "T#500MS"
+                }
+              ],
+              "out" : [
+                {
+                  "pin" : "Q",
+                  "op" : "Q1"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "title" : "Counter",
+          "comment" : "B002 up/down counter: I2 counts, I3 sets the direction down, Q2 from 5, I4 resets",
+          "lang" : "FBD",
+          "nodes" : [
+            {
+              "id" : 1,
+              "box" : "lg_updown",
+              "inst" : "B002",
+              "type" : "Bool",
+              "in" : [
+                {
+                  "pin" : "R",
+                  "op" : "I4"
+                },
+                {
+                  "pin" : "Cnt",
+                  "op" : "I2"
+                },
+                {
+                  "pin" : "Dir",
+                  "op" : "I3"
+                },
+                {
+                  "pin" : "On",
+                  "op" : "5"
+                },
+                {
+                  "pin" : "Off",
+                  "op" : "0"
+                },
+                {
+                  "pin" : "StartVal"
+                }
+              ],
+              "out" : [
+                {
+                  "pin" : "Q",
+                  "op" : "Q2"
+                },
+                {
+                  "pin" : "Cv"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "title" : "Analog",
+          "comment" : "B003 threshold 600 / 400, B004 amplifier, B005 PWM 1 s",
+          "lang" : "FBD",
+          "nodes" : [
+            {
+              "id" : 1,
+              "box" : "lg_athresh",
+              "inst" : "B003",
+              "type" : "Bool",
+              "in" : [
+                {
+                  "pin" : "Ax",
+                  "op" : "AI1"
+                },
+                {
+                  "pin" : "Gain"
+                },
+                {
+                  "pin" : "Offset"
+                },
+                {
+                  "pin" : "On",
+                  "op" : "600"
+                },
+                {
+                  "pin" : "Off",
+                  "op" : "400"
+                }
+              ],
+              "out" : [
+                {
+                  "pin" : "Q",
+                  "op" : "Q3"
+                },
+                {
+                  "pin" : "Av"
+                }
+              ]
+            },
+            {
+              "id" : 2,
+              "box" : "lg_aamp",
+              "inst" : "B004",
+              "type" : "Bool",
+              "in" : [
+                {
+                  "pin" : "Ax",
+                  "op" : "AI1"
+                },
+                {
+                  "pin" : "Gain",
+                  "op" : "2.0"
+                },
+                {
+                  "pin" : "Offset",
+                  "op" : "0"
+                }
+              ],
+              "out" : [
+                {
+                  "pin" : "AQ",
+                  "op" : "AM1"
+                }
+              ]
+            },
+            {
+              "id" : 3,
+              "box" : "lg_pwm",
+              "inst" : "B005",
+              "type" : "Bool",
+              "in" : [
+                {
+                  "pin" : "En",
+                  "op" : "hi"
+                },
+                {
+                  "pin" : "Ax",
+                  "op" : "AI1"
+                },
+                {
+                  "pin" : "PT",
+                  "op" : "T#1S"
+                },
+                {
+                  "pin" : "Min",
+                  "op" : "0"
+                },
+                {
+                  "pin" : "Max",
+                  "op" : "1000"
+                }
+              ],
+              "out" : [
+                {
+                  "pin" : "Q",
+                  "op" : "Q4"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "dbs" : [
+  ],
+  "tags" : [
+    {
+      "name" : "Blink_on",
+      "type" : "Bool",
+      "address" : "I1",
+      "comment" : ""
+    },
+    {
+      "name" : "Count",
+      "type" : "Bool",
+      "address" : "I2",
+      "comment" : ""
+    },
+    {
+      "name" : "Down",
+      "type" : "Bool",
+      "address" : "I3",
+      "comment" : ""
+    },
+    {
+      "name" : "Reset",
+      "type" : "Bool",
+      "address" : "I4",
+      "comment" : ""
+    },
+    {
+      "name" : "Level",
+      "type" : "Int",
+      "address" : "AI1",
+      "comment" : "0 .. 1000 = 0 .. 10 V"
+    }
+  ],
+  "watch" : [
+    {
+      "address" : "B002.Cv",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "AI1",
+      "format" : "DEC",
+      "modify" : ""
+    },
+    {
+      "address" : "AM1",
+      "format" : "DEC",
+      "modify" : ""
+    }
+  ],
+  "miniWatch" : [
+    {
+      "address" : "B002.Cv",
+      "format" : "DEC"
+    },
+    {
+      "address" : "AI1",
+      "format" : "DEC"
+    }
+  ],
+  "miniWatchShown" : false,
+  "diTypes" : [
+    0,
+    1,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "aiChannels" : [
+    {
+      "mode" : "manual",
+      "value" : 13824
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    }
+  ],
+  "comm" : {
+    "s7" : true,
+    "s7Port" : 102,
+    "modbus" : true,
+    "modbusPort" : 502,
+    "modbusUnit" : 1,
+    "holding" : "M",
+    "putGet" : true,
+    "allInterfaces" : false,
+    "ip" : "127.0.0.1",
+    "mask" : "255.255.255.0",
+    "ipc" : false,
+    "mcpWrite" : false
+  }
+}

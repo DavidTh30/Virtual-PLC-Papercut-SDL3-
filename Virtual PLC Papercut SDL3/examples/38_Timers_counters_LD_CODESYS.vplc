@@ -1,0 +1,527 @@
+{
+  "format" : "VirtualPLC",
+  "version" : 1,
+  "name" : "Timers and counters in LD (CODESYS)",
+  "author" : "Virtual PLC examples",
+  "comment" : "CODESYS LD: TON, TOF, TP and CTU, CTD as boxes, their instances in the GVL (tonA : TON ..). The inputs %IX0.0 .. %IX0.4 drive them, the outputs %QX0.0 .. show Q.",
+  "cpu" : "Schneider M241",
+  "family" : "CODESYS",
+  "cyclicMs" : 100,
+  "clockByte" : -1,
+  "clockAddr" : 0,
+  "sysByte" : -1,
+  "sysAddr" : 1,
+  "blocks" : [
+    {
+      "kind" : "OB",
+      "number" : 1,
+      "name" : "PLC_PRG",
+      "comment" : "PROGRAM PLC_PRG, called by the MainTask",
+      "networks" : [
+        {
+          "title" : "TON T#3S",
+          "comment" : "on delay: Q 3 s after IN",
+          "lang" : "LAD",
+          "rows" : 1,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "no",
+              "op" : "In_TON"
+            },
+            {
+              "r" : 0,
+              "c" : 1,
+              "e" : "ton",
+              "op" : "tonA",
+              "p" : [
+                "T#3S",
+                "tEtTon"
+              ]
+            },
+            {
+              "r" : 0,
+              "c" : 2,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 3,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 4,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 5,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 6,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 7,
+              "e" : "coil",
+              "op" : "Out_TON"
+            }
+          ]
+        },
+        {
+          "title" : "TOF T#3S",
+          "comment" : "off delay: Q with IN, off 3 s after it",
+          "lang" : "LAD",
+          "rows" : 1,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "no",
+              "op" : "In_TOF"
+            },
+            {
+              "r" : 0,
+              "c" : 1,
+              "e" : "tof",
+              "op" : "tofA",
+              "p" : [
+                "T#3S",
+                "tEtTof"
+              ]
+            },
+            {
+              "r" : 0,
+              "c" : 2,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 3,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 4,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 5,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 6,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 7,
+              "e" : "coil",
+              "op" : "Out_TOF"
+            }
+          ]
+        },
+        {
+          "title" : "TP T#2S",
+          "comment" : "pulse: Q for 2 s from the rising edge",
+          "lang" : "LAD",
+          "rows" : 1,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "no",
+              "op" : "In_TP"
+            },
+            {
+              "r" : 0,
+              "c" : 1,
+              "e" : "tp",
+              "op" : "tpA",
+              "p" : [
+                "T#2S",
+                "tEtTp"
+              ]
+            },
+            {
+              "r" : 0,
+              "c" : 2,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 3,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 4,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 5,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 6,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 7,
+              "e" : "coil",
+              "op" : "Out_TP"
+            }
+          ]
+        },
+        {
+          "title" : "CTU PV 5",
+          "comment" : "up counter: Q at 5 edges; Reset_PB resets",
+          "lang" : "LAD",
+          "rows" : 1,
+          "cells" : [
+            {
+              "r" : 0,
+              "c" : 0,
+              "e" : "no",
+              "op" : "Count_PB"
+            },
+            {
+              "r" : 0,
+              "c" : 1,
+              "e" : "ctu",
+              "op" : "ctuA",
+              "p" : [
+                "5",
+                "Reset_PB",
+                "nCount"
+              ]
+            },
+            {
+              "r" : 0,
+              "c" : 2,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 3,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 4,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 5,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 6,
+              "e" : "wire"
+            },
+            {
+              "r" : 0,
+              "c" : 7,
+              "e" : "coil",
+              "op" : "Out_CTU"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "dbs" : [
+    {
+      "number" : 1,
+      "name" : "GVL",
+      "comment" : "the global variable list",
+      "optimized" : true,
+      "vars" : [
+        {
+          "name" : "tonA",
+          "type" : "TON",
+          "start" : "",
+          "comment" : "on delay"
+        },
+        {
+          "name" : "tofA",
+          "type" : "TOF",
+          "start" : "",
+          "comment" : "off delay"
+        },
+        {
+          "name" : "tpA",
+          "type" : "TP",
+          "start" : "",
+          "comment" : "pulse"
+        },
+        {
+          "name" : "ctuA",
+          "type" : "CTU",
+          "start" : "",
+          "comment" : "up counter"
+        },
+        {
+          "name" : "tEtTon",
+          "type" : "TIME",
+          "start" : "T#0S",
+          "comment" : ""
+        },
+        {
+          "name" : "tEtTof",
+          "type" : "TIME",
+          "start" : "T#0S",
+          "comment" : ""
+        },
+        {
+          "name" : "tEtTp",
+          "type" : "TIME",
+          "start" : "T#0S",
+          "comment" : ""
+        },
+        {
+          "name" : "nCount",
+          "type" : "INT",
+          "start" : "0",
+          "comment" : ""
+        }
+      ]
+    }
+  ],
+  "tags" : [
+    {
+      "name" : "In_TON",
+      "type" : "BOOL",
+      "address" : "%IX0.0",
+      "comment" : ""
+    },
+    {
+      "name" : "In_TOF",
+      "type" : "BOOL",
+      "address" : "%IX0.1",
+      "comment" : ""
+    },
+    {
+      "name" : "In_TP",
+      "type" : "BOOL",
+      "address" : "%IX0.2",
+      "comment" : ""
+    },
+    {
+      "name" : "Count_PB",
+      "type" : "BOOL",
+      "address" : "%IX0.3",
+      "comment" : "counts up"
+    },
+    {
+      "name" : "Reset_PB",
+      "type" : "BOOL",
+      "address" : "%IX0.4",
+      "comment" : "resets the counter"
+    },
+    {
+      "name" : "Out_TON",
+      "type" : "BOOL",
+      "address" : "%QX0.0",
+      "comment" : ""
+    },
+    {
+      "name" : "Out_TOF",
+      "type" : "BOOL",
+      "address" : "%QX0.1",
+      "comment" : ""
+    },
+    {
+      "name" : "Out_TP",
+      "type" : "BOOL",
+      "address" : "%QX0.2",
+      "comment" : ""
+    },
+    {
+      "name" : "Out_CTU",
+      "type" : "BOOL",
+      "address" : "%QX0.3",
+      "comment" : "five counted"
+    }
+  ],
+  "watch" : [
+    {
+      "address" : "tEtTon",
+      "format" : "TIME",
+      "modify" : ""
+    },
+    {
+      "address" : "tEtTof",
+      "format" : "TIME",
+      "modify" : ""
+    },
+    {
+      "address" : "tEtTp",
+      "format" : "TIME",
+      "modify" : ""
+    },
+    {
+      "address" : "nCount",
+      "format" : "DEC",
+      "modify" : ""
+    }
+  ],
+  "diTypes" : [
+    0,
+    0,
+    1,
+    1,
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "aiChannels" : [
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    }
+  ],
+  "comm" : {
+    "s7" : false,
+    "s7Port" : 102,
+    "modbus" : true,
+    "modbusPort" : 502,
+    "modbusUnit" : 1,
+    "holding" : "M",
+    "putGet" : true,
+    "allInterfaces" : false,
+    "ip" : "127.0.0.1",
+    "mask" : "255.255.255.0",
+    "ipc" : false,
+    "mcpWrite" : false
+  }
+}

@@ -1,0 +1,347 @@
+{
+  "format" : "VirtualPLC",
+  "version" : 1,
+  "name" : "Stairway light (LOGO!)",
+  "author" : "Virtual PLC examples",
+  "comment" : "LOGO! FBD: B001 stairway lighting switch: a push button at I1 (or I2 upstairs) switches Q1 on; 10 s after the button the light goes off, 3 s before it blinks off for 1 s as a warning. B002 pulse relay: I3 switches the cellar light Q2 on and off (Rem: it keeps its state over STOP / RUN). B003 message text: the display shows \"Stair light is on\" while Q1 is on.",
+  "cpu" : "LOGO! 12/24RCE",
+  "family" : "LOGO!",
+  "cyclicMs" : 100,
+  "clockByte" : -1,
+  "clockAddr" : 0,
+  "sysByte" : -1,
+  "sysAddr" : 1,
+  "blocks" : [
+    {
+      "kind" : "OB",
+      "number" : 1,
+      "name" : "LOGO! program",
+      "comment" : "the circuit program of the LOGO!",
+      "networks" : [
+        {
+          "title" : "Stairway light",
+          "comment" : "OR: either button; B001 stairway lighting switch: 10 s, a warning 3 s before the end",
+          "lang" : "FBD",
+          "nodes" : [
+            {
+              "id" : 1,
+              "box" : "or",
+              "type" : "Bool",
+              "in" : [
+                {
+                  "pin" : "IN1",
+                  "op" : "I1"
+                },
+                {
+                  "pin" : "IN2",
+                  "op" : "I2"
+                }
+              ],
+              "out" : [
+                {
+                  "pin" : "Q"
+                }
+              ]
+            },
+            {
+              "id" : 2,
+              "box" : "lg_stairway",
+              "inst" : "B001",
+              "type" : "Bool",
+              "in" : [
+                {
+                  "pin" : "Trg",
+                  "from" : "1.Q"
+                },
+                {
+                  "pin" : "R"
+                },
+                {
+                  "pin" : "T",
+                  "op" : "T#10S"
+                },
+                {
+                  "pin" : "TWarn",
+                  "op" : "T#3S"
+                },
+                {
+                  "pin" : "TLWarn",
+                  "op" : "T#1S"
+                }
+              ],
+              "out" : [
+                {
+                  "pin" : "Q",
+                  "op" : "Q1"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "title" : "Cellar light",
+          "comment" : "B002 pulse relay: each press of I3 switches Q2",
+          "lang" : "FBD",
+          "nodes" : [
+            {
+              "id" : 1,
+              "box" : "lg_pulserelay",
+              "inst" : "B002",
+              "type" : "Bool",
+              "rem" : true,
+              "in" : [
+                {
+                  "pin" : "Trg",
+                  "op" : "I3"
+                },
+                {
+                  "pin" : "S"
+                },
+                {
+                  "pin" : "R"
+                }
+              ],
+              "out" : [
+                {
+                  "pin" : "Q",
+                  "op" : "Q2"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "title" : "Display",
+          "comment" : "B003 message text: shown on the LOGO! display while the stair light is on",
+          "lang" : "FBD",
+          "nodes" : [
+            {
+              "id" : 1,
+              "box" : "lg_message",
+              "inst" : "B003",
+              "type" : "Bool",
+              "in" : [
+                {
+                  "pin" : "En",
+                  "op" : "Q1"
+                },
+                {
+                  "pin" : "Prio",
+                  "op" : "0"
+                },
+                {
+                  "pin" : "Text",
+                  "op" : "'Stair light|is on'"
+                }
+              ],
+              "out" : [
+                {
+                  "pin" : "Q"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "dbs" : [
+  ],
+  "tags" : [
+    {
+      "name" : "Button_down",
+      "type" : "Bool",
+      "address" : "I1",
+      "comment" : "push button downstairs"
+    },
+    {
+      "name" : "Button_up",
+      "type" : "Bool",
+      "address" : "I2",
+      "comment" : "push button upstairs"
+    },
+    {
+      "name" : "Cellar_button",
+      "type" : "Bool",
+      "address" : "I3",
+      "comment" : ""
+    },
+    {
+      "name" : "Stair_light",
+      "type" : "Bool",
+      "address" : "Q1",
+      "comment" : ""
+    },
+    {
+      "name" : "Cellar_light",
+      "type" : "Bool",
+      "address" : "Q2",
+      "comment" : ""
+    }
+  ],
+  "watch" : [
+    {
+      "address" : "Q1",
+      "format" : "BOOL",
+      "modify" : ""
+    },
+    {
+      "address" : "Q2",
+      "format" : "BOOL",
+      "modify" : ""
+    }
+  ],
+  "miniWatch" : [
+    {
+      "address" : "Q1",
+      "format" : "BOOL"
+    }
+  ],
+  "miniWatchShown" : false,
+  "diTypes" : [
+    1,
+    1,
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "aiChannels" : [
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    },
+    {
+      "mode" : "manual",
+      "value" : 0
+    }
+  ],
+  "comm" : {
+    "s7" : true,
+    "s7Port" : 102,
+    "modbus" : true,
+    "modbusPort" : 502,
+    "modbusUnit" : 1,
+    "holding" : "M",
+    "putGet" : true,
+    "allInterfaces" : false,
+    "ip" : "127.0.0.1",
+    "mask" : "255.255.255.0",
+    "ipc" : false,
+    "mcpWrite" : false
+  }
+}
